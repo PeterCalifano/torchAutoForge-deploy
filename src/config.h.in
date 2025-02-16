@@ -1,0 +1,16 @@
+/**
+ * @file config.h.in
+ * @author PeterC (petercalifano.gs@gmail.com)
+ * @brief Configuration header file for library src, with variables set by CMake
+ * @version 0.1
+ * @date 2025-01-04
+ */
+#pragma once
+
+// Library version
+#define PROJECT_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define PROJECT_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define PROJECT_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+#cmakedefine VARIABLE_DEFINED_BY_CMAKE // This is a placeholder for a variable defined by CMake. If it is not define, the #define is not included in the output file from configure_file().
+

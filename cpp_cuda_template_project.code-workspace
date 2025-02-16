@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../cpp_template_project"
+		}
+	],
+	"settings": {
+		"todo-tree.tree.scanMode": "workspace only"
+	}
+}
