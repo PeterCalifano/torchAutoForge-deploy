@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../pyTorchAutoForge"
+		},
+		{
+			"path": "../../code-samples_PeterCdev"
+		}
+	],
+	"settings": {}
+}
