@@ -8,6 +8,12 @@
 		},
 		{
 			"path": "../../code-samples_PeterCdev"
+		},
+		{
+			"path": "../MachineLearningGears_for_SpaceNav"
+		},
+		{
+			"path": "../../nav-frontend/.experimental"
 		}
 	],
 	"settings": {}
