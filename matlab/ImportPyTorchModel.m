@@ -8,11 +8,12 @@ end
 
 % Verify if the model file exists
 if ~isfile(charModelfilePath)
-    error('Specified model file has not been found. Check input path.')
+    error('Specified model file %s not found.', charModelfilePath)
 end
 
 % Import a PyTorch model into MATLAB
-objModel = importNetworkFromPyTorch(charModelfilePath, "PyTorchInputSizes", dModelInputSizes);
+objModel = importNetworkFromPyTorch(charModelfilePath, ...
+                                "PyTorchInputSizes", dModelInputSizes);
 analyzeNetwork(objModel);
 
 % Get random input sample if not provided

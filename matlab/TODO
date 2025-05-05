@@ -1,0 +1,6 @@
+# TODO for MATLAB api of torchAutoForge-deploy
+Useful links: https://it.mathworks.com/help/deeplearning/ref/dlnetwork.exportnetworktosimulink.html
+
+- [ ] Investigate and experiment with the Simulink export function. It should create a static graph from which the network can also be codegenerated.
+
+- [ ]
