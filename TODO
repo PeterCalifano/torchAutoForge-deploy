@@ -1,0 +1,11 @@
+# List of TODOs for autoforge-deploy module
+
+- [ ] Add configuration for python library module. This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead (optional).
+
+- [ ] Add module for Inference management
+
+- [ ] Add module with pre-trained/tailored models, e.g. feature matching
+
+- [ ] Configure cmake build project
+
+- [ ] Implement experimental C++ program for deployment of a network
