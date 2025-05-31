@@ -1,4 +1,4 @@
-function [objModel, objModelInSLX] = ImportONNxModel(charModelfilePath, ...
+function [objModel, charMatSavePath, objModelInSLX] = ImportONNxModel(charModelfilePath, ...
                                                         dModelInputSizes, ...
                                                         charInputShape, ...
                                                         charOutputShape, ...
@@ -46,9 +46,13 @@ if not(isempty(dOutputSample))
     disp("Error computed. Size: " + string(size(errorValue)));
 end
 
+% Fix any invalid 
+kwargs.charModelName = matlab.lang.makeValidName(kwargs.charModelName);
+
 % Save model to mat file
-tmpStruct.(kwargs.charModelName) = objModel;
-save(strcat(kwargs.charModelName, ".mat"), "-struct", "tmpStruct");
+strTmpStruct.(kwargs.charModelName) = objModel;
+charMatSavePath = strcat(kwargs.charModelName, ".mat");
+save(charMatSavePath, "-struct", "strTmpStruct");
 
 try
     if kwargs.bExportToSimulink
@@ -58,10 +62,10 @@ try
     else
         objModelInSLX = [];
     end
-catch
+catch ME
     fprintf(2, "Export to Simulink failed due to error %s." + ...
         "\nNote that the functionality is only available since MATLAB2024b. " + ...
-        "However, you can use the Predict block in SLX and load the model from the .mat this function has saved.")
+        "However, you can use the Predict block in SLX and load the model from the .mat this function has saved.", string(ME.message))
     objModelInSLX = [];
 end
 
