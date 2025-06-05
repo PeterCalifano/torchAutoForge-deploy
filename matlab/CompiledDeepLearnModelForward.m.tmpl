@@ -1,0 +1,11 @@
+function out = CompiledDeepLearnModelForward(varModelInput) %#codegen
+    persistent network_model;
+
+    % Load model
+    if isempty(network_model)
+        network_model = coder.loadDeepLearningNetwork('__path_to_model_matfile__.mat');
+    end
+
+    % Run inference
+    out = predict(network_model, varModelInput, 'MiniBatchSize', dBatchSize);
+end
