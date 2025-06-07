@@ -38,3 +38,6 @@ xcode/
 
 *.onnx
 *.pth
++*/
+*.mat
+*.txt
