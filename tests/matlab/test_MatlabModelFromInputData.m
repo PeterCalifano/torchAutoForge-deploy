@@ -14,10 +14,13 @@ fprintf('CONFIGURATION\n');
 fprintf('=%.50s\n', repmat('=', 1, 50));
 
 % File paths
-charONNxModelfilePath = "onnxModels/ambitious_calf_40_epoch_2213.onnx";
+charONNxModelfilePath = "onnxModels/adventurous-colt-164_epoch_1262.onnx";
 dModelInputSizes = [1, 12]; % Input size of the model (BC)
-tolerance = 1e-3; % Tolerance for numerical comparisons
-pythonDataPath = "testData/python_onnx_all_results.mat"; % Path to Python results
+tolerance = 1e-2; % Tolerance for numerical comparisons
+pythonDataPath = "testData/adventurous-colt-164_epoch_1262_python_onnx_all_results.mat"; % Path to Python results
+
+% Load filtered data from your .mat file processing function
+filteredDataPath = 'RTO4t1j13p0_test_data_WithBlob2_WithSunDirAngle_6111_ID0_fixed_filtered.mat';
 
 fprintf('ONNX Model Path: %s\n', charONNxModelfilePath);
 fprintf('Input Sizes: [%s]\n', num2str(dModelInputSizes));
@@ -198,9 +201,6 @@ fprintf('=%.50s\n', repmat('=', 1, 50));
 resx = 2048;
 resy = 1536;
 
-% Load filtered data from your .mat file processing function
-filteredDataPath = 'training_data_WithBlob2_WithSunDirAngle_136856_ID0_filtered.mat';
-
 if isfile(filteredDataPath)
     fprintf('Loading filtered data from: %s\n', filteredDataPath);
     
@@ -214,8 +214,8 @@ if isfile(filteredDataPath)
         fprintf('Filtered data shape: [%s]\n', num2str(size(filtered_matrix)));
         
         % Test all samples
-        % numSamplesToTest = size(filtered_matrix, 1);
-        numSamplesToTest = 1000;
+        numSamplesToTest = size(filtered_matrix, 1);
+        % numSamplesToTest = 1000;
         allPredictions = [];
         allErrors = [];
         filteredTestsPassed = true;
@@ -315,20 +315,29 @@ if isfile(filteredDataPath)
                 
                 % Display results
                 fprintf('    X Component Errors (Absolute Values):\n');
-                fprintf('      Mean: %.6f, Median: %.6f\n', meanErrorX, medianErrorX);
-                fprintf('      Min: %.6f, Max: %.6f\n', minErrorX, maxErrorX);
-                fprintf('      95th quantile: %.6f, 99th quantile: %.6f\n', quantile95ErrorX, quantile99ErrorX);
+                fprintf('      Mean: %.6f\n', meanErrorX);
+                fprintf('      Median: %.6f\n', medianErrorX);
+                fprintf('      Min: %.6f\n', minErrorX);
+                fprintf('      Max: %.6f\n', maxErrorX);
+                fprintf('      95th quantile: %.6f\n', quantile95ErrorX);
+                fprintf('      99th quantile: %.6f\n', quantile99ErrorX);
                 
                 fprintf('    Y Component Errors (Absolute Values):\n');
-                fprintf('      Mean: %.6f, Median: %.6f\n', meanErrorY, medianErrorY);
-                fprintf('      Min: %.6f, Max: %.6f\n', minErrorY, maxErrorY);
-                fprintf('      95th quantile: %.6f, 99th quantile: %.6f\n', quantile95ErrorY, quantile99ErrorY);
+                fprintf('      Mean: %.6f\n', meanErrorY);
+                fprintf('      Median: %.6f\n', medianErrorY);
+                fprintf('      Min: %.6f\n', minErrorY);
+                fprintf('      Max: %.6f\n', maxErrorY);
+                fprintf('      95th quantile: %.6f\n', quantile95ErrorY);
+                fprintf('      99th quantile: %.6f\n', quantile99ErrorY);
                 
                 fprintf('    Euclidean Distance Errors:\n');
-                fprintf('      Mean: %.6f, Median: %.6f\n', meanEuclideanError, medianEuclideanError);
-                fprintf('      Min: %.6f, Max: %.6f\n', minEuclideanError, maxEuclideanError);
-                fprintf('      95th quantile: %.6f, 99th quantile: %.6f\n', quantile95EuclideanError, quantile99EuclideanError);
-                
+                fprintf('      Mean: %.6f\n', meanEuclideanError);
+                fprintf('      Median: %.6f\n', medianEuclideanError);
+                fprintf('      Min: %.6f\n', minEuclideanError);
+                fprintf('      Max: %.6f\n', maxEuclideanError);
+                fprintf('      95th quantile: %.6f\n', quantile95EuclideanError);
+                fprintf('      99th quantile: %.6f\n', quantile99EuclideanError);
+                                
                 % Additional analysis
                 fprintf('\n    Additional Analysis:\n');
                 fprintf('      RMS Error X: %.6f\n', sqrt(mean(errorsX.^2)));
