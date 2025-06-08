@@ -11,7 +11,7 @@ fprintf('SIMULINK MODEL TESTING CONFIGURATION\n');
 fprintf('=%.50s\n', repmat('=', 1, 50));
 
 % File paths and parameters
-filteredDataPath = 'RTO4t1j13p0_test_data_WithBlob2_WithSunDirAngle_6111_ID0_fixed_filtered.mat';
+filteredDataPath = 'datasets/RTO4t1j13p0_test_data_WithBlob2_WithSunDirAngle_6111_ID0_fixed_filtered.mat';
 simulinkModelName = 'testModelInferenceInSLX_v2';
 
 % Resolution (for output scaling)
@@ -300,39 +300,6 @@ save(resultsFileName, 'simulinkResults', 'prediction', 'errors', 'euclideanError
      'groundTruth', 'simulationTime', 'numberElements', 'resx', 'resy');
 fprintf('Results saved to: %s\n', resultsFileName);
 
-% Export summary to text file
-summaryFileName = 'simulink_model_test_summary.txt';
-fid = fopen(summaryFileName, 'w');
-fprintf(fid, 'Simulink Model Test Summary\n');
-fprintf(fid, '==========================\n\n');
-fprintf(fid, 'Model: %s\n', simulinkModelName);
-fprintf(fid, 'Test Data: %s\n', filteredDataPath);
-fprintf(fid, 'Output Resolution: %dx%d\n\n', resx, resy);
-
-fprintf(fid, 'Test Results:\n');
-fprintf(fid, '  Total samples: %d\n', numberElements);
-fprintf(fid, '  Valid predictions: %d (%.1f%%)\n', validPredictions, 100*validPredictions/numberElements);
-fprintf(fid, '  Failed predictions: %d (%.1f%%)\n', numberElements-validPredictions, 100*(numberElements-validPredictions)/numberElements);
-
-if validPredictions > 0
-    fprintf(fid, '\nError Statistics:\n');
-    fprintf(fid, '  Mean Absolute Error X: %.6f\n', meanAbsErrorX);
-    fprintf(fid, '  Mean Absolute Error Y: %.6f\n', meanAbsErrorY);
-    fprintf(fid, '  Mean Euclidean Error: %.6f\n', meanEuclideanError);
-    fprintf(fid, '  Median Euclidean Error: %.6f\n', medianEuclideanError);
-    fprintf(fid, '  95th Percentile Euclidean Error: %.6f\n', quantile95EuclideanError);
-    fprintf(fid, '  99th Percentile Euclidean Error: %.6f\n', quantile99EuclideanError);
-    fprintf(fid, '  RMS Euclidean Error: %.6f\n', rmsEuclideanError);
-    
-    fprintf(fid, '\nPerformance:\n');
-    fprintf(fid, '  Total simulation time: %.2f seconds\n', simulationTime);
-    fprintf(fid, '  Average time per sample: %.4f seconds\n', simulationTime/numberElements);
-    fprintf(fid, '  Samples per second: %.1f\n', numberElements/simulationTime);
-end
-
-fclose(fid);
-fprintf('Summary saved to: %s\n', summaryFileName);
-
 %% FINAL SUMMARY
 fprintf('\n=%.50s\n', repmat('=', 1, 50));
 fprintf('FINAL SUMMARY\n');
@@ -356,6 +323,5 @@ end
 
 fprintf('\nFiles created:\n');
 fprintf('  - %s (Detailed results data)\n', resultsFileName);
-fprintf('  - %s (Text summary)\n', summaryFileName);
 
 fprintf('\n✓ Simulink model testing completed.\n');

@@ -10,8 +10,8 @@ arguments
     dModelInputSizes  (1,:) double {isvector}
     charInputShape    (1,:) char = 'BC'
     charOutputShape   (1,:) char = 'BC'
-    dInputSample      (:,:) double {ismatrix} = [] % Optional input sample
-    dOutputSample     (:,:) double {ismatrix} = [] % Optional label sample
+    dInputSample      (:,:) single {ismatrix} = [] % Optional input sample
+    dOutputSample     (:,:) single {ismatrix} = [] % Optional label sample
 end
 arguments
     kwargs.charModelName = "importedModelONNx"
@@ -29,7 +29,7 @@ objModel = importNetworkFromONNX(charModelfilePath, ...
 
 % Get random input sample if not provided
 if isempty(dInputSample)
-    dInputSample = rand(dModelInputSizes);
+    dInputSample = single(rand(dModelInputSizes));
 end
 
 % Initialize model

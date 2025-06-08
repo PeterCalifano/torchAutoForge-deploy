@@ -7,21 +7,27 @@ clc
 
 % Add path to your MATLAB functions
 addpath('../../matlab');
+addpath('../../../nav-frontend/src/algorithm/Centroiding_COB')
+
+bInferenceFunction = 1; % 0: RunModelInference, 1: RunNeuralCOB 
 
 %% CONFIGURATION
 fprintf('=%.50s\n', repmat('=', 1, 50));
 fprintf('CONFIGURATION\n');
 fprintf('=%.50s\n', repmat('=', 1, 50));
 
+% Model identifier - change this to test different models
+stateName = "adventurous-colt-164_epoch_1262";
+
 % File paths
-charONNxModelfilePath = "onnxModels/adventurous-colt-164_epoch_1262.onnx";
+charONNxModelfilePath = sprintf("onnxModels/%s.onnx", stateName);
+pythonDataPath = sprintf("testData/%s_python_onnx_all_results.mat", stateName); % Path to Python results
+filteredDataPath = 'datasets/RTO4t1j13p0_test_data_WithBlob2_WithSunDirAngle_6111_ID0_fixed_filtered.mat';
+
 dModelInputSizes = [1, 12]; % Input size of the model (BC)
 tolerance = 1e-2; % Tolerance for numerical comparisons
-pythonDataPath = "testData/adventurous-colt-164_epoch_1262_python_onnx_all_results.mat"; % Path to Python results
 
-% Load filtered data from your .mat file processing function
-filteredDataPath = 'RTO4t1j13p0_test_data_WithBlob2_WithSunDirAngle_6111_ID0_fixed_filtered.mat';
-
+fprintf('Model State: %s\n', stateName);
 fprintf('ONNX Model Path: %s\n', charONNxModelfilePath);
 fprintf('Input Sizes: [%s]\n', num2str(dModelInputSizes));
 fprintf('Tolerance: %.1e\n', tolerance);
@@ -106,8 +112,13 @@ for testIdx = 1:pythonData.test_count
         fprintf('Python ONNX output shape: [%s]\n', num2str(size(pythonOnnxOutput)));
         
         % Run MATLAB ONNX inference with the same input
-        matlabOnnxOutput = RunModelInference(objModel, pythonInput, "charInputShapeFormat", "BC");
-        
+        if bInferenceFunction==0
+            matlabOnnxOutput = RunModelInference(objModel, pythonInput, "charInputShapeFormat", "BC");
+        elseif bInferenceFunction==1
+            matlabOnnxOutput = RunNeuralCOB(pythonInput, false, "charInputShapeFormat", "BC", "objModel",objModel);
+        else
+            fprintf('ERROR: Inference function not detected!');
+        end
         fprintf('MATLAB ONNX output shape: [%s]\n', num2str(size(matlabOnnxOutput)));
         
         % Compare outputs
@@ -401,64 +412,10 @@ fprintf('SAVING COMPARISON RESULTS\n');
 fprintf('=%.50s\n', repmat('=', 1, 50));
 
 % Save comparison results to .mat file
-comparisonFileName = 'python_matlab_onnx_comparison.mat';
+comparisonFileName = sprintf('outputSimulations/matlab_validation_%s_results.mat', stateName);
 save(comparisonFileName, 'comparisonResults', 'pythonData', 'dModelInputSizes', ...
      'charONNxModelfilePath', 'tolerance', 'allTestsPassed', 'filteredTestResults', 'filteredTestsPassed');
 fprintf('Comparison results saved to: %s\n', comparisonFileName);
-
-% Export summary to text file
-summaryFileName = 'python_matlab_comparison_summary.txt';
-fid = fopen(summaryFileName, 'w');
-fprintf(fid, 'Python vs MATLAB ONNX Comparison Summary\n');
-fprintf(fid, '=====================================\n\n');
-fprintf(fid, 'Model: %s\n', charONNxModelfilePath);
-fprintf(fid, 'Input sizes: [%s]\n', num2str(dModelInputSizes));
-fprintf(fid, 'Tolerance: %.1e\n\n', tolerance);
-
-fprintf(fid, 'Python vs MATLAB Test Results:\n');
-for testIdx = 1:pythonData.test_count
-    testFieldName = sprintf('test_%d', testIdx);
-    if isfield(comparisonResults, testFieldName)
-        result = comparisonResults.(testFieldName);
-        if result.passed
-            statusStr = 'PASS';
-        else
-            statusStr = 'FAIL';
-        end
-        fprintf(fid, '  Test %d: %s (Max diff: %.6e)\n', ...
-                testIdx, statusStr, result.max_diff);
-    end
-end
-
-% Add filtered data test results to summary
-if exist('filteredTestResults', 'var') && ~isempty(fieldnames(filteredTestResults))
-    fprintf(fid, '\nFiltered Data Test Results:\n');
-    passedCount = 0;
-    failedCount = 0;
-    numSamples = length(fieldnames(filteredTestResults));
-    
-    for sampleIdx = 1:numSamples
-        fieldName = sprintf('sample_%d', sampleIdx);
-        if isfield(filteredTestResults, fieldName) && filteredTestResults.(fieldName).passed
-            passedCount = passedCount + 1;
-        else
-            failedCount = failedCount + 1;
-        end
-    end
-    
-    fprintf(fid, '  Samples tested: %d\n', numSamples);
-    fprintf(fid, '  Passed: %d (%.1f%%)\n', passedCount, 100*passedCount/numSamples);
-    fprintf(fid, '  Failed: %d (%.1f%%)\n', failedCount, 100*failedCount/numSamples);
-end
-
-if allTestsPassed && filteredTestsPassed
-    overallResult = 'ALL TESTS PASSED';
-else
-    overallResult = 'SOME TESTS FAILED';
-end
-fprintf(fid, '\nOverall: %s\n', overallResult);
-fclose(fid);
-fprintf('Summary saved to: %s\n', summaryFileName);
 
 %% FINAL RESULTS
 fprintf('\n=%.50s\n', repmat('=', 1, 50));
@@ -500,4 +457,3 @@ end
 
 fprintf('\nFiles created:\n');
 fprintf('  - %s (Detailed comparison data)\n', comparisonFileName);
-fprintf('  - %s (Text summary)\n', summaryFileName);
