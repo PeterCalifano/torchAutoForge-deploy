@@ -22,18 +22,28 @@ YELLOW = '\033[93m'
 RED = '\033[91m'
 RESET = '\033[0m'
 
-# Add the path for PyTorch model loading (adjust as needed)
-sys.path.append(os.path.join(os.getenv("HOME"), "devDir//nav-frontend/.experimental/neuralCOB/"))
+# TODO (PC, UM) remove case specific code (i.e. should be general for any onnx model, and user-provided dataset). Rework and import tests in ModelHandler of PTAF.api.onnx
+# TODO (PC, UM) move neural-cob specific code into rcs-1 repository (where the NeuralCOB code will be soon)
+
+
+# Add the path for PyTorch model loading
+# # DEVNOTE: needs to point to where the model class for loading the .pth is available
+sys.path.append(os.path.join(os.getenv("HOME"), 
+                             "devDir//nav-frontend/.experimental/neuralCOB/"))
 
 try:
     from pyTorchAutoForge.utils import GetDeviceMulti
     from pyTorchAutoForge.api.torch import LoadModel
     PYTORCH_AVAILABLE = True
+
 except ImportError:
+
     print(f"{YELLOW}Warning: PyTorchAutoForge not available. PyTorch model testing will be disabled.{RESET}")
     PYTORCH_AVAILABLE = False
 
-class ModelTester:
+
+# DEVNOTE implementation specific for NeuralCOB testing (with dataset prepared up to May 2025 for RCS-1)
+class ModelTester():
     def __init__(self, pytorch_model_path, onnx_model_path, filtered_data_path, state_name=None):
         """
         Initialize the model tester for both PyTorch and ONNX models.
@@ -73,9 +83,10 @@ class ModelTester:
         self.results = {}
         
     def load_pytorch_model(self):
+
         """Load the PyTorch model."""
         if not PYTORCH_AVAILABLE:
-            print(f"{YELLOW}⚠ PyTorch model loading skipped - PyTorchAutoForge not available{RESET}")
+            print(f"{YELLOW}PyTorch model loading skipped - PyTorchAutoForge not available{RESET}")
             return False
             
         print(f"{BLUE}{'='*50}")
@@ -93,7 +104,7 @@ class ModelTester:
             self.pytorch_model = LoadModel(None, self.pytorch_model_path).to(self.device)
             self.pytorch_model.eval()
             
-            print(f"✓ PyTorch model loaded successfully from: {self.pytorch_model_path}")
+            print(f"PyTorch model loaded successfully from: {self.pytorch_model_path}")
             print(f"Model device: {self.device}")
             
             return True
@@ -104,6 +115,7 @@ class ModelTester:
     
     def load_onnx_model(self):
         """Load the ONNX model."""
+
         print(f"\n{BLUE}{'='*50}")
         print("LOADING ONNX MODEL")
         print(f"{'='*50}{RESET}")
@@ -113,11 +125,12 @@ class ModelTester:
             
         try:
             self.onnx_session = ort.InferenceSession(self.onnx_model_path)
-            print(f"✓ ONNX model loaded successfully from: {self.onnx_model_path}")
+            print(f"ONNX model loaded successfully from: {self.onnx_model_path}")
             
             # Print model info
             inputs = [input.name for input in self.onnx_session.get_inputs()]
             outputs = [output.name for output in self.onnx_session.get_outputs()]
+
             print(f"Model inputs: {inputs}")
             print(f"Model outputs: {outputs}")
             
@@ -133,6 +146,7 @@ class ModelTester:
     
     def load_filtered_data(self):
         """Load the filtered data from .mat file."""
+
         print(f"\n{BLUE}{'='*50}")
         print("LOADING FILTERED DATA")
         print(f"{'='*50}{RESET}")
@@ -192,7 +206,7 @@ class ModelTester:
                 
             self.filtered_data = mat_data[data_key]
             
-            print(f"✓ Filtered data loaded successfully from: {self.filtered_data_path}")
+            print(f"Filtered data loaded successfully from: {self.filtered_data_path}")
             print(f"Data key used: '{data_key}'")
             print(f"Filtered data shape: {self.filtered_data.shape}")
             
@@ -295,8 +309,8 @@ class ModelTester:
         pytorch_available = self.pytorch_model is not None
         onnx_available = self.onnx_session is not None
         
-        print(f"PyTorch model: {'✓ Available' if pytorch_available else '✗ Not available'}")
-        print(f"ONNX model: {'✓ Available' if onnx_available else '✗ Not available'}")
+        print(f"PyTorch model: {'Available' if pytorch_available else '✗ Not available'}")
+        print(f"ONNX model: {'Available' if onnx_available else '✗ Not available'}")
         
         # Progress tracking
         start_time = time.time()

@@ -1,6 +1,6 @@
 # List of TODOs for autoforge-deploy module
 
-- [ ] Add configuration for python library module. This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead (optional).
+- [ ] Add configuration for python library module (use same as ML Gears). This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead.  
 
 - [ ] Add module for Inference management
 
