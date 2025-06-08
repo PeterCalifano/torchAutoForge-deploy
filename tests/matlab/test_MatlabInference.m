@@ -44,8 +44,8 @@ if ~isfile(pythonDataPath)
     error('Python ONNX results file not found: %s\nPlease run the Python script first to generate the data.', pythonDataPath);
 end
 
-fprintf('✓ ONNX file found\n');
-fprintf('✓ Python data file found\n');
+fprintf('ONNX file found\n');
+fprintf('Python data file found\n');
 
 %% LOAD PYTHON ONNX RESULTS
 fprintf('\n=%.50s\n', repmat('=', 1, 50));
