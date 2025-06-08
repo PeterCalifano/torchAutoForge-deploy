@@ -16,7 +16,7 @@ sys.path.append(os.path.join(os.getenv("HOME"), "devDir//nav-frontend/.experimen
 
 import NeuralCOB_module
 
-def save_test_data_to_mat(test_input, onnx_output, test_name, output_dir="test_data"):
+def save_test_data_to_mat(test_input, onnx_output, test_name, state_name, output_dir="test_data"):
     """
     Save test input and ONNX output to .mat files for MATLAB comparison
     """
@@ -37,18 +37,19 @@ def save_test_data_to_mat(test_input, onnx_output, test_name, output_dir="test_d
         'test_input': input_np,
         'onnx_output': output_np,
         'test_name': test_name,
+        'state_name': state_name,
         'input_shape': input_np.shape,
         'output_shape': output_np.shape
     }
     
-    # Save to .mat file
-    mat_filename = os.path.join(output_dir, f"python_onnx_{test_name.lower().replace(' ', '_')}.mat")
+    # Save to .mat file with state_name included
+    mat_filename = os.path.join(output_dir, f"{state_name}_python_onnx_{test_name.lower().replace(' ', '_')}.mat")
     sio.savemat(mat_filename, mat_data)
     
     print(f"✓ Saved test data to: {mat_filename}")
     return mat_filename
 
-def save_all_results_to_mat(all_results, output_dir="test_data"):
+def save_all_results_to_mat(all_results, state_name, output_dir="test_data"):
     """
     Save all test results to a single .mat file
     """
@@ -56,6 +57,7 @@ def save_all_results_to_mat(all_results, output_dir="test_data"):
     
     # Prepare data structure for MATLAB
     matlab_data = {
+        'state_name': state_name,
         'test_count': len(all_results),
         'test_names': [result['name'] for result in all_results],
     }
@@ -71,8 +73,8 @@ def save_all_results_to_mat(all_results, output_dir="test_data"):
         matlab_data[f"{prefix}_mean_diff"] = result['mean_diff']
         matlab_data[f"{prefix}_passed"] = result['passed']
     
-    # Save comprehensive results
-    comprehensive_filename = os.path.join(output_dir, "python_onnx_all_results.mat")
+    # Save comprehensive results with state_name included
+    comprehensive_filename = os.path.join(output_dir, f"{state_name}_python_onnx_all_results.mat")
     sio.savemat(comprehensive_filename, matlab_data)
     
     print(f"✓ Saved comprehensive results to: {comprehensive_filename}")
@@ -113,7 +115,7 @@ def compare_outputs(pytorch_output, onnx_output, tolerance=1e-5):
     
     return is_close, max_diff, mean_diff, pytorch_np, onnx_np
 
-def test_inference(model, onnx_session, test_input, device, test_name):
+def test_inference(model, onnx_session, test_input, device, test_name, state_name):
     """
     Run inference on both PyTorch and ONNX models and compare outputs
     """
@@ -141,8 +143,8 @@ def test_inference(model, onnx_session, test_input, device, test_name):
     # Compare outputs
     is_close, max_diff, mean_diff, pytorch_np, onnx_np = compare_outputs(pytorch_output, onnx_output)
     
-    # Save test data to .mat file
-    save_test_data_to_mat(test_input, onnx_output, test_name)
+    # Save test data to .mat file with state_name
+    save_test_data_to_mat(test_input, onnx_output, test_name, state_name)
     
     return is_close, max_diff, mean_diff, pytorch_np, onnx_np
 
@@ -158,7 +160,7 @@ def main():
         # Ensure output directory exists
         os.makedirs(onnx_path, exist_ok=True)
 
-        state_name = "ambitious_calf_40_epoch_2213"
+        state_name = "thoughtful-shark-599_epoch_4956"
         nn_model_path = checkpoints_path + state_name + ".pth"
         nn_onnx_output_path = onnx_path + state_name  # ModelHandlerONNx adds .onnx automatically
 
@@ -240,7 +242,7 @@ def main():
             print("-" * 30)
             
             is_close, max_diff, mean_diff, pytorch_np, onnx_np = test_inference(
-                model, onnx_session, test_input, device, test_name
+                model, onnx_session, test_input, device, test_name, state_name
             )
             
             # Store results
@@ -263,7 +265,7 @@ def main():
         print("SAVING RESULTS")
         print("="*50 + f"{RESET}")
         
-        save_all_results_to_mat(all_results)
+        save_all_results_to_mat(all_results, state_name)
         
         print(f"\n{BLUE}" + "="*50)
         print("FINAL RESULTS")
@@ -275,8 +277,8 @@ def main():
             print("✗ Some test cases failed. There may be differences between PyTorch and ONNX outputs.")
         
         print(f"\nMAT files created in 'test_data/' directory:")
-        print(f"  - Individual test files: python_onnx_<test_name>.mat")
-        print(f"  - Comprehensive results: python_onnx_all_results.mat")
+        print(f"  - Individual test files: {state_name}_python_onnx_<test_name>.mat")
+        print(f"  - Comprehensive results: {state_name}_python_onnx_all_results.mat")
         print(f"\nUse these files to compare with MATLAB ONNX results.")
             
     except Exception as e:

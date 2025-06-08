@@ -34,7 +34,7 @@ except ImportError:
     PYTORCH_AVAILABLE = False
 
 class ModelTester:
-    def __init__(self, pytorch_model_path, onnx_model_path, filtered_data_path):
+    def __init__(self, pytorch_model_path, onnx_model_path, filtered_data_path, state_name=None):
         """
         Initialize the model tester for both PyTorch and ONNX models.
         
@@ -42,10 +42,19 @@ class ModelTester:
             pytorch_model_path (str): Path to the PyTorch model file (.pth)
             onnx_model_path (str): Path to the ONNX model file (.onnx)
             filtered_data_path (str): Path to the filtered data .mat file
+            state_name (str): Name identifier for the model state (optional, will be extracted from path if not provided)
         """
         self.pytorch_model_path = pytorch_model_path
         self.onnx_model_path = onnx_model_path
         self.filtered_data_path = filtered_data_path
+        
+        # Extract state_name if not provided
+        if state_name is None:
+            # Extract from pytorch model path
+            basename = os.path.basename(pytorch_model_path)
+            self.state_name = os.path.splitext(basename)[0]  # Remove .pth extension
+        else:
+            self.state_name = state_name
         
         # Models
         self.pytorch_model = None
@@ -616,11 +625,12 @@ class ModelTester:
         
         os.makedirs(output_dir, exist_ok=True)
         
-        # Save to .mat file for MATLAB compatibility
-        mat_filename = os.path.join(output_dir, "python_model_comparison_results.mat")
+        # Save to .mat file for MATLAB compatibility (with state_name)
+        mat_filename = os.path.join(output_dir, f"{self.state_name}_python_model_comparison_results.mat")
         
         # Prepare data for .mat file
         mat_data = {
+            'state_name': self.state_name,
             'num_total_samples': self.results['num_total_samples'],
             'num_failed_samples': self.results['num_failed_samples'],
             'processing_time': self.results['processing_time'],
@@ -659,8 +669,8 @@ class ModelTester:
         sio.savemat(mat_filename, mat_data)
         print(f"✓ Results saved to: {mat_filename}")
         
-        # Save detailed JSON report
-        json_filename = os.path.join(output_dir, "python_model_detailed_report.json")
+        # Save detailed JSON report (with state_name)
+        json_filename = os.path.join(output_dir, f"{self.state_name}_python_model_detailed_report.json")
         
         # Convert numpy arrays to lists for JSON serialization
         json_data = {}
@@ -678,6 +688,7 @@ class ModelTester:
                 
         # Add metadata
         json_data['metadata'] = {
+            'state_name': self.state_name,
             'pytorch_model_path': self.pytorch_model_path,
             'onnx_model_path': self.onnx_model_path,
             'filtered_data_path': self.filtered_data_path,
@@ -696,15 +707,16 @@ class ModelTester:
             print(f"{YELLOW}Warning: Could not save JSON file due to serialization error: {e}{RESET}")
             print(f"Results are still available in .mat and .txt formats")
         
-        # Save summary text file
+        # Save summary text file (with state_name)
         self._save_text_summary(output_dir)
         
     def _save_text_summary(self, output_dir):
         """Save a comprehensive text summary."""
-        summary_filename = os.path.join(output_dir, "python_model_comparison_summary.txt")
+        summary_filename = os.path.join(output_dir, f"{self.state_name}_python_model_comparison_summary.txt")
         with open(summary_filename, 'w') as f:
             f.write("Python Model Comparison Testing Summary\n")
             f.write("=======================================\n\n")
+            f.write(f"State Name: {self.state_name}\n")
             f.write(f"PyTorch Model: {self.pytorch_model_path}\n")
             f.write(f"ONNX Model: {self.onnx_model_path}\n")
             f.write(f"Data: {self.filtered_data_path}\n")
@@ -803,6 +815,7 @@ class ModelTester:
             onnx_success = len(onnx_preds)
             failed = self.results['num_failed_samples']
             
+            print(f"State Name: {self.state_name}")
             print(f"Models tested: {self.pytorch_model_path} (PyTorch), {self.onnx_model_path} (ONNX)")
             print(f"Total samples: {total_samples}")
             print(f"PyTorch successful: {pytorch_success} ({100*pytorch_success/total_samples:.1f}%)")
@@ -814,6 +827,10 @@ class ModelTester:
                 print(f"Models agree within tolerance: {cs['close_percentage']:.1f}% of samples")
                 
             print(f"\nThe Python model comparison validation is complete.")
+            print(f"\nFiles created:")
+            print(f"  - {self.state_name}_python_model_comparison_results.mat")
+            print(f"  - {self.state_name}_python_model_detailed_report.json")
+            print(f"  - {self.state_name}_python_model_comparison_summary.txt")
             
         except Exception as e:
             print(f"{RED}Error during testing: {e}{RESET}")
@@ -823,13 +840,20 @@ class ModelTester:
 
 def main():
     """Main function to run the model comparison testing."""
+
+    state_name = "adventurous-colt-164_epoch_1262"
     
     # Configuration - update these paths as needed
-    pytorch_model_path = "checkpoints/ambitious_calf_40_epoch_2213.pth"
-    onnx_model_path = "onnx_models/ambitious_calf_40_epoch_2213.onnx"
-    filtered_data_path = "datasets/training_data_WithBlob2_WithSunDirAngle_136856_ID0_filtered.mat"
+    pytorch_model_path = "checkpoints/" + state_name + ".pth"
+    onnx_model_path = "onnx_models/" + state_name + ".onnx"
+    filtered_data_path = "datasets/RTO4t1j13p0_test_data_WithBlob2_WithSunDirAngle_6111_ID0_fixed_filtered.mat"
+    
+    # Extract state_name from model path
+    basename = os.path.basename(pytorch_model_path)
+    state_name = os.path.splitext(basename)[0]  # Remove .pth extension
     
     print("Configuration:")
+    print(f"  State Name: {state_name}")
     print(f"  PyTorch Model: {pytorch_model_path}")
     print(f"  ONNX Model: {onnx_model_path}")
     print(f"  Filtered Data: {filtered_data_path}")
@@ -852,8 +876,8 @@ def main():
         print("Please ensure all required files are available.")
         return
         
-    # Create tester and run complete test
-    tester = ModelTester(pytorch_model_path, onnx_model_path, filtered_data_path)
+    # Create tester and run complete test (with state_name)
+    tester = ModelTester(pytorch_model_path, onnx_model_path, filtered_data_path, state_name)
     tester.run_complete_test()
 
 if __name__ == "__main__":
