@@ -16,39 +16,6 @@ sys.path.append(os.path.join(os.getenv("HOME"), "devDir//nav-frontend/.experimen
 
 import NeuralCOB_module
 
-def save_test_data_to_mat(test_input, onnx_output, test_name, state_name, output_dir="test_data"):
-    """
-    Save test input and ONNX output to .mat files for MATLAB comparison
-    """
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Convert PyTorch tensor to numpy
-    if torch.is_tensor(test_input):
-        input_np = test_input.cpu().detach().numpy()
-    else:
-        input_np = test_input
-    
-    # ONNX output is already numpy
-    output_np = onnx_output[0] if isinstance(onnx_output, list) else onnx_output
-    
-    # Create data dictionary for .mat file
-    mat_data = {
-        'test_input': input_np,
-        'onnx_output': output_np,
-        'test_name': test_name,
-        'state_name': state_name,
-        'input_shape': input_np.shape,
-        'output_shape': output_np.shape
-    }
-    
-    # Save to .mat file with state_name included
-    mat_filename = os.path.join(output_dir, f"{state_name}_python_onnx_{test_name.lower().replace(' ', '_')}.mat")
-    sio.savemat(mat_filename, mat_data)
-    
-    print(f"✓ Saved test data to: {mat_filename}")
-    return mat_filename
-
 def save_all_results_to_mat(all_results, state_name, output_dir="test_data"):
     """
     Save all test results to a single .mat file
@@ -143,9 +110,6 @@ def test_inference(model, onnx_session, test_input, device, test_name, state_nam
     # Compare outputs
     is_close, max_diff, mean_diff, pytorch_np, onnx_np = compare_outputs(pytorch_output, onnx_output)
     
-    # Save test data to .mat file with state_name
-    save_test_data_to_mat(test_input, onnx_output, test_name, state_name)
-    
     return is_close, max_diff, mean_diff, pytorch_np, onnx_np
 
 def main():
@@ -173,7 +137,6 @@ def main():
         
         model = LoadModel(None, nn_model_path).to(device)
         model.eval()  # Set to evaluation mode
-        print(model)
 
         # Get first layer size
         input_layer_size = 12
@@ -276,10 +239,9 @@ def main():
         else:
             print("✗ Some test cases failed. There may be differences between PyTorch and ONNX outputs.")
         
-        print(f"\nMAT files created in 'test_data/' directory:")
-        print(f"  - Individual test files: {state_name}_python_onnx_<test_name>.mat")
-        print(f"  - Comprehensive results: {state_name}_python_onnx_all_results.mat")
-        print(f"\nUse these files to compare with MATLAB ONNX results.")
+        print(f"\nMAT file created:")
+        print(f"  - {state_name}_python_onnx_all_results.mat")
+        print(f"\nUse this file to compare with MATLAB ONNX results.")
             
     except Exception as e:
         print(f"Error: {e}")

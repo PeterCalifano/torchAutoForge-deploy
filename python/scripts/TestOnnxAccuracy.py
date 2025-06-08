@@ -699,16 +699,16 @@ class ModelTester:
             'onnx_available': self.onnx_session is not None
         }
         
-        try:
-            with open(json_filename, 'w') as f:
-                json.dump(json_data, f, indent=2)
-            print(f"✓ Detailed report saved to: {json_filename}")
-        except TypeError as e:
-            print(f"{YELLOW}Warning: Could not save JSON file due to serialization error: {e}{RESET}")
-            print(f"Results are still available in .mat and .txt formats")
+        # try:
+        #     with open(json_filename, 'w') as f:
+        #         json.dump(json_data, f, indent=2)
+        #     print(f"✓ Detailed report saved to: {json_filename}")
+        # except TypeError as e:
+        #     print(f"{YELLOW}Warning: Could not save JSON file due to serialization error: {e}{RESET}")
+        #     print(f"Results are still available in .mat and .txt formats")
         
         # Save summary text file (with state_name)
-        self._save_text_summary(output_dir)
+        # self._save_text_summary(output_dir)
         
     def _save_text_summary(self, output_dir):
         """Save a comprehensive text summary."""
@@ -829,8 +829,8 @@ class ModelTester:
             print(f"\nThe Python model comparison validation is complete.")
             print(f"\nFiles created:")
             print(f"  - {self.state_name}_python_model_comparison_results.mat")
-            print(f"  - {self.state_name}_python_model_detailed_report.json")
-            print(f"  - {self.state_name}_python_model_comparison_summary.txt")
+            # print(f"  - {self.state_name}_python_model_detailed_report.json")
+            # print(f"  - {self.state_name}_python_model_comparison_summary.txt")
             
         except Exception as e:
             print(f"{RED}Error during testing: {e}{RESET}")
