@@ -10,6 +10,11 @@ fprintf('=%.50s\n', repmat('=', 1, 50));
 fprintf('SIMULINK MODEL TESTING CONFIGURATION\n');
 fprintf('=%.50s\n', repmat('=', 1, 50));
 
+% Checkpoint name
+% NOTE: The model does not update automatically in the Simulink.
+% Please go into the block and browse the model 
+stateName = "adventurous-colt-164_epoch_1262";
+
 % File paths and parameters
 filteredDataPath = 'datasets/RTO4t1j13p0_test_data_WithBlob2_WithSunDirAngle_6111_ID0_fixed_filtered.mat';
 simulinkModelName = 'testModelInferenceInSLX_v2';
@@ -295,7 +300,7 @@ simulinkResults.meanAbsErrorY = meanAbsErrorY;
 simulinkResults.xyCorrelation = xyCorrelation;
 
 % Save results to .mat file
-resultsFileName = 'simulink_model_test_results.mat';
+resultsFileName = sprintf('outputSimulations/simulink_validation_%s.mat', stateName);
 save(resultsFileName, 'simulinkResults', 'prediction', 'errors', 'euclideanErrors', ...
      'groundTruth', 'simulationTime', 'numberElements', 'resx', 'resy');
 fprintf('Results saved to: %s\n', resultsFileName);
