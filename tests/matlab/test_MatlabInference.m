@@ -74,9 +74,9 @@ try
     
     % Verify model class
     if strcmpi(class(objModel), 'dlnetwork')
-        fprintf('✓ MATLAB ONNX model loaded successfully as dlnetwork\n');
+        fprintf('MATLAB ONNX model loaded successfully as dlnetwork\n');
     else
-        fprintf('⚠ Model loaded as %s (expected dlnetwork)\n', class(objModel));
+        fprintf('Model loaded as %s (expected dlnetwork)\n', class(objModel));
     end
     
     % Display model information

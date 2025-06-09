@@ -14,7 +14,7 @@ output_file = "test_data/onnx_weights.mat"
 
 # %% Auxiliary functions for export
 # TODO Move to utils/matlab_utils.py
-def sanitize_matlab_name(name):
+def Sanitize_matlab_name(name):
     """
     Convert ONNX weight name to MATLAB-compatible field name (max 31 chars)
     """
@@ -76,7 +76,7 @@ def Extract_onnx_weights_to_file(onnx_path : str | pathlib.Path,
     for initializer in model.graph.initializer:
 
         original_name = initializer.name
-        sanitized_name = sanitize_matlab_name(original_name)
+        sanitized_name = Sanitize_matlab_name(original_name)
         weight_array = onnx.numpy_helper.to_array(initializer)
         
         weights_dict[sanitized_name] = weight_array

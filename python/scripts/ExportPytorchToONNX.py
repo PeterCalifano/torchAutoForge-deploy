@@ -115,27 +115,29 @@ def test_inference(model, onnx_session, test_input, device, test_name, state_nam
 def main():
     try:
         # Path management
-        root_path = os.path.join(os.getenv("HOME"), "devDir//torchAutoForge-deploy/python/scripts/")
-        os.chdir(root_path)
-
-        checkpoints_path = os.path.join(root_path, "checkpoints/")
-        onnx_path = os.path.join(root_path, "onnx_models/")
+        this_file_path = os.path.dirname(os.path.abspath(__file__))
+        os.chdir(this_file_path)
+    
+        checkpoints_path = os.path.join(this_file_path, "../..", ".model_checkpoints/")
+        onnx_path = os.path.join(checkpoints_path, "onnx_exported_models/")
         
         # Ensure output directory exists
         os.makedirs(onnx_path, exist_ok=True)
 
-        state_name = "thoughtful-shark-599_epoch_4956"
-        nn_model_path = checkpoints_path + state_name + ".pth"
+        state_name = "thoughtful-shark-599_epoch_4956_cpu"
+        nn_model_path = checkpoints_path + state_name + ".pt"
         nn_onnx_output_path = onnx_path + state_name  # ModelHandlerONNx adds .onnx automatically
 
         print(f"Loading model from: {nn_model_path}")
         print(f"ONNX output path: {nn_onnx_output_path}")
 
         # Load model
-        device = GetDeviceMulti()
+        device = GetDeviceMulti('cpu')
         print(f"Using device: {device}")
         
-        model = LoadModel(None, nn_model_path).to(device)
+        model = LoadModel(None, 
+                          nn_model_path, 
+                          load_as_traced=True).to(device)
         model.eval()  # Set to evaluation mode
 
         # Get first layer size
@@ -176,7 +178,7 @@ def main():
         
         # Load ONNX model for inference
         onnx_session = ort.InferenceSession(actual_onnx_path)
-        print(f"✓ ONNX model loaded successfully")
+        print(f"ONNX model loaded successfully")
         
         # Print model info
         print(f"ONNX model inputs: {[input.name for input in onnx_session.get_inputs()]}")
