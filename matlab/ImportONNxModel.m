@@ -14,7 +14,9 @@ arguments
     dOutputSample     (:,:) single {ismatrix} = [] % Optional label sample
 end
 arguments
-    kwargs.charModelName = "importedModelONNx"
+    kwargs.charModelName string {mustBeA(kwargs.charModelName, ["string", "char"])} = "ImportedModelFromONNx"
+    kwargs.bExportToSimulink {islogical, isscalar} = false
+    kwargs.charOutputPath {mustBeA(kwargs.charOutputPath, ["string", "char"])} = "."
 end
 
 % Verify if the model file exists
@@ -33,8 +35,8 @@ if isempty(dInputSample)
 end
 
 % Initialize model
-objX = dlarray(dInputSample, charInputShape);  
-objModel = initialize(objModel, objX);
+objX        = dlarray(dInputSample, charInputShape);  
+objModel    = initialize(objModel, objX);
 analyzeNetwork(objModel);
 
 % Test inference
@@ -46,14 +48,29 @@ if not(isempty(dOutputSample))
     disp("Error computed. Size: " + string(size(errorValue)));
 end
 
-% Fix any invalid 
+%% Save model to mat file
+
+% Fix any invalid character in output name (struct field) 
 kwargs.charModelName = matlab.lang.makeValidName(kwargs.charModelName);
 
-% Save model to mat file
+if not(isfolder(kwargs.charOutputPath))
+    mkdir(kwargs.charOutputPath)
+end
+
+charCurrentDir = pwd;
+cd(kwargs.charOutputPath)
+
 strTmpStruct.(kwargs.charModelName) = objModel;
-charMatSavePath = strcat(kwargs.charModelName, ".mat");
+charMatSavePath = fullfile(strcat(kwargs.charModelName, ".mat") );
 save(charMatSavePath, "-struct", "strTmpStruct");
 
+cd(charCurrentDir);
+
+% ATtach output directory path
+charMatSavePath = fullfile(kwargs.charOutputPath, charMatSavePath);
+
+%% Export to Simulink
+% DEVNOTE: requires MATLAB2024b
 try
     if kwargs.bExportToSimulink
         charExportModelName = strcat(kwargs.charModelName, "_ExportSLX");
