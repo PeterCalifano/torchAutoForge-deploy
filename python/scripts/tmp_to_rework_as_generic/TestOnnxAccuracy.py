@@ -43,6 +43,7 @@ except ImportError:
 
 
 # DEVNOTE implementation specific for NeuralCOB testing (with dataset prepared up to May 2025 for RCS-1)
+# TODO integrate with ModelHandlerONNx and make more generic
 class ModelTester():
     def __init__(self, pytorch_model_path, onnx_model_path, filtered_data_path, state_name=None):
         """

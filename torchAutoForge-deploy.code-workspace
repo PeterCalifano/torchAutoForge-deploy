@@ -14,6 +14,9 @@
 		},
 		{
 			"path": "../../nav-frontend/.experimental"
+		},
+		{
+			"path": "../vbn-ai-dart_PeterCdev"
 		}
 	],
 	"settings": {}
