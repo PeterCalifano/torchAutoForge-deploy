@@ -282,14 +282,15 @@ void unpackOutputsToPlhs(const uint8_t* output_with_header, mxArray** plhs) {
         size_t type_size;
 
         switch (meta.dtype) {
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:  class_id = mxUINT8_CLASS;  type_size = 1; break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:   class_id = mxINT8_CLASS;   type_size = 1; break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16: class_id = mxUINT16_CLASS; type_size = 2; break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:  class_id = mxINT16_CLASS;  type_size = 2; break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:  class_id = mxINT32_CLASS;  type_size = 4; break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:  class_id = mxINT64_CLASS;  type_size = 8; break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:  class_id = mxSINGLE_CLASS; type_size = 4; break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE: class_id = mxDOUBLE_CLASS; type_size = 8; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:   class_id = mxLOGICAL_CLASS; type_size = 1; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:  class_id = mxUINT8_CLASS;   type_size = 1; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:   class_id = mxINT8_CLASS;    type_size = 1; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16: class_id = mxUINT16_CLASS;  type_size = 2; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:  class_id = mxINT16_CLASS;   type_size = 2; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:  class_id = mxINT32_CLASS;   type_size = 4; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:  class_id = mxINT64_CLASS;   type_size = 8; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:  class_id = mxSINGLE_CLASS;  type_size = 4; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE: class_id = mxDOUBLE_CLASS;  type_size = 8; break;
             default:
                 mexErrMsgTxt("Unsupported ONNX tensor data type.");
         }
@@ -316,62 +317,86 @@ void unpackOutputsToPlhs(const uint8_t* output_with_header, mxArray** plhs) {
 
 void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
-    if (nrhs < 2) mexErrMsgTxt("Usage: mex_infer(model_path, input_tensor, [input_names, output_names])");
-
-    // Convert input
-    // char* model_path = mxArrayToString(prhs[0]);
-    float* input = static_cast<float*>(mxGetData(prhs[1]));
-    
-    std::string model_path;
-    mxArrayToCString(prhs[0], model_path);
-
-    mwSize input_size = mxGetNumberOfElements(prhs[1]);
-
-    const mwSize * input_dims_raw = mxGetDimensions(prhs[1]);
-    mwSize ndim = mxGetNumberOfDimensions(prhs[1]);
-    mwSize input_dims[4];
-    
-    if (ndim == 3) {
-        input_dims[3] = input_dims_raw[0];
-        input_dims[2] = input_dims_raw[1];
-        input_dims[1] = input_dims_raw[2];
-        input_dims[0] = 1;
-    } else if (ndim == 4) {
-        // Copy 4 dims as is
-        input_dims[3] = input_dims_raw[0];
-        input_dims[2] = input_dims_raw[1];
-        input_dims[1] = input_dims_raw[2];
-        input_dims[0] = input_dims_raw[3];
-    } else {
-        mexErrMsgTxt("Input array must have 3 or 4 dimensions.");
-    }
-    float * input_data = new float[input_size];
-    copyMxArrayToNCHW(input, input_data, input_dims[0], input_dims[1], input_dims[2], input_dims[3]);
+    if (nrhs < 5) mexErrMsgTxt("Usage: onnxruntime_inference(model_path, input_names, output_names, add_batch, input_tensor)");
     
     std::string input_file_str = "./onnxruntime_inference_input.bin";
     std::string output_file = "./onnxruntime_inference_output.bin";
-
-    // Write input to file
-    std::ofstream input_file(input_file_str, std::ios::binary);
-    input_file.write(reinterpret_cast<char*>(input_data), input_size * sizeof(float));
-    input_file.close();
     
-    printd("Calling inference");
-
+    // Convert input
     // Parse input/output names
-    std::string input_names = "[input]";
-    std::string output_names = "[output]";
-    if (nrhs >= 3) {
-        input_names = mxArrayToBracketedStringList(prhs[2]);
-    }
-    if (nrhs >= 4) {
-        output_names = mxArrayToBracketedStringList(prhs[3]);
+    std::string model_path;
+    mxArrayToCString(prhs[0], model_path);
+    std::string input_names = mxArrayToBracketedStringList(prhs[1]);
+    std::string output_names = mxArrayToBracketedStringList(prhs[2]);
+    
+    // Check that the 4th argument is a scalar logical or convertible to one
+    if (!mxIsLogicalScalar(prhs[3]) && !mxIsDouble(prhs[3])) {
+        mexErrMsgTxt("add_batch must be a logical scalar or numeric scalar.");
     }
     
-    // Build command
-    // std::string command = "onnx_infer.exe \"" + std::string(model_path) + "\" " + input_file + " " + output_file;
-    std::string command = "\"" + getMexFileDir() + "\\onnx_infer.exe\" " + model_path + " " + dimsToString(input_dims,4) \
-                                                                                      + " " + input_names + " " + output_names;
+    bool add_batch = mxIsLogicalScalarTrue(prhs[3]) || (mxIsDouble(prhs[3]) && mxGetScalar(prhs[3]) != 0.0);
+    
+    // Convert to string
+    std::string add_batch_str = add_batch ? "true" : "false";
+
+    size_t num_inputs = static_cast<size_t>(mxGetNumberOfElements(prhs[1]));
+    if (num_inputs != static_cast<size_t>(nrhs - 4)) {
+        mexErrMsgTxt("Number of input tensors does not match number of input names.");
+    }
+
+    std::ofstream input_file(input_file_str, std::ios::binary);
+    
+    // Write input count
+    float num_inputs_f = static_cast<float>(num_inputs);
+    input_file.write(reinterpret_cast<char*>(&num_inputs_f), sizeof(float));
+    
+    // For each input
+    for (size_t i = 0; i < num_inputs; ++i) {
+        const mxArray* input_array = prhs[4 + i];
+    
+        ONNXTensorElementDataType dtype;
+        mxClassID class_id = mxGetClassID(input_array);
+        size_t type_size;
+    
+        switch (class_id) {
+            case mxLOGICAL_CLASS:  dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL; type_size = 1; break;
+            case mxUINT8_CLASS:  dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;  type_size = 1; break;
+            case mxINT8_CLASS:   dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8;   type_size = 1; break;
+            case mxUINT16_CLASS: dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16; type_size = 2; break;
+            case mxINT16_CLASS:  dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16;  type_size = 2; break;
+            case mxINT32_CLASS:  dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;  type_size = 4; break;
+            case mxINT64_CLASS:  dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;  type_size = 8; break;
+            case mxSINGLE_CLASS: dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;  type_size = 4; break;
+            case mxDOUBLE_CLASS: dtype = ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE; type_size = 8; break;
+            default:
+                mexErrMsgTxt("Unsupported input type.");
+        }
+    
+        // Write dtype
+        float dtype_f = static_cast<float>(dtype);
+        input_file.write(reinterpret_cast<char*>(&dtype_f), sizeof(float));
+    
+        // Get dimensions
+        const mwSize* dims = mxGetDimensions(input_array);
+        mwSize ndim = mxGetNumberOfDimensions(input_array);
+        float rank_f = static_cast<float>(ndim);
+        input_file.write(reinterpret_cast<char*>(&rank_f), sizeof(float));
+    
+        // Write each dimension
+        for (mwSize d = 0; d < ndim; ++d) {
+            float dim_f = static_cast<float>(dims[d]);
+            input_file.write(reinterpret_cast<char*>(&dim_f), sizeof(float));
+        }
+    
+        // Write actual data
+        void* data_ptr = mxGetData(input_array);
+        size_t elem_count = mxGetNumberOfElements(input_array);
+        input_file.write(reinterpret_cast<char*>(data_ptr), elem_count * type_size);
+    }
+    
+    input_file.close();
+        
+    std::string command = "\"" + getMexFileDir() + "\\onnx_infer.exe\" " + model_path + " " + input_names + " " + output_names + " " + add_batch_str;
     printd(command);
 
     // return;
@@ -458,5 +483,5 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
     std::remove(input_file_str.c_str());
     std::remove(output_file.c_str());
     
-    delete[] input_data;
+    // delete[] input_data;
 }

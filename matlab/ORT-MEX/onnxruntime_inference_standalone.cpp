@@ -29,6 +29,7 @@ Compile with:
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <numeric>
 // #include <opencv2/opencv.hpp>
 
 // #define __TRYCATCH
@@ -46,9 +47,35 @@ int vecprodi(std::vector<int>& vec) {
     return prod;
 }
 
+uint8_t* loadByteArrayBinary(const std::string& filename, size_t& out_size) {
+    std::ifstream in(filename, std::ios::binary | std::ios::ate);
+    if (!in) throw std::runtime_error("Cannot open file for reading.");
+
+    // Get file size in bytes
+    std::streamsize file_size = in.tellg();
+    if (file_size < 0) {
+        throw std::runtime_error("Failed to determine file size.");
+    }
+
+    out_size = static_cast<size_t>(file_size);
+    uint8_t* arr = new uint8_t[out_size];
+
+    in.seekg(0, std::ios::beg);
+    in.read(reinterpret_cast<char*>(arr), file_size);
+
+    if (!in) {
+        delete[] arr;
+        throw std::runtime_error("Error reading data from file.");
+    }
+
+    in.close();
+    return arr;
+}
+
 // Mapping: ONNXTensorElementDataType → sizeof(type)
 inline size_t GetONNXTypeSize(ONNXTensorElementDataType dtype) {
     switch (dtype) {
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:    return sizeof(bool);
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:  return sizeof(uint8_t);
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:   return sizeof(int8_t);
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16: return sizeof(uint16_t);
@@ -62,12 +89,19 @@ inline size_t GetONNXTypeSize(ONNXTensorElementDataType dtype) {
     }
 }
 
-__declspec(dllexport) uint8_t* run_onnx_inference(const wchar_t* model_path, float* input_data, std::vector<int> input_dims, 
-                                                const char* input_names[], const char* output_names[],
-                                                size_t n_inputs, size_t n_outputs,
-                                                size_t& output_data_size) {
+uint8_t* run_onnx_inference(
+    const wchar_t* model_path,
+    const uint8_t* input_data[],
+    const std::vector<std::vector<int64_t>>& input_shapes,
+    const ONNXTensorElementDataType input_types[],
+    const char* input_names[],
+    const char* output_names[],
+    size_t n_inputs,
+    size_t n_outputs,
+    size_t& output_data_size
+) {
     printd("Init Ort::Env");
-     
+
     static Ort::Env env(ORT_LOGGING_LEVEL, "ONNXModel");
 
     printd("Init Ort::Session");
@@ -75,45 +109,153 @@ __declspec(dllexport) uint8_t* run_onnx_inference(const wchar_t* model_path, flo
     session_options.SetIntraOpNumThreads(1);
     session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
 
-    // Check available execution providers
     auto available_providers = Ort::GetAvailableProviders();
     bool cuda_available = std::find(available_providers.begin(), available_providers.end(), "CUDAExecutionProvider") != available_providers.end();
-    
+
     if (cuda_available) {
         printd("CUDAExecutionProvider is available. Enabling GPU inference.");
         OrtCUDAProviderOptions options;
         options.device_id = 0;
-        // options.arena_extend_strategy = -1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
-        // options.gpu_mem_limit = 8L * 1024 * 1024 * 1024;
-        // options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::EXHAUSTIVE;
         options.do_copy_in_default_stream = 1;
-        options.user_compute_stream = nullptr;
-        options.default_memory_arena_cfg = nullptr;
         session_options.AppendExecutionProvider_CUDA(options);
     } else {
         printd("CUDAExecutionProvider not available. Falling back to CPU.");
     }
 
     Ort::Session session(env, model_path, session_options);
-
-    printd("Init allocator");
     Ort::AllocatorWithDefaultOptions allocator;
 
-    // Input
-    std::vector<int64_t> input_shape = {input_dims[0], input_dims[1], input_dims[2], input_dims[3]};
-
-    size_t input_tensor_size = vecprodi(input_dims);
+    // Create input Ort::Value tensors
+    std::vector<Ort::Value> input_tensors;
+    input_tensors.reserve(n_inputs);
 
     Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_data, input_tensor_size, input_shape.data(), input_shape.size());
 
-    // Inference
+    for (size_t i = 0; i < n_inputs; ++i) {
+        const auto& shape = input_shapes[i];
+        size_t elem_count = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
+        size_t type_size;
+
+        switch (input_types[i]) {
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:   type_size = 1; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:  type_size = 2; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:  type_size = 4; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE: type_size = 8; break;
+            default:
+                std::cerr << "Unsupported input tensor data type.\n";
+                return nullptr;
+        }
+
+        // Create tensor based on dtype
+        Ort::Value tensor{nullptr};
+        switch (input_types[i]) {
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
+                tensor = Ort::Value::CreateTensor<float>(memory_info,
+                            reinterpret_cast<float*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
+                tensor = Ort::Value::CreateTensor<double>(memory_info,
+                            reinterpret_cast<double*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+                tensor = Ort::Value::CreateTensor<int64_t>(memory_info,
+                            reinterpret_cast<int64_t*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+                tensor = Ort::Value::CreateTensor<int32_t>(memory_info,
+                            reinterpret_cast<int32_t*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
+                tensor = Ort::Value::CreateTensor<int16_t>(memory_info,
+                            reinterpret_cast<int16_t*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
+                tensor = Ort::Value::CreateTensor<int8_t>(memory_info,
+                            reinterpret_cast<int8_t*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+                tensor = Ort::Value::CreateTensor<uint16_t>(memory_info,
+                            reinterpret_cast<uint16_t*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+                tensor = Ort::Value::CreateTensor<uint8_t>(memory_info,
+                            const_cast<uint8_t*>(input_data[i]),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+                tensor = Ort::Value::CreateTensor<bool>(memory_info,
+                            reinterpret_cast<bool*>(const_cast<uint8_t*>(input_data[i])),
+                            elem_count,
+                            shape.data(), shape.size());
+                break;
+            default:
+                std::cerr << "Data type not implemented for tensor creation.\n";
+                return nullptr;
+        }
+
+        input_tensors.push_back(std::move(tensor));
+    }
+
+#if (DEBUG)
+    if (DEBUG) {
+        printd("Number of inputs: " << input_tensors.size());
+        for (size_t i = 0; i < input_tensors.size(); ++i) {
+            Ort::Value& tensor = input_tensors[i];
+
+            if (tensor.IsTensor()) {
+                Ort::TensorTypeAndShapeInfo shape_info = tensor.GetTensorTypeAndShapeInfo();
+
+                // Data type
+                ONNXTensorElementDataType type = shape_info.GetElementType();
+
+                // Shape
+                std::vector<int64_t> shape = shape_info.GetShape();
+
+                // Number of elements
+                size_t num_elements = shape_info.GetElementCount();
+
+                // Optional: Size of dimensions
+                std::cout << "Input " << i << " shape: [";
+                for (size_t j = 0; j < shape.size(); ++j) {
+                    std::cout << shape[j] << (j < shape.size() - 1 ? ", " : "");
+                }
+                std::cout << "]" << std::endl;
+
+                printd("Num elements: " << num_elements);
+                printd("Data type enum: " << type);  // e.g., ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT
+            }
+        }
+    }
+#endif
+
     printd("Perform inference");
-
-    auto output_tensors = session.Run(Ort::RunOptions{nullptr}, input_names, &input_tensor, n_inputs, output_names, n_outputs);
-    
-    printd("Number of outputs: " << output_tensors.size());
-    
+    auto output_tensors = session.Run(Ort::RunOptions{nullptr},
+                                      input_names,
+                                      input_tensors.data(),
+                                      n_inputs,
+                                      output_names,
+                                      n_outputs);
+        
     printd("Packing outputs");
     size_t offset = 0;
 
@@ -152,8 +294,10 @@ __declspec(dllexport) uint8_t* run_onnx_inference(const wchar_t* model_path, flo
         }
     }
 #endif
-
+    
     // Prepare metadata
+    printd("Prepare metadata");
+
     std::vector<std::vector<size_t>> all_shapes;
     std::vector<ONNXTensorElementDataType> all_types;
     std::vector<size_t> all_counts;
@@ -176,7 +320,9 @@ __declspec(dllexport) uint8_t* run_onnx_inference(const wchar_t* model_path, flo
         total_data_bytes += count * GetONNXTypeSize(dtype);
         total_header_entries += 2 + shape_u.size();  // dtype + rank + dims
     }
-    
+
+    printd("Prepare header");
+
     // Total header size in bytes (each entry stored as float)
     size_t header_bytes = total_header_entries * sizeof(float);
     
@@ -184,6 +330,8 @@ __declspec(dllexport) uint8_t* run_onnx_inference(const wchar_t* model_path, flo
     output_data_size = header_bytes + total_data_bytes;
     uint8_t* output_data = new uint8_t[output_data_size];
     
+    //
+
     // Populate header (write float entries as bytes)
     float* header_ptr = reinterpret_cast<float*>(output_data);
     size_t header_offset = 0;
@@ -198,6 +346,8 @@ __declspec(dllexport) uint8_t* run_onnx_inference(const wchar_t* model_path, flo
         }
     }
     
+    printd("Prepare output");
+
     // Copy raw tensor data directly after the header
     size_t data_offset = header_bytes;
     for (size_t i = 0; i < output_tensors.size(); ++i) {
@@ -207,24 +357,26 @@ __declspec(dllexport) uint8_t* run_onnx_inference(const wchar_t* model_path, flo
         data_offset += bytes;
     }
 
+    printd("End run_onnx_inference");
+    
     return output_data;
 }
 
-float* loadFloatArrayBinary(const std::string& filename, size_t size) {
-    std::ifstream in(filename, std::ios::binary);
-    if (!in) throw std::runtime_error("Cannot open file for reading.");
-
-    float* arr = new float[size];
-    in.read(reinterpret_cast<char*>(arr), size * sizeof(float));
-
-    if (!in) {
-        delete[] arr;
-        throw std::runtime_error("Error reading data from file.");
-    }
-
-    in.close();
-    return arr;
-}
+// float* loadFloatArrayBinary(const std::string& filename, size_t size) {
+//     std::ifstream in(filename, std::ios::binary);
+//     if (!in) throw std::runtime_error("Cannot open file for reading.");
+// 
+//     float* arr = new float[size];
+//     in.read(reinterpret_cast<char*>(arr), size * sizeof(float));
+// 
+//     if (!in) {
+//         delete[] arr;
+//         throw std::runtime_error("Error reading data from file.");
+//     }
+// 
+//     in.close();
+//     return arr;
+// }
 
 std::vector<int> parseShapeArg(const std::string& arg) {
     if (arg.front() != '[' || arg.back() != ']') {
@@ -272,29 +424,111 @@ void parseBracketedListToCStrings(const std::string& input, std::vector<std::str
 
 int main(int argc, char* argv[]) {
     if (argc < 5) {
-        std::cerr << "Usage: onnx_infer.exe <onnx_file> <input_dims> <input_names> <output_names>\n";
+        std::cerr << "Usage: onnx_infer.exe <onnx_file> <input_names> <output_names> <add_batch>\n";
         return 1;
     }
 
     printd("Starting ONNX inference...");
 
     std::string model_path{argv[1]};
+    std::wstring wide_input(model_path.begin(), model_path.end());
+    
+    std::string add_batch_str(argv[4]);
+    bool add_batch;
+    
+    if (add_batch_str == "true" || add_batch_str == "1") {
+        add_batch = true;
+    } else if (add_batch_str == "false" || add_batch_str == "0") {
+        add_batch = false;
+    } else {
+        std::cerr << "Invalid value for <add_batch>. Use 'true' or 'false'.\n";
+        return 1;
+    }
 
     printd("Allocating buffers...");
     
-    std::vector<int> input_dims = parseShapeArg(argv[2]);
+    // Step 1: Load the binary file
+    size_t total_input_size = 0;
+    uint8_t* input_buffer = loadByteArrayBinary("./onnxruntime_inference_input.bin", total_input_size);
     
-    int input_size = vecprodi(input_dims);
-    float* input_data = loadFloatArrayBinary("./onnxruntime_inference_input.bin", input_size);
+    // Step 2: Parse the header and extract each input
+    const float* header = reinterpret_cast<const float*>(input_buffer);
+    size_t offset = 0;
     
-    std::wstring wide_input(model_path.begin(), model_path.end());
+    size_t num_inputs = static_cast<size_t>(header[offset++]);
+    
+    struct InputTensor {
+        ONNXTensorElementDataType dtype;
+        std::vector<int64_t> shape;
+        std::vector<uint8_t> data; // raw bytes
+    };
+    
+    std::vector<InputTensor> inputs(num_inputs);
+    
+    for (size_t i = 0; i < num_inputs; ++i) {
+        int dtype_int = static_cast<int>(header[offset++]);
+        inputs[i].dtype = static_cast<ONNXTensorElementDataType>(dtype_int);
+    
+        size_t rank = static_cast<size_t>(header[offset++]);
+        std::vector<int64_t> shape(rank);
+    
+        size_t element_count = 1;
+        for (size_t j = 0; j < rank; ++j) {
+            int dim = static_cast<int>(header[offset++]);
+            shape[j] = dim;
+            element_count *= dim;
+        }
+    
+        // Reverse dimensions to match ONNX layout (e.g., from NHWC to NCHW)
+        std::reverse(shape.begin(), shape.end());
+    
+        // Add batch dimension if missing (e.g., [C, H, W] -> [1, C, H, W])
+        if (add_batch) {
+            shape.insert(shape.begin(), 1);
+        }
+    
+        inputs[i].shape = std::move(shape);
+    
+        size_t type_size;
+        switch (inputs[i].dtype) {
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:   type_size = 1; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:  type_size = 2; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:  type_size = 4; break;
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+            case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE: type_size = 8; break;
+            default:
+                std::cerr << "Unsupported input tensor data type.\n";
+                exit(1);
+        }
+    
+        size_t byte_size = element_count * type_size;
+        const uint8_t* raw_ptr = reinterpret_cast<const uint8_t*>(header + offset);
+        inputs[i].data.assign(raw_ptr, raw_ptr + byte_size);
+        offset += (byte_size + sizeof(float) - 1) / sizeof(float); // align to float boundary
+    }
+    
+    // Collect type and shape info for inference
+    std::vector<ONNXTensorElementDataType> input_types;
+    std::vector<const uint8_t*> input_data_ptrs;
+    std::vector<std::vector<int64_t>> input_shapes;
+    
+    for (const auto& input : inputs) {
+        input_types.push_back(input.dtype);
+        input_data_ptrs.push_back(input.data.data());
+        input_shapes.push_back(input.shape);
+    }
 
-    std::string input_str(argv[3]);
+   
+    std::string input_str(argv[2]);
     std::vector<std::string> input_storage;                   
     std::vector<const char*> input_c_strings;           
     parseBracketedListToCStrings(input_str, input_storage, input_c_strings);
 
-    std::string output_str(argv[4]);
+    std::string output_str(argv[3]);
     std::vector<std::string> output_storage;                   
     std::vector<const char*> output_c_strings;           
     parseBracketedListToCStrings(output_str, output_storage, output_c_strings);
@@ -302,14 +536,26 @@ int main(int argc, char* argv[]) {
     printd("Running ONNX inference...");
 
     size_t output_data_size = 0;
+    uint8_t* output_data = nullptr;
 #ifdef __TRYCATCH
-    uint8_t* output_data;
     try {
 #endif
-    uint8_t* output_data = run_onnx_inference(wide_input.c_str(), input_data, input_dims, 
-                                             input_c_strings.data(), output_c_strings.data(), 
-                                             input_c_strings.size(), output_c_strings.size(),
-                                             output_data_size);
+    // uint8_t* output_data = run_onnx_inference(wide_input.c_str(), input_data, input_dims, 
+    //                                          input_c_strings.data(), output_c_strings.data(), 
+    //                                          input_c_strings.size(), output_c_strings.size(),
+    //                                          output_data_size);
+
+    output_data = run_onnx_inference(
+        wide_input.c_str(),
+        input_data_ptrs.data(),
+        input_shapes,
+        input_types.data(),
+        input_c_strings.data(),
+        output_c_strings.data(),
+        input_data_ptrs.size(),
+        output_c_strings.size(),
+        output_data_size
+    );
 
     // Write output
     printd("Writing output to file...");
@@ -324,7 +570,7 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
-    delete[] input_data;
+    // delete[] input_data;
     delete[] output_data;
 
     printd("End");
