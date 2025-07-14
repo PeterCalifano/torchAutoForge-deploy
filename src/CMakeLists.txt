@@ -63,19 +63,22 @@ target_include_directories(${lib_name} PUBLIC
 # Link interface target for CUDA
 target_link_libraries(${lib_name} PUBLIC cuda_compile_settings ${project_name}_include)
 
+# Link ORT target interface
+target_link_libraries(${lib_name} INTERFACE ort_target_interface)
+
 #target_include_directories(${lib_name} INTERFACE ${interface_INCLUDE_DIRS} ) 
 # TIP: INTERFACE ensures that the consumer target does not need to include manually the include directories the library target depends on, because they are automagically propagated to the target, even if the target does not need thme. The same happens with PUBLIC, but this time the includes are used by the target library itself.
 
 target_link_libraries(${lib_name} PUBLIC 
                                   ${OpenCV_LIBS} 
-                                  Eigen3::Eigen 
-                                  #gdt
-                                  #glfw 
-                                  ${OPENGL_LIBRARIES}
-                                  ${optix_LIBRARY})
+                                  Eigen3::Eigen)
 
-# Add target to installable list 
-set(installable_targets ${installable_targets} ${lib_name} cuda_compile_settings ${project_name}_include)
+# Add target to installable list (export list for installation)
+set(installable_targets ${installable_targets} 
+                        ${lib_name} 
+                        cuda_compile_settings 
+                        ${project_name}_include 
+                        ort_target_interface)
 
 message(NOTICE "Added target to installable list: ${installable_targets}")
 

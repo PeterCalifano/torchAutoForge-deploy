@@ -1,15 +1,21 @@
 # VERSION CONTROL 
-cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 
 #set(CMAKE_C_COMPILER gcc-11)
 #set(CMAKE_CXX_COMPILER g++-11)
 #set(CMAKE_CUDA_COMPILER nvcc)
 
+#####
+# Temporary for development. This should be set by the user or as environment variable.
+set(onnxruntime_DIR "/home/peterc/devDir/ML-repos/onnxruntime/build/Linux/ort_install/lib/cmake/onnxruntime")
+
+#####
+
 # Manually specify build type
 set(CMAKE_BUILD_TYPE Debug)
 
 # PROJECT DEFINITION
-set(project_name "template_project")
+set(project_name "autoforge-deploy")
 
 option(ENABLE_OPTIX "Enable OptiX" OFF)
 option(ENABLE_CUDA "Enable CUDA" OFF)
@@ -87,10 +93,24 @@ message(STATUS "==============================================================")
 message(STATUS "====================  Dependencies ===========================")
 
 # LIBRARY DEPENDENCIES DEFINITION
-find_package( Eigen3 3.4 REQUIRED )
+find_package( Eigen3 3.4 )
 find_package( Doxygen )
-find_package( OpenGL )
 find_package( CUDAToolkit 12.0) 
+
+# Define framework specific library deps and targets
+# onnxruntime
+add_library(ort_target_interface INTERFACE)
+find_package(onnxruntime REQUIRED)
+
+if (onnxruntime_FOUND)
+  message(STATUS "ONNX Runtime found: ${onnxruntime_VERSION}")
+  target_link_libraries(ort_target_interface INTERFACE onnxruntime::onnxruntime)
+else()
+  message(FATAL_ERROR "ONNX Runtime not found. Please build onnxruntime and set onnxruntime_DIR environment variable to the build directory.")
+endif()
+
+# TensorRT
+# TODO
 
 # Set the dependencies for the automated export
 set(TARGET_DEPS Eigen3 OpenGL CUDAToolkit)
