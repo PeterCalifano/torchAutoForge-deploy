@@ -18,8 +18,8 @@ endif()
 message(STATUS "Adding module: template_src")
 add_subdirectory(template_src)
 
-message(STATUS "Adding module: .programs")
-add_subdirectory(.programs)
+message(STATUS "Adding module: programs")
+add_subdirectory(programs)
 
 # Exclude EXCLUDED_LIST from the list of src files
 set(EXCLUDED_LIST "")
