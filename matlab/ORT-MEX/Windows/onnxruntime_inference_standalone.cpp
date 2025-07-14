@@ -39,6 +39,12 @@ Compile with:
 #define printd(s)       do{if (DEBUG) {std::cout << s << std::endl;}}while(0)
 #define array_size(v)   sizeof(v)/sizeof(v[0])
 
+/**
+ * @brief Function computing the product of all elements in a vector of integers.
+ * @author Giacomo Battaglia
+ * @param vec 
+ * @return int 
+ */
 int vecprodi(std::vector<int>& vec) {
     int prod = 1;
     for (auto &v: vec) {
@@ -47,13 +53,26 @@ int vecprodi(std::vector<int>& vec) {
     return prod;
 }
 
-uint8_t* loadByteArrayBinary(const std::string& filename, size_t& out_size) {
+/**
+ * @brief Loads a binary file into a byte array.
+ *
+ * @param filename The name of the file to load.
+ * @param out_size The size of the loaded data.
+ * @return uint8_t* A pointer to the loaded data.
+ */
+uint8_t* loadByteArrayBinary(const std::string& filename, size_t& out_size) 
+{   
+    // Open the file in binary mode
     std::ifstream in(filename, std::ios::binary | std::ios::ate);
-    if (!in) throw std::runtime_error("Cannot open file for reading.");
+    if (!in) 
+    {
+        throw std::runtime_error("Cannot open file for reading.");
+    }
 
     // Get file size in bytes
     std::streamsize file_size = in.tellg();
-    if (file_size < 0) {
+    if (file_size < 0) 
+    {
         throw std::runtime_error("Failed to determine file size.");
     }
 
@@ -63,7 +82,8 @@ uint8_t* loadByteArrayBinary(const std::string& filename, size_t& out_size) {
     in.seekg(0, std::ios::beg);
     in.read(reinterpret_cast<char*>(arr), file_size);
 
-    if (!in) {
+    if (!in) 
+    {
         delete[] arr;
         throw std::runtime_error("Error reading data from file.");
     }
