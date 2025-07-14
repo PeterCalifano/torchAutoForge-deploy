@@ -5,7 +5,7 @@ if (DEFINED DOC_SUBDIRS AND NOT DOC_SUBDIRS STREQUAL "")
     message(STATUS "Configuring Doxygen documentation...")
     # configure doxygen
     option(BUILD_DOC_HTML              "Enable/Disable doxygen HTML output"    ON)
-    option(BUILD_DOC_LATEX             "Enable/Disable doxygen LaTeX output"   OFF)
+    option(BUILD_DOC_LATEX             "Enable/Disable doxygen LaTeX output"   ON)
 
     # add a target to generate API documentation with Doxygen
     # Convert configuration to YES/NO variables
@@ -22,9 +22,9 @@ if (DEFINED DOC_SUBDIRS AND NOT DOC_SUBDIRS STREQUAL "")
     endif()
 
     # From subfolders, build a list with whitespace separation of paths
-    set(DOXYGEN_INPUT_PATHS "")
+    set(DOXYGEN_INPUT_PATHS "src examples doc")
     foreach(dir ${DOC_SUBDIRS})
-        set(DOXYGEN_INPUT_PATHS "${DOXYGEN_INPUT_PATHS} ${dir}")
+        set(DOXYGEN_INPUT_PATHS ${DOXYGEN_INPUT_PATHS} ${dir})
     endforeach()
 
     # Generate Doxyfile (@ONLY is required to expand variable from cmake)

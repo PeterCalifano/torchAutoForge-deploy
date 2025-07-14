@@ -12,10 +12,19 @@ set(CMAKE_BUILD_TYPE Debug)
 set(project_name "template_project")
 
 option(ENABLE_OPTIX "Enable OptiX" OFF)
-set(languages CXX CUDA) # ACHTUNG: PTX code requires C language!
+option(ENABLE_CUDA "Enable CUDA" OFF)
+
+set(languages CXX) # ACHTUNG: PTX code requires C language!
 
 if (ENABLE_OPTIX)
-    list(APPEND languages C)
+  set(ENABLE_CUDA ON)
+endif()
+
+if (ENABLE_CUDA)
+    list(APPEND languages CUDA)
+    if (ENABLE_OPTIX)
+      list(APPEND languages C)
+    endif()
 endif()
 
 # Set version number
@@ -27,15 +36,19 @@ project( ${project_name}
         LANGUAGES ${languages}
         VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}") # ACHTUNG: PTX code requires C language!
 
+# Load scripts and install dirs
+include(cmake/cmake_utils.cmake)
+include(GNUInstallDirs)
+
 # Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # OPTIONS
 option(ENABLE_OMP "Enable OpenMP" OFF)
 if(NOT DEFINED NUM_OMP_THREADS)
-    set(NUM_OMP_THREADS 4 CACHE INTERNAL "Number of OpenMP threads to use")
+    set(NUM_OMP_THREADS 4 "Number of OpenMP threads to use")
 endif()
 
 option(USE_SYS_OPTIX_SDK "Use Optix system folder if specified" OFF)
@@ -46,14 +59,24 @@ option(ENABLE_SIMD "Enable SIMD instructions" ON)
 # TIP: if different options need to be specified for different targets of the build, use INTERFACE targets
 
 # COMPILER FLAGS
-string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPER)
-if (NOT BUILD_TYPE_UPPER STREQUAL "DEBUG")      
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3")
-else()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Og -g -fsanitize=address,undefined") # -Wpedantic
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Og -g -fsanitize=address,undefined")
+# Set compile flags based on configuration type
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Wall -Wextra -fmax-errors=3 -Og -g -fsanitize=address,undefined")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -fmax-errors=3 -Og -g -fsanitize=address,undefined")
+
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fmax-errors=1 -Wall -Wextra -fsanitize=address,undefined -O3")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fmax-errors=1 -Wall -Wextra -fsanitize=address,undefined -O3")
+
+if (ENABLE_OMP)
+    find_package(OpenMP REQUIRED)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 endif()
+
+add_library(sanitizer_target_settings INTERFACE)
+target_compile_options(sanitizer_target_settings INTERFACE
+    $<$<CONFIG:DEBUG>: -fsanitize=address,undefined>
+    $<$<CONFIG:RELEASE>: -fsanitize=address,undefined>
+)
 
 # Guard against in-source builds
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
@@ -64,10 +87,14 @@ message(STATUS "==============================================================")
 message(STATUS "====================  Dependencies ===========================")
 
 # LIBRARY DEPENDENCIES DEFINITION
-find_package( Eigen3 3.3 REQUIRED )
+find_package( Eigen3 3.4 REQUIRED )
 find_package( Doxygen )
-find_package( OpenGL REQUIRED )
-find_package( CUDAToolkit 12.0 REQUIRED) 
+find_package( OpenGL )
+find_package( CUDAToolkit 12.0) 
+
+# Set the dependencies for the automated export
+set(TARGET_DEPS Eigen3 OpenGL CUDAToolkit)
+message(STATUS "Target dependencies: ${TARGET_DEPS}")
 
 #find_package( GTSAM 4.0 REQUIRED )
 #find_package( GTSAM_UNSTABLE REQUIRED)
@@ -80,30 +107,18 @@ find_package( CUDAToolkit 12.0 REQUIRED)
 # torch
 # tensort
 
+# Define target to specify includes and compile defs
+add_library(cuda_compile_settings INTERFACE)
+
 # Handle CUDA and setup # TODO (PC) Move this code to a dedicated cmake file (HandleCUDA.cmake)
 if (CUDAToolkit_FOUND)
     message(STATUS "CUDA found: ${CUDAToolkit_VERSION}")
     message(STATUS "CUDA_INCLUDE_DIRS: ${CUDAToolkit_INCLUDE_DIRS}")
 
-    # TODO ensure this works correctly
-    # Detect the compute capability using nvidia-smi
-    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-      execute_process(
-          COMMAND nvidia-smi --query-gpu=compute_cap --format=csv,noheader
-          OUTPUT_VARIABLE gpu_compute_cap
-          OUTPUT_STRIP_TRAILING_WHITESPACE
-      )
-
-      # Map the compute capability to the correct architecture
-      string(REPLACE "." "" sm_version "${gpu_compute_cap}")
-      set(cuda_arch "sm_${sm_version}")
-
-      message(STATUS "Detected CUDA compute capability: ${gpu_compute_cap}")
-      message(STATUS "Using CUDA architecture: ${cuda_arch}")
-    endif() 
-
-    # Define target to specify includes and compile defs
-    add_library(cuda_compile_settings INTERFACE)
+    set(cuda_arch "")
+    set(sm_version "")
+    # Call the function to detect CUDA architecture
+    detect_cuda_arch(cuda_arch sm_version)
     
     # Include directories
     target_include_directories(cuda_compile_settings INTERFACE ${CUDAToolkit_INCLUDE_DIRS})
@@ -111,10 +126,12 @@ if (CUDAToolkit_FOUND)
     set_property(TARGET cuda_compile_settings 
                  PROPERTY CUDA_ARCHITECTURES ${sm_version})
 
-    target_compile_definitions(cuda_compile_settings INTERFACE WITH_CUDA=1)
+    target_compile_definitions(cuda_compile_settings INTERFACE __CUDA_ENABLED__=1)
     
     # Select CUDA libraries to link
     set(CUDA_LINK_LIBRARIES CUDA::cublas CUDA::cudart CUDA::curand CUDA::cuda_driver)
+
+    set_target_properties(cuda_compile_settings PROPERTIES CUDA_SEPARABLE_COMPILATION ON) # Enable separable compilation
 
     # Check if empty
     if (CUDA_LINK_LIBRARIES STREQUAL "")
@@ -130,10 +147,15 @@ endif()
 # OPTIX
 set(OPTIX_FOUND OFF) 
 
-if (ENABLE_OPTIX) # TODO (PC) Move this code to a dedicated cmake file (HandleOptix.cmake)
+if (ENABLE_OPTIX) 
+# TODO (PC) Move this code to a dedicated cmake file (HandleOptix.cmake)
+
+  target_compile_definitions(cuda_compile_settings INTERFACE __OPTIX_ENABLED__=1)
 
   # Specify Optix installation directory
   set(OptiX_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/NVIDIA-OptiX-SDK-8.0.0-linux64-x86_64)
+
+  message(STATUS "Using OptiX installation directory: ${OptiX_INSTALL_DIR}")
 
   if(${USE_OPTIX_SDK})
       if (DEFINED ENV{OPTIX_HOME})
@@ -145,7 +167,7 @@ if (ENABLE_OPTIX) # TODO (PC) Move this code to a dedicated cmake file (HandleOp
 
   set(OPTIX_FOUND ON)
 
-  # Define Optix includes
+  # Define Optix includes # DEVNOTE these are specific to spectral rt
   set(OPTIX_INCLUDE_DIR ${OptiX_INSTALL_DIR}/include)
   list(APPEND OPTIX_INCLUDE_DIR ${OptiX_INSTALL_DIR}/SDK/) # Add headers in SDK/sutil
   list(APPEND OPTIX_INCLUDE_DIR ${OptiX_INSTALL_DIR}/SDK/sutil) # Add headers in SDK/sutil
@@ -157,34 +179,27 @@ if (ENABLE_OPTIX) # TODO (PC) Move this code to a dedicated cmake file (HandleOp
   list(APPEND INCLUDE_DIR_LIST ${OPTIX_INCLUDE_DIR})
   
   # Add Optix includes to interface target
-  target_include_directories(cuda_compile_settings INTERFACE ${OPTIX_INCLUDE_DIR})
+  #target_include_directories(cuda_compile_settings INTERFACE ${OPTIX_INCLUDE_DIR})
 
 endif()
 
 # Add conveniency tools adapted from GTSAM
 # Include CMake modules from GTSAM
-find_package(GTSAMCMakeTools REQUIRED)
-
-# Load build type flags and default to Debug mode
-#include(GtsamBuildTypes)
+find_package(GTSAMCMakeTools)
 
 # Use macros for creating tests/timing scripts
 #include(GtsamTesting)
 #include(GtsamPrinting)
 
-# Add CppUnitLite testing framework to build
-if ( NOT (BUILD_PYTHON_WRAPPER OR BUILD_MATLAB_WRAPPER) )
-  add_subdirectory(CppUnitLite) # ACHTUNG: when building with wrapper this MUST be excluded because GTSAM already includes it
-endif()
-
 # Add catch2 for unit testing
-find_package(Catch2)
+find_package(Catch2 REQUIRED)
 
+# TODO: move to dedicated cmake script
 if (Catch2_FOUND)
     message(STATUS "Catch2 found at system level: ${Catch2_DIR}")
 else()
   message(STATUS "Catch2 not found. Fetching it...")
-  Include(FetchContent)
+  include(FetchContent)
 
   FetchContent_Declare(
     Catch2
@@ -207,10 +222,22 @@ set(installable_targets)
 
 # INCLUDE DIRECTORIES
 include_directories( ${OpenCV_INCLUDE_DIRS} ) 
-include_directories( ${PROJECT_SOURCE_DIR} )
-include_directories( ${JSONCPP_INCLUDE_DIRS}) 
 include_directories( ${GTSAM_INCLUDE_DIRS}) 
-include_directories( "src")
+
+# Define include target interface
+add_library(${project_name}_include INTERFACE)
+
+# Define include directories for the include library
+target_include_directories(${project_name}_include INTERFACE 
+                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>  # Used during development
+                           #$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/stb_PeterCdev>  
+                           #$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/rapidyaml_PeterCdev>
+                           #$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/gdt>
+                           #$<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}> 
+                           #$<BUILD_INTERFACE:${OPTIX_INCLUDE_DIR}>   
+                           #$<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>  # Add OpenCV include directories
+                           $<INSTALL_INTERFACE:include/${project_name}>  # Used in installed projects
+)
 
 # Include CTest and Catch2
 include(CTest)
@@ -231,13 +258,10 @@ add_subdirectory( tests )
 # Add documentation
 set(DOC_SUBDIRS "${${project_name}_INCLUDE_DIRS}")
 if (DOXYGEN_FOUND)
-    add_subdirectory( doc )
+    add_subdirectory( "doc" )
 else()
     message(STATUS "Doxygen not found. Skipping building documentation.") 
 endif()
-
-# Make catch2 to search for tests
-message(STATUS "List of test targets: ${TESTS_LIST}")
 
 # Print configuration variables
 message(STATUS "===============================================================")
@@ -247,26 +271,47 @@ message(STATUS "LIBRARY NAME                              : ${project_name}")
 message(STATUS "CMAKE_CXX_COMPILER                        : ${CMAKE_CXX_COMPILER}")
 message(STATUS "CMAKE_CXX_COMPILER_ID type                : ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_COMPILER_VERSION                : ${CMAKE_CXX_COMPILER_VERSION}")
-# C compiler
-message(STATUS "CMAKE_C_COMPILER                          : ${CMAKE_C_COMPILER}")
-message(STATUS "CMAKE_C_COMPILER_ID type                  : ${CMAKE_C_COMPILER_ID}")
-message(STATUS "CMAKE_C_COMPILER_VERSION                  : ${CMAKE_C_COMPILER_VERSION}")
-# CUDA compiler
-message(STATUS "CMAKE_CUDA_COMPILER                       : ${CMAKE_CUDA_COMPILER}")
-message(STATUS "CMAKE_CUDA_COMPILER_ID type               : ${CMAKE_CUDA_COMPILER_ID}")
-message(STATUS "CMAKE_CUDA_COMPILER_VERSION               : ${CMAKE_CUDA_COMPILER_VERSION}")
+
+if (ENABLE_OPTIX)
+  # C compiler
+  message(STATUS "CMAKE_C_COMPILER                          : ${CMAKE_C_COMPILER}")
+  message(STATUS "CMAKE_C_COMPILER_ID type                  : ${CMAKE_C_COMPILER_ID}")
+  message(STATUS "CMAKE_C_COMPILER_VERSION                  : ${CMAKE_C_COMPILER_VERSION}")
+endif()
+
+# CUDA arch and compiler
+if (ENABLE_CUDA)
+  message(STATUS "CUDA enabled                             : ${ENABLE_CUDA}")
+  message(STATUS "CUDA architecture                        : ${cuda_arch}")
+  message(STATUS "CUDA architecture sm version             : ${sm_version}")
+  message(STATUS "CMAKE_CUDA_COMPILER                      : ${CMAKE_CUDA_COMPILER}")
+  message(STATUS "CMAKE_CUDA_COMPILER_ID type              : ${CMAKE_CUDA_COMPILER_ID}")
+  message(STATUS "CMAKE_CUDA_COMPILER_VERSION              : ${CMAKE_CUDA_COMPILER_VERSION}")
+endif()
+
 # Installation
 message(STATUS "CMAKE_INSTALL_PREFIX                      : ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "CMAKE_INSTALL_LIBDIR                      : ${CMAKE_INSTALL_LIBDIR}")
+message(STATUS "CMAKE_INSTALL_INCLUDEDIR                  : ${CMAKE_INSTALL_INCLUDEDIR}")
+message(STATUS "CMAKE_INSTALL_BINDIR                      : ${CMAKE_INSTALL_BINDIR}")
+
 # Build type
-message(STATUS "Build flags:                                               ")
 if(NOT MSVC AND NOT XCODE_VERSION)
-  message(STATUS "  Build type                              : ${CMAKE_BUILD_TYPE}")
-  message(STATUS "  C compilation flags (Release)           : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_RELEASE}")
-  message(STATUS "  C++ compilation flags (Release)         : ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
+  message(STATUS "Build type                                : ${CMAKE_BUILD_TYPE}")  
+
+  if(CMAKE_BUILD_TYPE MATCHES Debug)
+    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_DEBUG}")
+    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}")
+  else()
+    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_RELEASE}")
+    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
+  endif()
+
 endif()
 
 # WRAPPERS CONFIGURATION
 # Handle wrappers
+# TODO update this after gtsam_spaceNav fix
 if(BUILD_PYTHON_WRAPPER OR BUILD_MATLAB_WRAPPER)
 
   if (NOT GTSAM_FOUND)
@@ -278,7 +323,7 @@ if(BUILD_PYTHON_WRAPPER OR BUILD_MATLAB_WRAPPER)
     CACHE STRING "The Python version to use for wrapping")
 
   # Look for gtwrap
-  find_package(gtwrap QUIET) 
+  find_package(gtwrap QUIET)
 
   # Check if wrap subdirectory exists, else fetch it from github as submodule
   if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wrap") 
@@ -300,6 +345,9 @@ if(BUILD_PYTHON_WRAPPER OR BUILD_MATLAB_WRAPPER)
       message(STATUS "GTwrap package OR Wrap subdirectory found. Proceeding to build wrappers...")
   endif()
 
+  # Set the include directory for matlab.h
+  set(GTWRAP_INCLUDE_NAME "wrap")
+
   # DEFINE interface files for wrapper
   set(SEARCH_DIR_WRAP 
       "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -312,12 +360,16 @@ if(BUILD_PYTHON_WRAPPER OR BUILD_MATLAB_WRAPPER)
 
   if (NOT WRAPPER_INTERFACE_FILES)
     message(FATAL_ERROR "WRAPPER_INTERFACE_FILES list not defined. Please check the cmake configuration.")
-  elseif (${WRAPPER_INTERFACE_FILES} STREQUAL "")
-    message(FATAL_ERROR "No interface files found for wrapping. Please check the search directory or provide files.")
+  else()
+    # Check if list has exactly one element that is empty
+    list(LENGTH WRAPPER_INTERFACE_FILES WRAPPER_INTERFACE_FILES_LEN)
+    if (WRAPPER_INTERFACE_FILES_LEN EQUAL 1)
+      list(GET WRAPPER_INTERFACE_FILES 0 _first_interface)
+      if (_first_interface STREQUAL "")
+        message(FATAL_ERROR "No interface files found for wrapping. Please check the search directory or provide files.")
+      endif()
+    endif()
   endif()
-
-  # Set the include directory for matlab.h
-  set(GTWRAP_INCLUDE_NAME "wrap")
 
   # Copy matlab.h to the correct folder.
   configure_file(${PROJECT_SOURCE_DIR}/wrap/matlab.h
@@ -420,14 +472,12 @@ set(CTEST_NIGHTLY_START_TIME "00:00:00 CET")
 #set(CTEST_DROP_LOCATION "/submit.php?project=CMakeTutorial")
 #set(CTEST_DROP_SITE_CDASH TRUE)
 
-# PACKAGING CONFIGURATION # TODO test and extended prototype cmake code (this is copied from tutorials)
-#include(InstallRequiredSystemLibraries)
-#set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/License")
-#set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
-#set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
-#set(CPACK_GENERATOR "TGZ")
-#set(CPACK_SOURCE_GENERATOR "TGZ")
-#include(CPack)
+# PACKAGING CONFIGURATION 
+include(InstallRequiredSystemLibraries)
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_GENERATOR "TGZ")
+set(CPACK_SOURCE_GENERATOR "TGZ")
+include(CPack)
 
-# TODO: add cmake configuration to export project, such that it can be found by other projects using find_package()
-# See https://cmake.org/cmake/help/latest/guide/tutorial/Adding%20Export%20Configuration.html
