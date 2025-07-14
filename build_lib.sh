@@ -6,6 +6,9 @@
 # - Last updated with shell parser by PeterC, July 2024
 # - Major rework for cpp_template_project by PeterC, January 2025
 
+# DEVNOTE sorry, this script is not up to date for full automation, but still provides a good starting point. Please modify it manually for your needs.
+set -e
+
 # Default values
 buildpath="build" 
 use_default_buildpath=true
@@ -13,7 +16,6 @@ jobs=3
 rebuild_only=false
 build_type=relwithdebinfo # default build type, possible options: debug, release, relwithdebinfo, minsizerel
 add_checks=true
-add_legacy_tests=false
 CXX_FLAGS=""
 python_wrap=false
 matlab_wrap=false
@@ -70,7 +72,7 @@ while true; do
     -t|--type-build)
       if [ -n "$2" ] && [ "$2" != "--" ]; then
         build_type="$2"
-        if [ "${build_type}" == "debug" | "${build_type}" == "relwithdebinfo"]; then
+        if [[ "${build_type}" == "debug" || "${build_type}" == "relwithdebinfo" || "${build_type}" == "release" ]]; then
           CXX_FLAGS="${CXX_FLAGS} -Wall -Wextra"
         fi
         shift 2
@@ -167,11 +169,13 @@ if [ "${rebuild_only}" == false ]; then
 
   # Generate build configuration
     cmake -B ${buildpath} -S . ${BUILD_CONFIG_COMMANDS} 
-    #-DGTSAM_BUILD_PYTHON=${python_wrap} \
-    #-DGTSAM_INSTALL_MATLAB_TOOLBOX=${matlab_wrap} \
 
-  # TODO introduce check to stop build script if configuration fails!
-  
+  # Stop build script if CMake configuration fails!
+  if [ $? -ne 0 ]; then
+    echo -e "\e[31mError: CMake configuration failed. Exiting build script...\e[0m"
+    exit 1
+  fi
+
   # Build and optionally, install 
     make -j ${jobs} -C ${buildpath} 
 
@@ -179,14 +183,14 @@ if [ "${rebuild_only}" == false ]; then
     make -j ${jobs} -C ${buildpath} 
 
     if [ "${add_checks}" == true ] || [ "${install}" == true ]; then
-      if [ "${add_legacy_tests}" == true ]; then
-        make check -j ${jobs} -C ${buildpath} 
+      if ! make test -j ${jobs} -C ${buildpath}; then
+      echo -e "\e[31mTests failed, exiting build script...\e[0m"
+      exit 1
       fi
-      make test -j ${jobs} -C ${buildpath} 
     fi
-    
+
     if [ "${install}" == true ]; then
-      sudo make install -j ${jobs} -C ${buildpath} 
+      make install -j ${jobs} -C ${buildpath}
     fi
 
 else 
@@ -204,12 +208,14 @@ else
     make -j ${jobs} -C ${buildpath} 
 
     if [ "${add_checks}" == true ] || [ "${install}" == true ]; then
-      make check -j ${jobs} -C ${buildpath} 
-      make test -j ${jobs} -C ${buildpath} 
+      if ! make test -j ${jobs} -C ${buildpath}; then
+      echo -e "\e[31mTests failed, exiting build script...\e[0m"
+      exit 1
+      fi
     fi
 
     if [ "${install}" == true ]; then
-      sudo make install -j ${jobs} -C ${buildpath} 
+      make install -j ${jobs} -C ${buildpath} 
     fi
 
 fi

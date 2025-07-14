@@ -35,3 +35,10 @@ CMakeLists.txt.user*
 xcode/
 /Dockerfile
 /python/gtsam/notebooks/.ipynb_checkpoints/ellipses-checkpoint.ipynb
+.model_checkpoints/thoughtful-shark-599_epoch_4956_cpu.pt
+.model_checkpoints/matlab_models/ambitious_asp_27_epoch_4830.mat
+.model_checkpoints/matlab_models/thoughtful_shark_599_epoch_4956_cpu.mat
+.model_checkpoints/matlab_models/+ambitious_asp_27_epoch_4830/Shape_To_AddLayer1079.m
+.model_checkpoints/matlab_models/+thoughtful_shark_599_epoch_4956_cpu/Gather_To_AddLayer1076.m
+.model_checkpoints/onnx_exported_models/ambitious-asp-27_epoch_4830.onnx
+.model_checkpoints/onnx_exported_models/thoughtful-shark-599_epoch_4956_cpu.onnx

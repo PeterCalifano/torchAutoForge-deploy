@@ -7,32 +7,22 @@
 #add_executable(custom-main-tests test.cpp test-main.cpp)
 #target_link_libraries(custom-main-tests PRIVATE Catch2::Catch2)
 
-# Add tests to build
-set(TESTS_PATTERN "test*.cpp; test*.cu")
-file(GLOB srcTestFiles RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${TESTS_PATTERN})
-message("Test files found: ${srcTestFiles}")
+# Set additional properties for Catch2 test targets
+set(CATCH2_TEST_PROPERTIES "--output-on-failure;--reporter=compact") 
 
 # Exclude EXCLUDED_LIST from the list of tests
-set(EXCLUDED_LIST "")
-list(REMOVE_ITEM srcTestFiles ${EXCLUDED_LIST})
+set(EXCLUDED_LIST "test_to_exclude")  # Specify files to exclude WE
+set(TESTS_LIST "") 
 
-set(TESTS_LIST "")
+# Include the content of the fixtures directory
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-# Add to build and link
-foreach(testFile ${srcTestFiles})
+# Add subdirectory 
+add_subdirectory(template_test)
+add_subdirectory(template_fixtures)
 
-    get_filename_component(testName ${testFile} NAME_WE)
-    add_executable(${testName} ${testFile})
+# Add tests to build
+add_tests(${project_name} EXCLUDED_LIST TESTS_LIST cuda_compile_settings CATCH2_TEST_PROPERTIES Catch2::Catch2WithMain)
 
-    list(APPEND TESTS_LIST ${testName}) 
-
-    target_link_libraries(${testName} PUBLIC lib_name)
-    target_include_directories(${testName} PRIVATE ${lib_name_INCLUDE_DIRS})
-
-endforeach()
-
-foreach (testTarget ${TESTS_LIST})
-    catch_discover_tests(${testTarget})
-endforeach()
-
-set(TESTS_LIST ${TESTS_LIST} PARENT_SCOPE) # Export list of tests to parent scope (applied ONLY here)
+# Make catch2 to search for tests
+message(STATUS "List of test targets: ${TESTS_LIST}")
