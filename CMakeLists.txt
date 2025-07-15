@@ -7,7 +7,8 @@ cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 
 #####
 # Temporary for development. This should be set by the user or as environment variable.
-set(onnxruntime_DIR "/home/peterc/devDir/ML-repos/onnxruntime/build/Linux/ort_install/lib/cmake/onnxruntime")
+set(HOME $ENV{HOME})
+set(onnxruntime_DIR ${HOME}/devDir/ML-repos/onnxruntime/build/Linux/ort_install/lib/cmake/onnxruntime)
 
 #####
 
