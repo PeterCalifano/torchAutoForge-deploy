@@ -55,11 +55,7 @@ if ( ENABLE_OPTIX )
   target_sources(${lib_name} PUBLIC ${embedded_ptx_code})    
 endif()
 
-# Link targets
-target_include_directories(${lib_name} PUBLIC 
-                          ${OpenCV_INCLUDE_DIRS} 
-                          )
-
+### LINK TARGETS
 # Link interface target for CUDA
 target_link_libraries(${lib_name} PUBLIC cuda_compile_settings ${project_name}_include)
 
@@ -72,6 +68,12 @@ target_link_libraries(${lib_name} INTERFACE ort_target_interface)
 target_link_libraries(${lib_name} PUBLIC 
                                   ${OpenCV_LIBS} 
                                   Eigen3::Eigen)
+
+### INCLUDE DIRECTORIES
+target_include_directories(${lib_name} PUBLIC 
+                          ${OpenCV_INCLUDE_DIRS} 
+                          ${onnxruntime_INCLUDE_DIRS})
+
 
 # Add target to installable list (export list for installation)
 set(installable_targets ${installable_targets} 
