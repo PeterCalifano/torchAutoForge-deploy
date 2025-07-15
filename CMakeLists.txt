@@ -213,7 +213,7 @@ find_package(GTSAMCMakeTools)
 #include(GtsamPrinting)
 
 # Add catch2 for unit testing
-find_package(Catch2 REQUIRED)
+find_package(Catch2 QUIET)
 
 # TODO: move to dedicated cmake script
 if (Catch2_FOUND)
