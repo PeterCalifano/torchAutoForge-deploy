@@ -63,18 +63,35 @@ namespace deploy_ort
         }
     }
 
+    /**
+     * @brief A class to manage ONNX Runtime environment setup and inference.
+     * @author Peter C.
+     *
+     */
     class CInferenceManager_ORT
     {
       public:
-        // Constructor
+        // CONSTRUCTORS
         CInferenceManager_ORT() = default;
         // TODO: do not use strings to define paths! Scott Meyer's tip.
-        CInferenceManager_ORT(std::string model_path)
-        {
-            print_info("Initintializing CInferenceManager_ORT with model path: " + model_path);
-            // Initialize ORT environment
-            Ort::Env exec_env(ORT_LOGGING_LEVEL, "ONNXModel");
-        }
+        CInferenceManager_ORT(const std::string &model_path, const bool inplace_init = true);
+
+        // DESTRUCTOR
+        ~CInferenceManager_ORT() = default;
+
+      public:
+        // GETTERS
+
+        // SETTERS
+
+        // METHODS
+        void initialize();
+
+      protected:
+        // DATA MEMBERS
+        std::string model_path_;
+        Ort::Env env_{};
+        Ort::SessionOptions session_options_{};
     };
 
 };

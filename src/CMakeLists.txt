@@ -15,8 +15,8 @@ if (ENABLE_OPTIX)
 endif()
 
 # Add subdirectories with src files
-message(STATUS "Adding module: template_src")
-add_subdirectory(template_src)
+message(STATUS "Adding module: inference")
+add_subdirectory(inference)
 
 message(STATUS "Adding module: programs")
 add_subdirectory(programs)

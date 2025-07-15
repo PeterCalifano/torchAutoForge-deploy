@@ -9,6 +9,7 @@ cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 # Temporary for development. This should be set by the user or as environment variable.
 set(HOME $ENV{HOME})
 set(onnxruntime_DIR ${HOME}/devDir/ML-repos/onnxruntime/build/Linux/ort_install/lib/cmake/onnxruntime)
+set(onnxruntime_INCLUDE_DIRS ${HOME}/devDir/ML-repos/onnxruntime/build/Linux/ort_install/include/onnxruntime) # DOUBT why the hell the cmake target does not include the include directory...?
 
 #####
 
@@ -102,9 +103,9 @@ find_package( CUDAToolkit 12.0)
 # onnxruntime
 add_library(ort_target_interface INTERFACE)
 find_package(onnxruntime REQUIRED)
-
 if (onnxruntime_FOUND)
   message(STATUS "ONNX Runtime found: ${onnxruntime_VERSION}")
+  message(STATUS "ONNX Runtime include directories: ${onnxruntime_INCLUDE_DIRS}")
   target_link_libraries(ort_target_interface INTERFACE onnxruntime::onnxruntime)
 else()
   message(FATAL_ERROR "ONNX Runtime not found. Please build onnxruntime and set onnxruntime_DIR environment variable to the build directory.")
