@@ -7,7 +7,7 @@ cd( fileparts(which(mfilename)) )
 charOnnxFileRootPath = "/home/peterc/devDir/ML-repos/torchAutoForge-deploy/.model_checkpoints/onnx_exported_models";
 charMatlabFileRootPath = "/home/peterc/devDir/ML-repos/torchAutoForge-deploy/.model_checkpoints/matlab_models";
 
-charOnnxFileName = "ambitious-asp-27_epoch_4830";
+charOnnxFileName = "zealous-cow-471_epoch_2893_0";
 
 charONNxModelFilePath = fullfile(charOnnxFileRootPath, sprintf("%s.onnx", charOnnxFileName));
 

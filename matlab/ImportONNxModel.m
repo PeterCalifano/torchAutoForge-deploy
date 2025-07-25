@@ -17,6 +17,7 @@ arguments
     kwargs.charModelName string {mustBeA(kwargs.charModelName, ["string", "char"])} = "ImportedModelFromONNx"
     kwargs.bExportToSimulink {islogical, isscalar} = false
     kwargs.charOutputPath {mustBeA(kwargs.charOutputPath, ["string", "char"])} = "."
+    kwargs.bRunNetworkAnalysis (1,1) logical {isscalar, islogical} = false
 end
 
 % Verify if the model file exists
@@ -37,7 +38,10 @@ end
 % Initialize model
 objX        = dlarray(dInputSample, charInputShape);  
 objModel    = initialize(objModel, objX);
-analyzeNetwork(objModel);
+
+if kwargs.bRunNetworkAnalysis
+    analyzeNetwork(objModel);
+end
 
 % Test inference
 dOutput = objModel.predict(objX);
