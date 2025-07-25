@@ -1,17 +1,20 @@
+#pragma once
+
 // ORT
 #include <onnxruntime_cxx_api.h>
 // STL
 #include <algorithm>
-#include <codecvt>
 #include <fstream>
 #include <iostream>
-#include <locale>
 #include <memory>
 #include <numeric>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+// Autoforge deploy
+#include <auxiliary/common_ops.h>
+#include <auxiliary/common_defs.h>
 
 // MACROS
 #define DEBUG false
@@ -73,8 +76,10 @@ namespace deploy_ort
       public:
         // CONSTRUCTORS
         CInferenceManager_ORT() = default;
-        // TODO: do not use strings to define paths! Scott Meyer's tip.
-        CInferenceManager_ORT(const std::string &model_path, const bool inplace_init = true);
+        CInferenceManager_ORT(const std::string session_config_path); // TODO implement parser
+        CInferenceManager_ORT(const std::string &model_path,
+                              const bool inplace_init = true,
+                              const Ort::SessionOptions session_options = Ort::SessionOptions());
 
         // DESTRUCTOR
         ~CInferenceManager_ORT() = default;
@@ -85,13 +90,93 @@ namespace deploy_ort
         // SETTERS
 
         // METHODS
+        template <typename infer_type>
         void initialize();
+
+        template <typename infer_type>
+        void infer();
 
       protected:
         // DATA MEMBERS
-        std::string model_path_;
-        Ort::Env env_{};
+        fs::path model_path_{};
+        // ORT environment and session
+        Ort::Env exec_env_{};
         Ort::SessionOptions session_options_{};
+        std::unique_ptr<Ort::Session> session_ptr_{nullptr};
+        // Memory management
+        Ort::AllocatorWithDefaultOptions allocator_{};
+        Ort::MemoryInfo memory_info_{Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)};
+
+        // Tensor allocation
+        Ort::Value input_tensor_{nullptr};
+        Ort::Value output_tensor_{nullptr};
+
+        // Input/Output specifications
+        std::shared_ptr<deploy_common_defs::SInputOutputSpecs<int64_t, int64_t>> input_output_specs_{};
     };
 
+    // Template method definitions
+    /**
+     * @brief Initializes the ONNX Runtime environment and session.
+     *
+     */
+    template <typename infer_type>
+    void CInferenceManager_ORT::initialize()
+    {
+        // Initialize ORT environment
+        exec_env_ = Ort::Env(ORT_LOGGING_LEVEL, "ONNXModel");
+
+        // Define ort session
+        if (session_ptr_ == nullptr)
+        {
+            print_info("Creating Ort::Session with model path: " + model_path_.string());
+            session_ptr_ = std::make_unique<Ort::Session>(exec_env_,
+                                                          static_cast<const char *>(model_path_.string().c_str()),
+                                                          session_options_);
+
+            // Define input/output specifications
+            print_info("Defining input/output specifications for the model...");
+            input_output_specs_ = std::make_shared<deploy_common_defs::SInputOutputSpecs<int64_t, int64_t>>(); // TODO
+
+            // Define memory info
+            memory_info_ = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemType::OrtMemTypeDefault); // TODO
+
+            // Allocate input and output tensors
+            // FIXME
+            input_tensor_ = Ort::Value::CreateTensor<infer_type>(memory_info_,
+                                                                 input_output_specs_->input_shapes,
+                                                                 input_output_specs_->num_elements_linear_input_array);
+
+            output_tensor_ = Ort::Value::CreateTensor<infer_type>(memory_info_,
+                                                                  input_output_specs_->num_elements_linear_output_array,
+                                                                  input_output_specs_->output_shapes);
+        }
+        else
+        {
+            print_info("Ort::Session already initialized.");
+        }
+    };
+
+    template <typename infer_type>
+    void CInferenceManager_ORT::infer()
+    {
+#if (VERBOSE)
+        // Placeholder for inference logic
+        print_info("Running inference with model: " + model_path_.string());
+#endif
+
+        // Run session inference
+        Ort::RunOptions run_options;
+        run_options.SetRunLogVerbosityLevel(ORT_LOGGING_LEVEL);
+        run_options.SetRunTag("InferenceRun");
+
+        // Run the session
+        session_ptr_->Run(run_options,
+                          input_output_specs_->input_names.data(),   // Input names
+                          &input_tensor_,                            // Input tensor
+                          input_output_specs_->input_names.size(),   // Number of inputs
+                          input_output_specs_->output_names.data(),  // Output names
+                          &output_tensor_,                           // Output tensor
+                          input_output_specs_->output_names.size()); // Number of outputs
+    }
 };
