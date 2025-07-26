@@ -1,11 +1,10 @@
 # List of TODOs for autoforge-deploy module
 
-- [ ] Add configuration for python library module (use same as ML Gears). This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead.  
+- [x] Add configuration for python library module (use same as ML Gears). This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead.  
 
 - [ ] Add module for Inference management
+   - [ ] Onnx runtime library 
 
 - [ ] Add module with pre-trained/tailored models, e.g. feature matching
 
-- [ ] Configure cmake build project
-
-- [ ] Implement experimental C++ program for deployment of a network
+- [x] Configure cmake build and installation of project
