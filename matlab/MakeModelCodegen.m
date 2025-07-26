@@ -10,8 +10,8 @@ function MakeModelCodegen(charPathToModelMat, ...
         charOutputPath         (1,:) char {mustBeA(charOutputPath, ["char", "string"])} = '.'
     end
     arguments
-        kwargs.ui32BatchSize  (1,1) uint32 = 1
-        kwargs.objCoderConfig {mustBeA(kwargs.objCoderConfig, ["coder.MexCodeConfig", "double"])} = []
+        kwargs.charInputShapeFormat (1,:) char {mustBeA(kwargs.charInputShapeFormat, ["string", "char"])} = "BC"
+        kwargs.objCoderConfig {mustBeA(kwargs.objCoderConfig, ["coder.MexCodeConfig", "coder.EmbeddedCodeConfig", "coder.CodeConfig", "double"])} = []
         kwargs.charBuildType (1,1) string {mustBeMember(kwargs.charBuildType, ["mex", "lib", "exe"])} = "mex"
         kwargs.bRunModelAnalysisCheck (1,1) logical {isscalar, islogical} = true
     end
@@ -44,24 +44,42 @@ function MakeModelCodegen(charPathToModelMat, ...
     if isempty(kwargs.objCoderConfig)
         cfg = coder.config(kwargs.charBuildType, 'ecoder', true);
         cfg.TargetLang = 'C++';
-        cfg.DeepLearningConfig = coder.DeepLearningConfig(TargetLibrary='none');
+        cfg.TargetLangStandard = 'C++11 (ISO)';
+
+        % Modify relevant default options
         cfg.GenerateReport = true;
         cfg.LaunchReport = true;
-        cfg.EnableJIT = true;
+        cfg.GenCodeOnly = true;
+        cfg.EnableAutoParallelization = true;
+        cfg.IndentStyle = 'Allman';
+        cfg.HighlightPotentialDataTypeIssues = true;
+        cfg.GenerateCodeMetricsReport = true;
+        cfg.EnableRuntimeRecursion = false;
+        cfg.EnableSignedLeftShifts = false;
+        cfg.CastingMode = "Standards";
+        cfg.GenerateDefaultInSwitch = true;
+
+        % DeepLearning specific
+        cfg.DeepLearningConfig = coder.DeepLearningConfig(TargetLibrary='none');
+        cfg.DeepLearningConfig.LearnablesCompression = 'None';
+
     else
         cfg = kwargs.objCoderConfig;
         fprintf("\nUsing provided coder configuration...\n");
     end
 
+    % Handle input (remove extension if any
+    [charDir, charName] = fileparts(charPathToModelMat);
+    charPathToModelMat = fullfile(charDir, charName);
+
     %% Check input model
     if kwargs.bRunModelAnalysisCheck
         fprintf("\nRunning model analysis check...\n");
-        try
-        strTmpData = load(charPathToModelMat);
-            cellFieldNames = fieldnames(strTmpData);
-            if numel(cellFieldNames) ~= 1
-                error('The provided model file must contain exactly one variable corresponding to the network model! Found %d variables.', numel(cellFieldNames));
-            end
+        strTmpData = load(strcat(charPathToModelMat, ".mat"));
+        cellFieldNames = fieldnames(strTmpData);
+        if numel(cellFieldNames) ~= 1
+            error('The provided model file must contain exactly one variable corresponding to the network model! Found %d variables.', numel(cellFieldNames));
+        end
 
             objModel = strTmpData.(cellFieldNames{1});
             objAnalysisRpt = analyzeNetworkForCodegen(objModel);
@@ -97,10 +115,11 @@ function MakeModelCodegen(charPathToModelMat, ...
                         "%% Load model\nif isempty(network_model)" + ...
                         "\n\tnetwork_model = coder.loadDeepLearningNetwork('%s.mat');\nend" + ...
                         "\n\n%% Run inference\n" + ...
-                        "out = predict(network_model, varModelInput, 'MiniBatchSize', %d);\nend", ...
+                        "objY = network_model.predict(dlarray(varModelInput, '%s'));\n" + ...
+                        "out = extractdata(objY);\nend", ...
                         charForwardFcnFilename, ...
                         charPathToModelMat, ...
-                        kwargs.ui32BatchSize);
+                        kwargs.charInputShapeFormat);
 
     % Write function code to file
     charWrapOutName = fullfile( charOutputPath, strcat(charForwardFcnFilename, ".m") );
