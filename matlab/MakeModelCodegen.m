@@ -56,16 +56,29 @@ function MakeModelCodegen(charPathToModelMat, ...
     %% Check input model
     if kwargs.bRunModelAnalysisCheck
         fprintf("\nRunning model analysis check...\n");
+        try
         strTmpData = load(charPathToModelMat);
-        cellFieldNames = fieldnames(strTmpData);
-        if numel(cellFieldNames) ~= 1
-            error('The provided model file must contain exactly one variable corresponding to the network model! Found %d variables.', numel(cellFieldNames));
-        end
+            cellFieldNames = fieldnames(strTmpData);
+            if numel(cellFieldNames) ~= 1
+                error('The provided model file must contain exactly one variable corresponding to the network model! Found %d variables.', numel(cellFieldNames));
+            end
 
-        objModel = strTmpData.(cellFieldNames{1});
-        objAnalysisRpt = analyzeNetworkForCodegen(objModel);
-        disp(objAnalysisRpt)
-        fprintf("\nModel analysis check completed.\n");
+            objModel = strTmpData.(cellFieldNames{1});
+            objAnalysisRpt = analyzeNetworkForCodegen(objModel);
+            disp(objAnalysisRpt)
+            fprintf("\nModel analysis check completed.\n");
+        
+        catch ME
+            fprintf(2, 'Error during model analysis check: %s\n', string(ME.message));
+            charUsrInput = input('Do you want to continue with code generation? (y/n): ', 's');
+            while ~ismember(lower(charUsrInput), {'y', 'n'})
+                charUsrInput = input('Invalid input. Please enter "y" to continue or "n" to abort: ', 's');
+            end
+            if lower(charUsrInput) == 'n'
+                warning('Code generation aborted due to model analysis check failure.');
+                return;
+            end
+        end
     else
         warning('Model analysis check is disabled. Make sure the model is compatible with code generation.');
     end
