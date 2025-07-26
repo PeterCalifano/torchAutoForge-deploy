@@ -8,8 +8,8 @@ function [objModel, charMatSavePath, objModelInSLX] = ImportONNxModel(charModelf
 arguments
     charModelfilePath (1,:) string {mustBeA(charModelfilePath, ["char", "string"])}
     dModelInputSizes  (1,:) double {isvector}
-    charInputShape    (1,:) char = 'BC'
-    charOutputShape   (1,:) char = 'BC'
+    charInputShape    (1,:) string = 'BC'
+    charOutputShape   (1,:) string = 'BC'
     dInputSample      (:,:) single {ismatrix} = [] % Optional input sample
     dOutputSample     (:,:) single {ismatrix} = [] % Optional label sample
 end
@@ -18,6 +18,7 @@ arguments
     kwargs.bExportToSimulink {islogical, isscalar} = false
     kwargs.charOutputPath {mustBeA(kwargs.charOutputPath, ["string", "char"])} = "."
     kwargs.bRunNetworkAnalysis (1,1) logical {isscalar, islogical} = false
+    kwargs.bRemoveOutputLayer  (1,1) logical {isscalar, islogical} = false
 end
 
 % Verify if the model file exists
@@ -29,6 +30,13 @@ end
 objModel = importNetworkFromONNX(charModelfilePath, ...
                             "InputDataFormats", charInputShape, ...
                             "OutputDataFormats", charOutputShape);
+
+if kwargs.bRemoveOutputLayer
+    % Remove outpu layer
+    objModel = objModel.removeLayers(objModel.OutputNames{1});
+    ui32NumOfLayers = length(objModel.Layers);
+    objModel.OutputNames = {objModel.Layers(ui32NumOfLayers).Name};
+end
 
 % Get random input sample if not provided
 if isempty(dInputSample)

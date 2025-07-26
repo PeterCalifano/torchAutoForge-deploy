@@ -1,5 +1,4 @@
 # List of TODOs for MATLAB module of torchAutoForge-deploy
-
 Useful links: https://it.mathworks.com/help/deeplearning/ref/dlnetwork.exportnetworktosimulink.html
 
 - [ ] Implement script/function to automatically call deploy-python package and run export of a pth/pt (traced is easier) model to onnx
