@@ -1,221 +1,177 @@
-#!bin/bash
-# Script to build cppprojects in GNU/Linux systems
-# NOTE: this script assumes to be in the project root folder.
-# CHANGELOG: 
-# - Created January 2024,- modified May 2024 for Ubuntu 24.04 TLS by PeterC.
-# - Last updated with shell parser by PeterC, July 2024
-# - Major rework for cpp_template_project by PeterC, January 2025
+#!/usr/bin/env bash
+# Build helper for CMake-based C++ projects (Linux)
+# - Created Jan 2024; updated Aug 2025
+# - Uses GNU getopt for long options
+# - Generator-agnostic build via `cmake --build`
 
-# DEVNOTE sorry, this script is not up to date for full automation, but still provides a good starting point. Please modify it manually for your needs.
-set -e
+set -Eeuo pipefail
+IFS=$'\n\t' # TODO what is this?
 
-# Default values
-buildpath="build" 
-use_default_buildpath=true
-jobs=3
+# --- defaults ---
+buildpath="build"
+jobs="${JOBS:-$(command -v nproc >/dev/null 2>&1 && nproc || echo 4)}"
 rebuild_only=false
-build_type=relwithdebinfo # default build type, possible options: debug, release, relwithdebinfo, minsizerel
-add_checks=true
+build_type="relwithdebinfo"   # debug|release|relwithdebinfo|minsizerel
+run_tests=true
 CXX_FLAGS=""
 python_wrap=false
 matlab_wrap=false
 install=false
-ninja_build=false
+use_ninja=false
+no_optim=false
+clean_first=false
 
-# Parse options using getopt
-# NOTE: no ":" after option means no argument, ":" means required argument, "::" means optional argument
-OPTIONS=B::,j::,i,r,t::,c,f::,p,m,n
-LONGOPTIONS=buildpath::,jobs::,install,rebuild_only,type-build::,checks,flagsCXX::,python-wrap,matlab-wrap,ninja-build
+# Helper function to print instructions
+usage() {
+  cat <<'USAGE'
+Usage: build_cpp.sh [OPTIONS]
 
-# Parsed arguments list with getopt
-PARSED=$(getopt --options ${OPTIONS} --longoptions ${LONGOPTIONS} --name "$0" -- "$@") 
-# TODO check if this is where I need to modify something to allow things like -B build, instead of -Bbuild
+Options:
+  -B, --buildpath <dir>       Build directory (default: ./build)
+  -j, --jobs <N>              Parallel build jobs (default: $(nproc or 4))
+  -r, --rebuild-only          Skip CMake configure; build existing tree only
+  -t, --type|--type-build <t> Build type: debug|release|relwithdebinfo|minsizerel
+  -c, --checks                Run tests (on by default). Alias of --run-tests
+      --skip-tests            Do not run tests
+  -f, --flagsCXX <flags>      Extra C++ flags (quoted). Appends warnings for
+                              Debug/RelWithDebInfo/Release
+  -p, --python-wrap           Enable Python wrapper in CMake (-DBUILD_PYTHON_WRAPPER=ON)
+  -m, --matlab-wrap           Enable MATLAB wrapper in CMake (-DBUILD_MATLAB_WRAPPER=ON)
+  -i, --install               Run "install" target after tests
+  -N, --ninja-build           Use Ninja generator (requires `ninja`)
+  -n, --no-optim              Set -DNO_OPTIMIZATION=ON in the CMake cache
+      --clean                 Delete build dir before configuring
+  -h, --help                  Show this help and exit
 
-# Check validity of input arguments 
-if [[ $? -ne 0 ]]; then
-  # e.g. $? == 1
-  #  then getopt has complained about wrong arguments to stdout
-  exit 2
+Examples:
+  # Configure + build (RelWithDebInfo) into ./build
+  ./build_cpp.sh
+
+  # Debug build with warnings, 8 jobs, and Ninja
+  ./build_cpp.sh -t debug -j 8 -N
+
+  # Custom build dir and flags, run tests then install
+  ./build_cpp.sh -B out/release -t release -f "-march=native" -i
+
+Notes:
+  * Short options with arguments use a separate value: "-B build", "-j 8".
+  * This script requires GNU getopt (standard on Debian/Ubuntu).
+USAGE
+}
+
+# Auxiliary functions
+die()  { echo -e "\e[31mError:\e[0m $*" >&2; echo; usage; exit 2; } # Stop execution due to error
+info() { echo -e "\e[34m[INFO]\e[0m $*"; } # Print info
+trap 'echo -e "\e[31mBuild failed (line $LINENO).\e[0m"' ERR # Exit condition
+
+# --- argument parsing (GNU getopt) ---
+if ! command -v getopt > /dev/null 2>&1; then
+  die "GNU getopt is required. On macOS: brew install gnu-getopt and adjust PATH."
 fi
 
-# Parse arguments
+OPTIONS=B:j:rt:c:f:pmhNni
+LONGOPTIONS=buildpath:,jobs:,rebuild-only,type:,type-build:,checks,flagsCXX:,python-wrap,matlab-wrap,help,ninja-build,no-optim,skip-tests,clean,install
+PARSED=$(getopt -o "$OPTIONS" -l "$LONGOPTIONS" -- "$@") || { usage; exit 2; }
 eval set -- "$PARSED"
 
-# Process options (change default values if needed)
 while true; do
   case "$1" in
-    -B|-b|--buildpath)
-      if [ -n "$2" ] && [ "$2" != "--" ]; then # Check how many args (if 2)
-        buildpath="$2"
-        use_default_buildpath=false
-        shift 2 # Shift of two args, i.e. $1 will then point to the next argument
-      else 
-      # Handle the default case (no optional argument provided), thus shift of 1
-        buildpath="build"
-        use_default_buildpath=true
-        shift
-      fi
-      ;;
-    -j|--jobs)
-      if [ -n "$2" ] && [ "$2" != "--" ]; then
-        jobs="$2"
-        shift 2
-      else
-        jobs=4
-        shift
-      fi
-      ;;
-    -r|--rebuild_only)
-      rebuild_only=true
-      shift
-      ;;
-    -t|--type-build)
-      if [ -n "$2" ] && [ "$2" != "--" ]; then
-        build_type="$2"
-        if [[ "${build_type}" == "debug" || "${build_type}" == "relwithdebinfo" || "${build_type}" == "release" ]]; then
-          CXX_FLAGS="${CXX_FLAGS} -Wall -Wextra"
-        fi
-        shift 2
-      else
-        build_type=relwithdebinfo
-        CXX_FLAGS="${CXX_FLAGS} -Wall -Wextra"
-        shift
-      fi
-      ;;
-    -c|--checks)
-      add_checks=true
-      shift
-      ;;
-    -f|--flagsCXX)
-      if [ -n "$2" ] && [ "$2" != "--" ]; then
-        CXX_FLAGS="$2"
-        shift 2
-      else 
-        CXX_FLAGS="${CXX_FLAGS}"
-        shift
-      fi
-      ;;
-    -p|--python-wrap)  
-        python_wrap=true
-        shift
-      ;;
-    -m|--matlab-wrap)  
-        matlab_wrap=true
-        shift
-      ;;
-    -i|--install)
-      install=true
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    *)
-      echo "Not a valid option: $1" >&2
-      exit 3
-      ;;
+    -B|--buildpath)       buildpath="$2"; shift 2 ;;
+    -j|--jobs)            jobs="$2";     shift 2 ;;
+    -r|--rebuild-only)    rebuild_only=true; shift ;;
+    -t|--type|--type-build) build_type="$2"; shift 2 ;;
+    -c|--checks)          run_tests=true;  shift ;;
+        --skip-tests|--no-checks) run_tests=false; shift ;;
+    -f|--flagsCXX)        CXX_FLAGS="$2"; shift 2 ;;
+    -p|--python-wrap)     python_wrap=true; shift ;;
+    -m|--matlab-wrap)     matlab_wrap=true; shift ;;
+    -i|--install)         install=true;    shift ;;
+    -N|--ninja-build)     use_ninja=true;  shift ;;
+    -n|--no-optim)        no_optim=true;   shift ;;
+        --clean)          clean_first=true; shift ;;
+    -h|--help)            usage; exit 0 ;;
+    --) shift; break ;;
+     *) die "Unknown option: $1" ;;
   esac
 done
 
-# Export path to use GCC 11.4 instead of >13.0
-#export CC=/usr/bin/gcc-11
-#export CXX=/usr/bin/g++-11
+# --- normalize & validate build type ---
+bt="${build_type,,}"
+case "$bt" in
+  debug)          cmake_bt="Debug" ;;
+  release)        cmake_bt="Release" ;;
+  relwithdebinfo) cmake_bt="RelWithDebInfo" ;;
+  minsizerel)     cmake_bt="MinSizeRel" ;;
+  *) die "Invalid build type: $build_type" ;;
+esac
 
-# Enforce tests if build type is release
-if [ "${build_type}" == "release" ]; then
-  add_checks=true
+# For common types, enforce warnings unless user already provided them
+if [[ "$bt" =~ ^(debug|relwithdebinfo|release)$ ]]; then
+  CXX_FLAGS="${CXX_FLAGS:+$CXX_FLAGS }-Wall -Wextra -Wpedantic"
 fi
 
-# Handle wrap requirements
-#if [ "${python_wrap}" == true ] || [ "${matlab_wrap}" == true ]; #then
-  # TODO add gtwrap repository/tools to the project or ensure they are present
-#fi
-
-
-if [ "${rebuild_only}" == false ]; then
-
-  # Rebuild using existing buildpath
-  echo "BUILDING project with options..."
-  echo -e "\tBuildpath: $buildpath"
-  echo -e "\tNum of jobs: $jobs"
-  echo -e "\tBuild Type: ${build_type}"
-  echo -e "\tEnforced compile flags: ${CXX_FLAGS}"
-  echo -e "\tPython wrapper build: ${python_wrap}"
-  echo -e "\tMATLAB wrapper build: ${matlab_wrap}"
-
-  sleep 0.5
-
-  BUILD_CONFIG_COMMANDS=" -DCMAKE_CXX_FLAGS=${CXX_FLAGS} \
-                          -DCMAKE_C_FLAGS=${CXX_FLAGS} \
-                          -DCMAKE_BUILD_TYPE=${build_type}"
-
-
-
-  # Append additional build options
-  if [ "${ninja_build}" == true ]; then
-    BUILD_CONFIG_COMMANDS+=" -GNinja"
-  fi
-
-  if [ "$python_wrap" == true ]; then
-    BUILD_CONFIG_COMMANDS+=" -DBUILD_PYTHON_WRAPPER=True"
-  fi
-
-  if [ "$matlab_wrap" == true ]; then
-    BUILD_CONFIG_COMMANDS+=" -DBUILD_MATLAB_WRAPPER=True"
-  fi
-
-  #BUILD_CONFIG_COMMANDS+=""
-
-  # Generate build configuration
-    cmake -B ${buildpath} -S . ${BUILD_CONFIG_COMMANDS} 
-
-  # Stop build script if CMake configuration fails!
-  if [ $? -ne 0 ]; then
-    echo -e "\e[31mError: CMake configuration failed. Exiting build script...\e[0m"
-    exit 1
-  fi
-
-  # Build and optionally, install 
-    make -j ${jobs} -C ${buildpath} 
-
-    # Build and optionally, install 
-    make -j ${jobs} -C ${buildpath} 
-
-    if [ "${add_checks}" == true ] || [ "${install}" == true ]; then
-      if ! make test -j ${jobs} -C ${buildpath}; then
-      echo -e "\e[31mTests failed, exiting build script...\e[0m"
-      exit 1
-      fi
-    fi
-
-    if [ "${install}" == true ]; then
-      make install -j ${jobs} -C ${buildpath}
-    fi
-
-else 
-
-  # Rebuilding using existing buildpath
-  echo "REBUILDING project with options..."
-  echo -e "\tBuildpath: $buildpath"
-  echo -e "\tNum of jobs: $jobs"
-  if ! [ -d $buildpath ]; then
-      echo "ERROR: NO PREVIOUS BUILD FOUND! EXITING..." >&2
-      exit 1
-  fi
-
-    # Build and optionally, install 
-    make -j ${jobs} -C ${buildpath} 
-
-    if [ "${add_checks}" == true ] || [ "${install}" == true ]; then
-      if ! make test -j ${jobs} -C ${buildpath}; then
-      echo -e "\e[31mTests failed, exiting build script...\e[0m"
-      exit 1
-      fi
-    fi
-
-    if [ "${install}" == true ]; then
-      make install -j ${jobs} -C ${buildpath} 
-    fi
-
+# Enforce tests for Release
+if [[ "$cmake_bt" == "Release" ]]; then
+  run_tests=true
 fi
+
+# Pre-build checks
+command -v cmake >/dev/null 2>&1 || die "cmake not found"
+if [[ "$use_ninja" == true ]]; then
+  command -v ninja >/dev/null 2>&1 || die "Requested Ninja but 'ninja' not found"
+fi
+
+# Print info
+info "Buildpath          : $buildpath"
+info "Jobs               : $jobs"
+info "Build Type         : $cmake_bt"
+info "Extra CXX flags    : ${CXX_FLAGS:-<none>}"
+info "Python wrapper     : $python_wrap"
+info "MATLAB wrapper     : $matlab_wrap"
+info "Generator          : $([[ "$use_ninja" == true ]] && echo Ninja || echo 'Unix Makefiles')"
+info "Run tests          : $run_tests"
+info "Install after build: $install"
+
+sleep 0.2
+
+# --- Configure ---
+if [[ "$rebuild_only" == false ]]; then
+  if [[ "$clean_first" == true && -d "$buildpath" ]]; then
+    info "Removing existing build dir '$buildpath'"
+    rm -rf -- "$buildpath"
+  fi
+
+  cmake_args=(
+    -S .
+    -B "$buildpath"
+    "-DCMAKE_BUILD_TYPE=$cmake_bt"
+    "-DCMAKE_CXX_FLAGS=$CXX_FLAGS"
+    "-DCMAKE_C_FLAGS=$CXX_FLAGS"
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  )
+  [[ "$use_ninja"  == true ]] && cmake_args+=( -G Ninja )
+  [[ "$python_wrap" == true ]] && cmake_args+=( -DBUILD_PYTHON_WRAPPER=ON )
+  [[ "$matlab_wrap" == true ]] && cmake_args+=( -DBUILD_MATLAB_WRAPPER=ON )
+  [[ "$no_optim"   == true ]] && cmake_args+=( -DNO_OPTIMIZATION=ON )
+
+  info "Configuring with CMake..."
+  cmake "${cmake_args[@]}"
+fi
+
+# --- Build ---
+info "Building..."
+cmake --build "$buildpath" --parallel "$jobs"
+
+# --- Test ---
+if [[ "$run_tests" == true || "$install" == true ]]; then
+  info "Running tests..."
+  ctest --test-dir "$buildpath" --output-on-failure -j "$jobs"
+fi
+
+# --- Install ---
+if [[ "$install" == true ]]; then
+  info "Installing..."
+  cmake --build "$buildpath" --parallel "$jobs" --target install
+fi
+
+info "Done."
