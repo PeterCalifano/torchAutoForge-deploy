@@ -2,19 +2,10 @@
 
 ORT-MEX (Standalone): Run ONNX in Matlab with ONNXRuntime, application src
 
-Author: Giacomo Battaglia, Politecnico di Milano
+Author: Giacomo Battaglia, Pietro Califano Politecnico di Milano
 
-Usage: onnx_infer <onnx_file> <input_dims> <input_names> <output_names>
+Usage: ./this_file <onnx_file> <input_dims> <input_names> <output_names>
 
-Compile with:
-(Windows) cl.exe^
-           /I"C:\path\to\onnxruntime-win-x64-gpu-X.X.X\include"^
-           /I"C:\path\to\opencv\build\include"^
-           /EHsc^
-           onnxruntime_inference_standalone.cpp /Fe"%cd%\onnx_infer.exe"^
-           /link^
-           /LIBPATH:"C:\path\to\onnxruntime-win-x64-gpu-X.X.X\lib" onnxruntime.lib^
-           /LIBPATH:"C:\path\to\onnxruntime-win-x64-gpu-1.22.0\lib" onnxruntime_providers_cuda.lib
 
 */
 
@@ -102,7 +93,7 @@ uint8_t *loadByteArrayBinary(const std::string &filename, size_t &out_size)
 }
 
 // Mapping: ONNXTensorElementDataType → sizeof(type)
-inline size_t GetONNXTypeSize(ONNXTensorElementDataType dtype)
+size_t GetONNXTypeSize(const ONNXTensorElementDataType dtype)
 {
     switch (dtype)
     {
@@ -129,6 +120,20 @@ inline size_t GetONNXTypeSize(ONNXTensorElementDataType dtype)
     }
 }
 
+/**
+ * @brief 
+ * 
+ * @param model_path 
+ * @param input_data 
+ * @param input_shapes 
+ * @param input_types 
+ * @param input_names 
+ * @param output_names 
+ * @param n_inputs 
+ * @param n_outputs 
+ * @param output_data_size 
+ * @return uint8_t* 
+ */
 uint8_t *run_onnx_inference(const wchar_t *model_path,
                             const uint8_t *input_data[],
                             const std::vector<std::vector<int64_t>> &input_shapes,
@@ -498,16 +503,18 @@ void parseBracketedListToCStrings(const std::string &input, std::vector<std::str
     }
 }
 
+// MAIN FUNCTION
 int main(int argc, char *argv[])
 {
     if (argc < 5)
     {
-        std::cerr << "Usage: onnx_infer.exe <onnx_file> <input_names> <output_names> <add_batch>\n";
+        std::cerr << "Usage: onnx_infer <onnx_file> <input_names> <output_names> <add_batch>\n";
         return 1;
     }
 
-    printd("Starting ONNX inference...");
+    std::cout << "Starting ONNX inference session..." << "\n";
 
+    // Get model path
     std::string model_path{argv[1]};
     std::wstring wide_input(model_path.begin(), model_path.end());
 

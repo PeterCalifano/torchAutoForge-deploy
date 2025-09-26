@@ -17,6 +17,12 @@
 		},
 		{
 			"path": "../vbn-ai-dart_PeterCdev"
+		},
+		{
+			"path": "../../dev-tools/AutoCodegenTools4MATLAB"
+		},
+		{
+			"path": "../../projects-DART/neuralcob_rcs1"
 		}
 	],
 	"settings": {}
