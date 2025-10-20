@@ -11,10 +11,9 @@ dynamic = ["version"]
 license = {text = "MIT"}
 authors = [
     { name = "Pietro Califano (PC)", email = "petercalifano.gs@gmail.com"},
-    { name = "Umberto Mondini (UM)", email = "umberto.mondini@polimi.it"},
     { name = "Giacomo Battaglia (GB)", email = "giacomo.battaglia@polimi.it"},
 ]
-dependencies = [] # No depts for now
+dependencies = [] # No deps for now
 
 classifiers=[
     'Programming Language :: Python :: 3.12',
