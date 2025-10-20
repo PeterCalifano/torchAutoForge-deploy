@@ -27,10 +27,12 @@ namespace deploy_common_defs
         // Attributes
         std::vector<const char *> input_names;
         std::vector<const char *> output_names;
+
         std::vector<INPUT_T> input_shapes; // TODO extend to support multiple input shapes!
         std::vector<OUTPUT_T> output_shapes;
-        uint64_t num_elements_linear_input_array = 0;  // Default to 0, can be set later
-        uint64_t num_elements_linear_output_array = 0; // Default to 0, can be set later
+
+        size_t num_elements_linear_input_array = 0;  // Default to 0, can be set later
+        size_t num_elements_linear_output_array = 0; // Default to 0, can be set later
         uint32_t num_input_tensors = 1;                // Default to 1 input tensor
         uint32_t num_output_tensors = 1;               // Default to 1 output tensor
 

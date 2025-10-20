@@ -13,8 +13,8 @@
 #include <vector>
 
 // Autoforge deploy
-#include <auxiliary/common_ops.h>
 #include <auxiliary/common_defs.h>
+#include <auxiliary/common_ops.h>
 
 // MACROS
 #define DEBUG false
@@ -77,8 +77,8 @@ namespace deploy_ort
         // CONSTRUCTORS
         CInferenceManager_ORT() = default;
         CInferenceManager_ORT(const std::string session_config_path); // TODO implement parser
-        CInferenceManager_ORT(const std::string &model_path,
-                              const bool inplace_init = true,
+        CInferenceManager_ORT(const bool inplace_init,
+                              const std::string &model_path,
                               const Ort::SessionOptions session_options = Ort::SessionOptions());
 
         // DESTRUCTOR
@@ -143,13 +143,13 @@ namespace deploy_ort
 
             // Allocate input and output tensors
             // FIXME
-            input_tensor_ = Ort::Value::CreateTensor<infer_type>(memory_info_,
-                                                                 input_output_specs_->input_shapes,
+            input_tensor_ = Ort::Value::CreateTensor<infer_type>(allocator_,
+                                                                 input_output_specs_->input_shapes.data(),
                                                                  input_output_specs_->num_elements_linear_input_array);
 
-            output_tensor_ = Ort::Value::CreateTensor<infer_type>(memory_info_,
-                                                                  input_output_specs_->num_elements_linear_output_array,
-                                                                  input_output_specs_->output_shapes);
+            output_tensor_ = Ort::Value::CreateTensor<infer_type>(allocator_,
+                                                                  input_output_specs_->output_shapes.data(),
+                                                                  input_output_specs_->num_elements_linear_output_array);
         }
         else
         {

@@ -4,8 +4,8 @@ namespace deploy_ort
 {
 
     // CInferenceManager_ORT constructors
-    CInferenceManager_ORT::CInferenceManager_ORT(const std::string &model_path,
-                                                 const bool inplace_init,
+    CInferenceManager_ORT::CInferenceManager_ORT(const bool inplace_init,
+                                                 const std::string &model_path,
                                                  Ort::SessionOptions session_options)
         : model_path_(model_path), session_options_(std::move(session_options))
     {
@@ -44,7 +44,7 @@ namespace deploy_ort
             std::string model_path;
 
             // Initialize calling the other constructor
-            CInferenceManager_ORT(model_path, true, Ort::SessionOptions());
+            CInferenceManager_ORT(true, model_path, Ort::SessionOptions());
         }
     }
 
