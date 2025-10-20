@@ -22,7 +22,7 @@ namespace deploy_ort
         // Initialize manager if in-place
         if (inplace_init)
         {
-            initialize<float>(); // How to do with the type? :/
+            initialize<float>(); // FIXME How to do with the type? :/
         }
         else
         {
