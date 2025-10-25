@@ -26,6 +26,9 @@
 		},
 		{
 			"path": "../../dev-tools/study_notes_archive"
+		},
+		{
+			"path": "../onnxruntime"
 		}
 	],
 	"settings": {}
