@@ -19,6 +19,11 @@ set(CMAKE_BUILD_TYPE Debug)
 # PROJECT DEFINITION
 set(project_name "autoforge-deploy")
 
+# Set install default directory if not specified
+if(NOT DEFINED CMAKE_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR}/install CACHE PATH "Install path" FORCE)
+endif()
+
 option(ENABLE_OPTIX "Enable OptiX" OFF)
 option(ENABLE_CUDA "Enable CUDA" OFF)
 
@@ -260,6 +265,14 @@ target_include_directories(${project_name}_include INTERFACE
                            #$<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>  # Add OpenCV include directories
                            $<INSTALL_INTERFACE:include/${project_name}>  # Used in installed projects
 )
+
+# Build/install tree: $ORIGIN/../lib
+target_link_options(${project_name}_include INTERFACE
+                    $<$<PLATFORM_ID:Linux>:-Wl,-rpath,\$ORIGIN/../lib>
+                  )
+
+# Install-tree exes look next to themselves
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 
 # Include CTest and Catch2
 include(CTest)
