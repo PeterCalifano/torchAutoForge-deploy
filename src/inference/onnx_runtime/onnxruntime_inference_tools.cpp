@@ -48,4 +48,21 @@ namespace deploy_ort
         }
     }
 
-};
+
+    // *****************************************************************************************
+    // GETTERS implementations
+    std::vector<std::string> CInferenceManager_ORT::GetAvailableProviders()
+    {
+        auto providers = Ort::GetAvailableProviders();
+        std::vector<std::string> available_providers;
+        available_providers.reserve(providers.size());
+
+        for (auto provider_name : providers)
+        {
+            std::cout << provider_name << "\n";
+            available_providers.push_back(static_cast<std::string>(provider_name));
+        }
+
+        return available_providers;
+    };
+}

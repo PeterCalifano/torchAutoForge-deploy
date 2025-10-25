@@ -64,7 +64,7 @@ namespace deploy_ort
         default:
             throw std::runtime_error("Unsupported ONNX data type in output.");
         }
-    }
+    };
 
     /**
      * @brief A class to manage ONNX Runtime environment setup and inference.
@@ -86,6 +86,7 @@ namespace deploy_ort
 
       public:
         // GETTERS
+        static std::vector<std::string> GetAvailableProviders();
 
         // SETTERS
 
@@ -95,6 +96,7 @@ namespace deploy_ort
 
         template <typename infer_type>
         void infer();
+
 
       protected:
         // DATA MEMBERS
