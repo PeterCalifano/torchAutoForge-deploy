@@ -15,8 +15,9 @@ CMakeUserPresets.json
 **/slprj*
 *.asv
 *.png
-/build*/
-/debug*/
+**/build*/
+**/debug*/
+**/install*/
 .idea
 *.pyc
 *.DS_Store

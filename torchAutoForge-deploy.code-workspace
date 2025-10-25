@@ -13,16 +13,19 @@
 			"path": "../MachineLearningGears_for_SpaceNav"
 		},
 		{
-			"path": "../../nav-frontend/.experimental"
-		},
-		{
-			"path": "../vbn-ai-dart_PeterCdev"
-		},
-		{
 			"path": "../../dev-tools/AutoCodegenTools4MATLAB"
 		},
 		{
 			"path": "../../projects-DART/neuralcob_rcs1"
+		},
+		{
+			"path": "../../dev-tools/cpp_cuda_template_project"
+		},
+		{
+			"path": "../../dev-tools/cpp_template_project"
+		},
+		{
+			"path": "../../dev-tools/study_notes_archive"
 		}
 	],
 	"settings": {}
