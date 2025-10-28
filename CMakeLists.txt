@@ -120,7 +120,7 @@ endif()
 # TODO
 
 # Set the dependencies for the automated export
-set(TARGET_DEPS Eigen3 OpenGL CUDAToolkit)
+set(TARGET_DEPS Eigen3 OpenGL CUDAToolkit onnxruntime)
 message(STATUS "Target dependencies: ${TARGET_DEPS}")
 
 #find_package( GTSAM 4.0 REQUIRED )
@@ -284,11 +284,11 @@ include(Catch)
 # Add library
 add_subdirectory( src )
 
-# Add examples to build
-add_subdirectory( examples )
-
 # Add tests to build
 add_subdirectory( tests )
+
+# Add examples to build
+add_subdirectory( examples )
 
 # Add documentation
 set(DOC_SUBDIRS "${${project_name}_INCLUDE_DIRS}")
