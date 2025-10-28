@@ -18,8 +18,8 @@ endif()
 message(STATUS "Adding module: inference")
 add_subdirectory(inference)
 
-message(STATUS "Adding module: programs")
-add_subdirectory(programs)
+message(STATUS "Adding module: auxiliary")
+add_subdirectory(auxiliary)
 
 # Exclude EXCLUDED_LIST from the list of src files
 set(EXCLUDED_LIST "")
