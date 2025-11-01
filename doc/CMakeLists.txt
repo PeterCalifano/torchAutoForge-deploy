@@ -22,11 +22,18 @@ if (DEFINED DOC_SUBDIRS AND NOT DOC_SUBDIRS STREQUAL "")
     endif()
 
     # From subfolders, build a list with whitespace separation of paths
-    set(DOXYGEN_INPUT_PATHS "src examples doc")
+    set(DOXYGEN_INPUT_PATHS "")
     foreach(dir ${DOC_SUBDIRS})
-        set(DOXYGEN_INPUT_PATHS ${DOXYGEN_INPUT_PATHS} ${dir})
+        list(APPEND DOXYGEN_INPUT_PATHS "${CMAKE_SOURCE_DIR}/${dir}")
     endforeach()
 
+    list(APPEND DOXYGEN_INPUT_PATHS "${CMAKE_SOURCE_DIR}/doc") # Add doc folder itself to input paths
+
+    # Provide path to input file for main page
+    list(APPEND DOXYGEN_INPUT_PATHS "${CMAKE_SOURCE_DIR}/doc/main_page.md") # Add doc folder itself to input paths
+
+    # Replace semi-colons with spaces
+    string(REPLACE ";" " " DOXYGEN_INPUT_PATHS "${DOXYGEN_INPUT_PATHS}")
     # Generate Doxyfile (@ONLY is required to expand variable from cmake)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY) 
 

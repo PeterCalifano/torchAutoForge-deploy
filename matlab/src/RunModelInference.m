@@ -7,6 +7,7 @@ arguments
     kwargs.charInputShapeFormat (1,:) char {mustBeA(kwargs.charInputShapeFormat, ["string", "char"])} = "BC"
 end
 
+
 % Check the model is initialized
 if ~objModel.Initialized
     error( ...

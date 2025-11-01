@@ -1,5 +1,5 @@
 # Discover and install all header files
-file(GLOB installable_headers "*.h" "*.hpp")
+file(GLOB installable_headers "*.h")
 
 # Get the relative path from the root
 file(RELATIVE_PATH relative_path_from_root ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
@@ -10,6 +10,10 @@ string(REPLACE "src/" "" relative_path_without_src ${relative_path_from_root})
 # Add src files to library
 set(SRC_PATTERN "*.cpp; *.cu")
 file(GLOB srcLibFiles_local ${SRC_PATTERN})
+
+# Add directories
+add_subdirectory(onnx_runtime)
+add_subdirectory(tensorrt)
 
 get_filename_component(CURRENT_FOLDER_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 message(STATUS "${CURRENT_FOLDER_NAME} src files found: ${srcLibFiles_local}")

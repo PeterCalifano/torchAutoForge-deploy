@@ -64,6 +64,16 @@ uint8_t* loadByteArrayBinary(const std::string& filename, size_t& out_size) {
     return arr;
 }
 
+/**
+ * @brief 
+ * 
+ * @param nchw_data 
+ * @param matlab_data 
+ * @param N 
+ * @param C 
+ * @param H 
+ * @param W 
+ */
 void copyNCHWToMxArray(const float* nchw_data, float* matlab_data,
                        size_t N, size_t C, size_t H, size_t W) {
     // MATLAB layout: W x H x C x N (column-major)
@@ -80,6 +90,16 @@ void copyNCHWToMxArray(const float* nchw_data, float* matlab_data,
     }
 }
 
+/**
+ * @brief Copies data from a MATLAB array to an NCHW formatted array.
+ *
+ * @param matlab_data The input MATLAB array (W x H x C x N).
+ * @param nchw_data The output NCHW array (N x C x H x W).
+ * @param N The batch size.
+ * @param C The number of channels.
+ * @param H D1
+ * @param W D2
+ */
 void copyMxArrayToNCHW(const float* matlab_data, float* nchw_data,
                        size_t N, size_t C, size_t H, size_t W) {
     // MATLAB layout: W x H x C x N (column-major)

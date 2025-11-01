@@ -2,13 +2,15 @@ close all
 clear
 clc
 
+addpath('../../matlab');
+
 % TEST SETUP
 % Settings
 charTracedModelfilePath  = "testSamples/tracedSampleModel.pt"; % Must be a traced pytorch model (.pt) 
 charONNxModelfilePath  = "testSamples/tracedSampleModel.onnx"; % Must be a traced pytorch model (.pt) 
 dModelInputSizes = [1, 11]; % Input size of the model
 
-%% test_ImportONNxModel
+% test_ImportONNxModel 
 try
     ImportPyTorchModel(charTracedModelfilePath, dModelInputSizes);
 catch ME

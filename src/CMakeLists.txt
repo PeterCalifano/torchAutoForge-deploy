@@ -15,11 +15,11 @@ if (ENABLE_OPTIX)
 endif()
 
 # Add subdirectories with src files
-message(STATUS "Adding module: template_src")
-add_subdirectory(template_src)
+message(STATUS "Adding module: inference")
+add_subdirectory(inference)
 
-message(STATUS "Adding module: .programs")
-add_subdirectory(.programs)
+message(STATUS "Adding module: auxiliary")
+add_subdirectory(auxiliary)
 
 # Exclude EXCLUDED_LIST from the list of src files
 set(EXCLUDED_LIST "")
@@ -55,27 +55,32 @@ if ( ENABLE_OPTIX )
   target_sources(${lib_name} PUBLIC ${embedded_ptx_code})    
 endif()
 
-# Link targets
-target_include_directories(${lib_name} PUBLIC 
-                          ${OpenCV_INCLUDE_DIRS} 
-                          )
-
+### LINK TARGETS
 # Link interface target for CUDA
 target_link_libraries(${lib_name} PUBLIC cuda_compile_settings ${project_name}_include)
+
+# Link ORT target interface
+target_link_libraries(${lib_name} INTERFACE ort_target_interface)
 
 #target_include_directories(${lib_name} INTERFACE ${interface_INCLUDE_DIRS} ) 
 # TIP: INTERFACE ensures that the consumer target does not need to include manually the include directories the library target depends on, because they are automagically propagated to the target, even if the target does not need thme. The same happens with PUBLIC, but this time the includes are used by the target library itself.
 
 target_link_libraries(${lib_name} PUBLIC 
                                   ${OpenCV_LIBS} 
-                                  Eigen3::Eigen 
-                                  #gdt
-                                  #glfw 
-                                  ${OPENGL_LIBRARIES}
-                                  ${optix_LIBRARY})
+                                  Eigen3::Eigen)
 
-# Add target to installable list 
-set(installable_targets ${installable_targets} ${lib_name} cuda_compile_settings ${project_name}_include)
+### INCLUDE DIRECTORIES
+target_include_directories(${lib_name} PUBLIC 
+                          ${OpenCV_INCLUDE_DIRS} 
+                          ${onnxruntime_INCLUDE_DIRS})
+
+
+# Add target to installable list (export list for installation)
+set(installable_targets ${installable_targets} 
+                        ${lib_name} 
+                        cuda_compile_settings 
+                        ${project_name}_include 
+                        ort_target_interface)
 
 message(NOTICE "Added target to installable list: ${installable_targets}")
 

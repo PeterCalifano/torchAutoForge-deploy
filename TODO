@@ -1,11 +1,17 @@
 # List of TODOs for autoforge-deploy module
 
-- [ ] Add configuration for python library module. This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead (optional).
+- [x] Add configuration for python library module (use same as ML Gears). This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead.  
 
-- [ ] Add module for Inference management
+- [ ] Implement prototype module for Inference management with Onnx runtime library (ORT)
+  - [x] Fix compilation issues to build program
+  - [ ] Complete implementation of class CInferenceManager_ORT version 1
+  - [ ] Test inference with dummy model and values and compare against python
+  - [ ] Implement prototype wrapper module for MATLAB/python (automatic)
+  - [ ] Test execution within MATLAB to check for issues due to multithreads
+  - [ ] Test inference of onnx model in MATLAB
+
+- [ ] Implement prototype binding of ORT inference to python through pybind11 or gtwrap
 
 - [ ] Add module with pre-trained/tailored models, e.g. feature matching
 
-- [ ] Configure cmake build project
-
-- [ ] Implement experimental C++ program for deployment of a network
+- [x] Configure cmake build and installation of project

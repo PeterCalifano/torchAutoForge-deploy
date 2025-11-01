@@ -1,15 +1,28 @@
 # VERSION CONTROL 
-cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 
 #set(CMAKE_C_COMPILER gcc-11)
 #set(CMAKE_CXX_COMPILER g++-11)
 #set(CMAKE_CUDA_COMPILER nvcc)
 
+#####
+# Temporary for development. This should be set by the user or as environment variable.
+set(HOME $ENV{HOME})
+set(onnxruntime_DIR ${HOME}/devDir/ML-repos/onnxruntime/install/lib/cmake/onnxruntime)
+set(onnxruntime_INCLUDE_DIRS ${HOME}/devDir/ML-repos/onnxruntime/install/include/onnxruntime) # DOUBT why the hell the cmake target does not include the include directory...?
+
+#####
+
 # Manually specify build type
 set(CMAKE_BUILD_TYPE Debug)
 
 # PROJECT DEFINITION
-set(project_name "template_project")
+set(project_name "autoforge-deploy")
+
+# Set install default directory if not specified
+if(NOT DEFINED CMAKE_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR}/install CACHE PATH "Install path" FORCE)
+endif()
 
 option(ENABLE_OPTIX "Enable OptiX" OFF)
 option(ENABLE_CUDA "Enable CUDA" OFF)
@@ -87,13 +100,27 @@ message(STATUS "==============================================================")
 message(STATUS "====================  Dependencies ===========================")
 
 # LIBRARY DEPENDENCIES DEFINITION
-find_package( Eigen3 3.4 REQUIRED )
+find_package( Eigen3 3.4 )
 find_package( Doxygen )
-find_package( OpenGL )
 find_package( CUDAToolkit 12.0) 
 
+# Define framework specific library deps and targets
+# onnxruntime
+add_library(ort_target_interface INTERFACE)
+find_package(onnxruntime REQUIRED)
+if (onnxruntime_FOUND)
+  message(STATUS "ONNX Runtime found: ${onnxruntime_VERSION}")
+  message(STATUS "ONNX Runtime include directories: ${onnxruntime_INCLUDE_DIRS}")
+  target_link_libraries(ort_target_interface INTERFACE onnxruntime::onnxruntime)
+else()
+  message(FATAL_ERROR "ONNX Runtime not found. Please build onnxruntime and set onnxruntime_DIR environment variable to the build directory.")
+endif()
+
+# TensorRT
+# TODO
+
 # Set the dependencies for the automated export
-set(TARGET_DEPS Eigen3 OpenGL CUDAToolkit)
+set(TARGET_DEPS Eigen3 OpenGL CUDAToolkit onnxruntime)
 message(STATUS "Target dependencies: ${TARGET_DEPS}")
 
 #find_package( GTSAM 4.0 REQUIRED )
@@ -192,7 +219,7 @@ find_package(GTSAMCMakeTools)
 #include(GtsamPrinting)
 
 # Add catch2 for unit testing
-find_package(Catch2 REQUIRED)
+find_package(Catch2 QUIET)
 
 # TODO: move to dedicated cmake script
 if (Catch2_FOUND)
@@ -239,6 +266,14 @@ target_include_directories(${project_name}_include INTERFACE
                            $<INSTALL_INTERFACE:include/${project_name}>  # Used in installed projects
 )
 
+# Build/install tree: $ORIGIN/../lib
+target_link_options(${project_name}_include INTERFACE
+                    $<$<PLATFORM_ID:Linux>:-Wl,-rpath,\$ORIGIN/../lib>
+                  )
+
+# Install-tree exes look next to themselves
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+
 # Include CTest and Catch2
 include(CTest)
 include(Catch)
@@ -249,11 +284,11 @@ include(Catch)
 # Add library
 add_subdirectory( src )
 
-# Add examples to build
-add_subdirectory( examples )
-
 # Add tests to build
 add_subdirectory( tests )
+
+# Add examples to build
+add_subdirectory( examples )
 
 # Add documentation
 set(DOC_SUBDIRS "${${project_name}_INCLUDE_DIRS}")
