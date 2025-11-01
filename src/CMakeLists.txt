@@ -134,6 +134,7 @@ install(FILES
 export(EXPORT ${lib_name}
   FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/${project_name}Target.cmake"
 )
+
 # Add and build programs subdirectory
-#message(STATUS "Building binary programs")
-#add_subdirectory( .programs )
+message(STATUS "Building binary programs")
+add_subdirectory( programs )
