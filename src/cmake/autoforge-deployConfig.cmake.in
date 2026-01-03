@@ -3,10 +3,10 @@
 include(CMakeFindDependencyMacro)
 
 # Automatically call find_dependency for each dependency
-set(_DEPENDENCIES @TARGET_DEPS@)
+set(_DEPENDENCIES @EXPORT_TARGET_DEPS@)
 
 foreach(dep ${_DEPENDENCIES})
-  find_dependency(${dep} CONFIG REQUIRED)
+  find_dependency(${dep} REQUIRED)
 endforeach()
 
 include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Target.cmake")

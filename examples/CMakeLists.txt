@@ -6,4 +6,4 @@ set(EXCLUDED_LIST "example_build")
 add_subdirectory(template_examples)
 
 # Add examples files in this directory
-add_examples(${project_name} EXCLUDED_LIST cuda_compile_settings)
+add_examples(${project_name} EXCLUDED_LIST ${CUDA_COMPILE_TARGET})
