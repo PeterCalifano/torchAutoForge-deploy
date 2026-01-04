@@ -1,0 +1,3 @@
+[submodule "lib/wrap"]
+	path = lib/wrap
+	url = git@github.com:PeterCalifano/wrap.git

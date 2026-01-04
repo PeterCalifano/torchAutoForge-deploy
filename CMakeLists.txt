@@ -19,7 +19,7 @@ set(onnxruntime_INCLUDE_DIRS ${HOME}/devDir/ML-repos/onnxruntime/install/include
 set(CMAKE_BUILD_TYPE Debug)
 
 # PROJECT DEFINITION
-set(project_name "autoforge-deploy")
+set(project_name "autoforge_deploy")
 
 # Set install default directory if not specified
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
