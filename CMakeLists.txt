@@ -62,6 +62,12 @@ project( ${project_name}
         LANGUAGES ${languages}
         VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
+# Define variable for build as subproject (compare source dir)
+set(BUILD_AS_MAIN_PROJECT ON)
+if(NOT CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  set(BUILD_AS_MAIN_PROJECT OFF)
+endif()
+
 # Define variable for namespacing (required to prevent global target clashes!)
 set(LIB_NAMESPACE "${PROJECT_NAME}")
 if (DEFINED LIB_NAMESPACE_OVERRIDE)
@@ -109,8 +115,19 @@ option(ENABLE_TESTS              "Build and run tests" ON)
 option(ENABLE_FETCH_CATCH2 "Fetch Catch2 from GitHub if not found" ON)
 option(VERBOSE "Verbose output" OFF) # Defines VERBOSE flag in code if set to ON
 
-option(BUILD_PYTHON_WRAPPER "Build Python wrapper" OFF)
-option(BUILD_MATLAB_WRAPPER "Build MATLAB wrapper" OFF)
+if (NOT DEFINED GTWRAP_BUILD_PYTHON_DEFAULT)
+  set(GTWRAP_BUILD_PYTHON_DEFAULT OFF CACHE BOOL "Default Python wrapper setting for all subprojects")
+endif()
+if (NOT DEFINED GTWRAP_BUILD_MATLAB_DEFAULT)
+  set(GTWRAP_BUILD_MATLAB_DEFAULT OFF CACHE BOOL "Default MATLAB wrapper setting for all subprojects")
+endif()
+
+set(GTWRAP_PYTHON_OPTION_NAME "${LIB_NAMESPACE}_BUILD_PYTHON_WRAPPER")
+set(GTWRAP_MATLAB_OPTION_NAME "${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER")
+
+option(${GTWRAP_PYTHON_OPTION_NAME} "Build Python wrapper" ${GTWRAP_BUILD_PYTHON_DEFAULT})
+option(${GTWRAP_MATLAB_OPTION_NAME} "Build MATLAB wrapper" ${GTWRAP_BUILD_MATLAB_DEFAULT})
+
 option(NO_OPTIMIZATION "Disable optimization flags" OFF)
 option(WARNINGS_ARE_ERRORS "Treat warnings as errors" OFF)
 option(USE_SYS_OPTIX_SDK "Use Optix system folder if specified" OFF)
@@ -322,10 +339,12 @@ message(STATUS "====================  Library composition  =====================
 add_subdirectory( src )
 
 # Add examples to build
-add_subdirectory( examples )
+if (BUILD_AS_MAIN_PROJECT)
+  add_subdirectory( examples )
+endif()
 
 # Add tests to build
-if (ENABLE_TESTS AND Catch2_FOUND)
+if (ENABLE_TESTS AND Catch2_FOUND AND BUILD_AS_MAIN_PROJECT)
   add_subdirectory( tests )
 endif()
 
@@ -339,12 +358,13 @@ endif()
 
 ###########################################################################
 ### WRAPPERS CONFIGURATION
-handle_gtwrappers()
+set(LIBNAME_WRAP_TARGET ${project_name})
+handle_gtwrappers() # You may also pass WRAP_INTERFACE_FILES variable to specify interface files, else autofetching is used
 handle_pybind11_wrapper()
 
 # Determine if any wrapper is enabled
 set(ANY_WRAPPER_ENABLED OFF)
-if (BUILD_PYTHON_WRAPPER OR PYBIND11_WRAPPER_ENABLED OR BUILD_MATLAB_WRAPPER)
+if (${GTWRAP_PYTHON_OPTION_NAME} OR PYBIND11_WRAPPER_ENABLED OR ${GTWRAP_MATLAB_OPTION_NAME})
   set(ANY_WRAPPER_ENABLED ON)
 endif()
 
@@ -414,8 +434,8 @@ endif()
 if (ANY_WRAPPER_ENABLED)
   message(STATUS "================  Wrappers Configuration  ======================")
   message(STATUS "Python pybind11 direct wrapper              : ${PYBIND11_WRAPPER_ENABLED}")
-  message(STATUS "Python gtwrapper                            : ${BUILD_PYTHON_WRAPPER}")
-  message(STATUS "MATLAB gtwrapper                            : ${BUILD_MATLAB_WRAPPER}")
+  message(STATUS "Python gtwrapper                            : ${${GTWRAP_PYTHON_OPTION_NAME}}")
+  message(STATUS "MATLAB gtwrapper                            : ${${GTWRAP_MATLAB_OPTION_NAME}}")
   message(STATUS "MATLAB default release                      : ${MATLAB_DEFAULT_RELEASE}")
   message(STATUS "Python executable                           : ${PYTHON_EXECUTABLE}")
   message(STATUS "Python version                              : ${PROJECT_PYTHON_VERSION}")

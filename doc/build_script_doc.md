@@ -85,10 +85,10 @@ The script now uses **GNU `getopt`** to support:
   Example: `--toolchain cmake/toolchains/clang.cmake`.
 
 * **`-p, --python-wrap`**
-  Adds `-DBUILD_PYTHON_WRAPPER=ON`. Wire this to your CMake to build pybind11/gtwrap targets.
+  Adds `-DGTWRAP_BUILD_PYTHON_DEFAULT=ON` to enable wrappers by default for all subprojects.
 
 * **`-m, --matlab-wrap`**
-  Adds `-DBUILD_MATLAB_WRAPPER=ON`. Wire this for MEX/wrappers.
+  Adds `-DGTWRAP_BUILD_MATLAB_DEFAULT=ON` to enable wrappers by default for all subprojects.
 
 * **`-i, --install`**
   After a successful build (and tests), runs the `install` target.

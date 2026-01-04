@@ -175,5 +175,7 @@ export(EXPORT ${lib_name}
 )
 
 # Add and build programs subdirectory
-message(STATUS "Building binary programs")
-add_subdirectory( programs )
+if (BUILD_AS_MAIN_PROJECT)
+  message(STATUS "Building binary programs")
+  add_subdirectory( programs )
+endif()

@@ -5,11 +5,14 @@
 # - Generator-agnostic build via `cmake --build`
 
 set -Eeuo pipefail
-IFS=$'\n\t' # TODO what is this?
+IFS=$'\n\t' # Narrows word splitting to newlines and tabs (safe with spaces)
 
-# --- defaults ---
+# --- Defaults ---
 buildpath="build"
+
 jobs="${JOBS:-$(command -v nproc >/dev/null 2>&1 && nproc || echo 4)}"
+jobs=$(( jobs < 6 ? jobs : 6 ))
+
 rebuild_only=false
 build_type="relwithdebinfo"   # debug|release|relwithdebinfo|minsizerel
 run_tests=true
@@ -20,11 +23,13 @@ install=false
 use_ninja=false
 no_optim=false
 clean_first=false
+toolchain_file=""
+cmake_defines=()
 
 # Helper function to print instructions
 usage() {
   cat <<'USAGE'
-Usage: build_cpp.sh [OPTIONS]
+Usage: build_lib.sh [OPTIONS]
 
 Options:
   -B, --buildpath <dir>       Build directory (default: ./build)
@@ -35,26 +40,30 @@ Options:
       --skip-tests            Do not run tests
   -f, --flagsCXX <flags>      Extra C++ flags (quoted). Appends warnings for
                               Debug/RelWithDebInfo/Release
-  -p, --python-wrap           Enable Python wrapper in CMake (-DBUILD_PYTHON_WRAPPER=ON)
-  -m, --matlab-wrap           Enable MATLAB wrapper in CMake (-DBUILD_MATLAB_WRAPPER=ON)
+  -D, --define <var[=val]>    Extra CMake cache definitions (repeatable)
+  -p, --python-wrap           Enable Python wrapper defaults (-DGTWRAP_BUILD_PYTHON_DEFAULT=ON)
+  -m, --matlab-wrap           Enable MATLAB wrapper defaults (-DGTWRAP_BUILD_MATLAB_DEFAULT=ON)
   -i, --install               Run "install" target after tests
   -N, --ninja-build           Use Ninja generator (requires `ninja`)
   -n, --no-optim              Set -DNO_OPTIMIZATION=ON in the CMake cache
+      --toolchain <file>      Pass CMake toolchain file (-DCMAKE_TOOLCHAIN_FILE=<file>)
       --clean                 Delete build dir before configuring
   -h, --help                  Show this help and exit
 
 Examples:
   # Configure + build (RelWithDebInfo) into ./build
-  ./build_cpp.sh
+  ./build_lib.sh
 
   # Debug build with warnings, 8 jobs, and Ninja
-  ./build_cpp.sh -t debug -j 8 -N
+  ./build_lib.sh -t debug -j 8 -N
 
   # Custom build dir and flags, run tests then install
-  ./build_cpp.sh -B out/release -t release -f "-march=native" -i
+  ./build_lib.sh -B out/release -t release -f "-march=native" -i
+./build_lib.sh -DOPENCV_DIR=/opt/opencv -DENABLE_SOMETHING=ON
 
 Notes:
   * Short options with arguments use a separate value: "-B build", "-j 8".
+    For CMake defines, use "-DVAR=ON" or "-D VAR=ON".
   * This script requires GNU getopt (standard on Debian/Ubuntu).
 USAGE
 }
@@ -69,8 +78,8 @@ if ! command -v getopt > /dev/null 2>&1; then
   die "GNU getopt is required. On macOS: brew install gnu-getopt and adjust PATH."
 fi
 
-OPTIONS=B:j:rt:c:f:pmhNni
-LONGOPTIONS=buildpath:,jobs:,rebuild-only,type:,type-build:,checks,flagsCXX:,python-wrap,matlab-wrap,help,ninja-build,no-optim,skip-tests,clean,install
+OPTIONS=B:j:rt:c:f:D:pmhNni
+LONGOPTIONS=buildpath:,jobs:,rebuild-only,type:,type-build:,checks,flagsCXX:,define:,python-wrap,matlab-wrap,help,ninja-build,no-optim,skip-tests,clean,install,toolchain:
 PARSED=$(getopt -o "$OPTIONS" -l "$LONGOPTIONS" -- "$@") || { usage; exit 2; }
 eval set -- "$PARSED"
 
@@ -83,11 +92,13 @@ while true; do
     -c|--checks)          run_tests=true;  shift ;;
         --skip-tests|--no-checks) run_tests=false; shift ;;
     -f|--flagsCXX)        CXX_FLAGS="$2"; shift 2 ;;
+    -D|--define)          cmake_defines+=( "-D$2" ); shift 2 ;;
     -p|--python-wrap)     python_wrap=true; shift ;;
     -m|--matlab-wrap)     matlab_wrap=true; shift ;;
     -i|--install)         install=true;    shift ;;
     -N|--ninja-build)     use_ninja=true;  shift ;;
     -n|--no-optim)        no_optim=true;   shift ;;
+        --toolchain)      toolchain_file="$2"; shift 2 ;;
         --clean)          clean_first=true; shift ;;
     -h|--help)            usage; exit 0 ;;
     --) shift; break ;;
@@ -115,6 +126,11 @@ if [[ "$cmake_bt" == "Release" ]]; then
   run_tests=true
 fi
 
+# Validate toolchain file if provided
+if [[ -n "$toolchain_file" && ! -f "$toolchain_file" ]]; then
+  die "Toolchain file not found: $toolchain_file"
+fi
+
 # Pre-build checks
 command -v cmake >/dev/null 2>&1 || die "cmake not found"
 if [[ "$use_ninja" == true ]]; then
@@ -126,9 +142,11 @@ info "Buildpath          : $buildpath"
 info "Jobs               : $jobs"
 info "Build Type         : $cmake_bt"
 info "Extra CXX flags    : ${CXX_FLAGS:-<none>}"
+info "Extra CMake defines: ${cmake_defines[*]:-<none>}"
 info "Python wrapper     : $python_wrap"
 info "MATLAB wrapper     : $matlab_wrap"
 info "Generator          : $([[ "$use_ninja" == true ]] && echo Ninja || echo 'Unix Makefiles')"
+info "Toolchain file     : ${toolchain_file:-<none>}"
 info "Run tests          : $run_tests"
 info "Install after build: $install"
 
@@ -150,21 +168,25 @@ if [[ "$rebuild_only" == false ]]; then
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   )
   [[ "$use_ninja"  == true ]] && cmake_args+=( -G Ninja )
-  [[ "$python_wrap" == true ]] && cmake_args+=( -DBUILD_PYTHON_WRAPPER=ON )
-  [[ "$matlab_wrap" == true ]] && cmake_args+=( -DBUILD_MATLAB_WRAPPER=ON )
+  [[ "$python_wrap" == true ]] && cmake_args+=( -DGTWRAP_BUILD_PYTHON_DEFAULT=ON )
+  [[ "$matlab_wrap" == true ]] && cmake_args+=( -DGTWRAP_BUILD_MATLAB_DEFAULT=ON )
   [[ "$no_optim"   == true ]] && cmake_args+=( -DNO_OPTIMIZATION=ON )
+  [[ -n "$toolchain_file" ]] && cmake_args+=( "-DCMAKE_TOOLCHAIN_FILE=$toolchain_file" )
+  [[ ${#cmake_defines[@]} -gt 0 ]] && cmake_args+=( "${cmake_defines[@]}" )
 
-  info "Configuring with CMake..."
+  info "Configuring with CMake...\n"
   cmake "${cmake_args[@]}"
+elif [[ -n "$toolchain_file" ]]; then
+  info "Toolchain file provided, but --rebuild-only skips configure."
 fi
 
 # --- Build ---
-info "Building..."
+info "\nBuilding..."
 cmake --build "$buildpath" --parallel "$jobs"
 
 # --- Test ---
 if [[ "$run_tests" == true || "$install" == true ]]; then
-  info "Running tests..."
+  info "\nRunning tests..."
   ctest --test-dir "$buildpath" --output-on-failure -j "$jobs"
 fi
 
