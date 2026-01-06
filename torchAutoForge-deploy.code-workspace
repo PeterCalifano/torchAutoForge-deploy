@@ -7,9 +7,6 @@
 			"path": "../pyTorchAutoForge"
 		},
 		{
-			"path": "../../code-samples_PeterCdev"
-		},
-		{
 			"path": "../MachineLearningGears_for_SpaceNav"
 		},
 		{
@@ -20,9 +17,6 @@
 		},
 		{
 			"path": "../../dev-tools/cpp_cuda_template_project"
-		},
-		{
-			"path": "../../dev-tools/cpp_template_project"
 		},
 		{
 			"path": "../../dev-tools/study_notes_archive"

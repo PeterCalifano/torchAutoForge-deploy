@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -Euo pipefail
+set -Eo pipefail
+set +u
 
 ros_mode="${ROS_MODE:-none}"
 ros_distro="${ROS_DISTRO:-}"
@@ -87,6 +88,8 @@ rm -rf /var/lib/apt/lists/*
 
 # Source the ROS setup file
 echo "source /opt/ros/${ros_distro}/setup.bash" >> ~/.bashrc
-source ~/.bashrc
+source /opt/ros/${ros_distro}/setup.bash
 rosdep init
 rosdep update
+
+set -eu

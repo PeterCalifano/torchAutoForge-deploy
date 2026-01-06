@@ -96,12 +96,12 @@ prompt_select() {
   shift 2
   local -a options=("$@")
   local i=1
-  echo "$prompt"
+  echo "$prompt" >&2
   for opt in "${options[@]}"; do
     if [[ "$opt" == "$default" ]]; then
-      printf "  %d) %s (default)\n" "$i" "$opt"
+      printf "  %d) %s (default)\n" "$i" "$opt" >&2
     else
-      printf "  %d) %s\n" "$i" "$opt"
+      printf "  %d) %s\n" "$i" "$opt" >&2
     fi
     ((i++))
   done
@@ -121,7 +121,7 @@ prompt_select() {
         return 0
       fi
     done
-    echo "Invalid selection."
+    echo "Invalid selection." >&2
   done
 }
 
@@ -287,11 +287,14 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
     CUDA="$(prompt_bool "Enable CUDA support?" "$cuda_prompt_default")"
   fi
 
+  echo "Selected CUDA support: $CUDA"
+
   # Base image
   if [[ -z "$BASE_IMAGE" && "$BASE_SET" != "yes" ]]; then
     if ! contains_value "$BASE" "${BASE_OPTIONS[@]}"; then
       BASE="${BASE_OPTIONS[0]}"
     fi
+    echo "Current base image: $BASE"
     BASE="$(prompt_select "Select base image:" "$BASE" "${BASE_OPTIONS[@]}")"
   fi
   if [[ -z "$BASE_IMAGE" && "$BASE" != "custom" ]]; then
@@ -304,6 +307,8 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
     default_custom="${current_from:-mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04}"
     BASE_IMAGE="$(prompt_text "Enter full base image" "$default_custom")"
   fi
+
+  echo "Selected base image: $BASE"
 
   # ROS / ROS 2
   if [[ "$ROS_MODE_SET" != "yes" && "$ROS_MODE" != "none" ]]; then
@@ -339,6 +344,8 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
       ;;
   esac
 
+  echo "Selected ROS mode: $ROS_MODE"
+
   if [[ "$ROS_MODE" != "none" ]]; then
     if [[ "$ROS_MODE" == "ros2" ]]; then
       if ! contains_value "$ROS_PROFILE" "${ROS2_PROFILES[@]}"; then
@@ -364,6 +371,7 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
       fi
     fi
   fi
+  
 
 else
   # Validate options in non-interactive mode

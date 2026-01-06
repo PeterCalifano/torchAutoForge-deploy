@@ -16,10 +16,6 @@ def main() -> int:
             "addCondaForge": True,
             "version": "latest",
         },
-        "ghcr.io/devcontainers/features/git-lfs:1": {
-            "autoPull": True,
-            "version": "latest",
-        },
         "ghcr.io/devcontainers/features/python:1": {
             "installTools": True,
             "enableShared": True,
