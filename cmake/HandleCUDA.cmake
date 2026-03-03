@@ -78,6 +78,7 @@ function(handle_cuda)
         set(CUDA_CONFIGURED OFF PARENT_SCOPE)
         set(cuda_arch "" PARENT_SCOPE)
         set(sm_version "" PARENT_SCOPE)
+        set(CUDA_PTX_NVCC_FLAGS "" PARENT_SCOPE)
         return() # Return if CUDA not enabled
     endif()
 
@@ -93,6 +94,36 @@ function(handle_cuda)
     # Add include dirs and definitions to the target
     target_include_directories(${HCUDA_TARGET} INTERFACE ${CUDAToolkit_INCLUDE_DIRS})
     target_compile_definitions(${HCUDA_TARGET} INTERFACE __CUDA_ENABLED__=1)
+
+    # Configure shared NVCC optimization flags.
+    set(_cuda_shared_nvcc_flags)
+    if(CUDA_ENABLE_FMAD)
+        list(APPEND _cuda_shared_nvcc_flags --fmad=true)
+    else()
+        list(APPEND _cuda_shared_nvcc_flags --fmad=false)
+    endif()
+
+    if(CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION)
+        list(APPEND _cuda_shared_nvcc_flags --extra-device-vectorization)
+    endif()
+
+    if(DEFINED CUDA_NVCC_EXTRA_FLAGS AND NOT CUDA_NVCC_EXTRA_FLAGS STREQUAL "")
+        separate_arguments(_cuda_extra_flags UNIX_COMMAND "${CUDA_NVCC_EXTRA_FLAGS}")
+        list(APPEND _cuda_shared_nvcc_flags ${_cuda_extra_flags})
+    endif()
+
+    list(REMOVE_DUPLICATES _cuda_shared_nvcc_flags)
+
+    set(_cuda_compile_options ${_cuda_shared_nvcc_flags})
+    if(CUDA_USE_FAST_MATH)
+        list(APPEND _cuda_compile_options --use_fast_math)
+    endif()
+
+    list(REMOVE_DUPLICATES _cuda_compile_options)
+    if(_cuda_compile_options)
+        target_compile_options(${HCUDA_TARGET} INTERFACE
+            $<$<COMPILE_LANGUAGE:CUDA>:${_cuda_compile_options}>)
+    endif()
 
     # Link libraries to interface target
     if(HCUDA_LIBRARIES)
@@ -128,5 +159,6 @@ function(handle_cuda)
     set(cuda_arch "${_cuda_arch_names}" PARENT_SCOPE)
     set(sm_version "${_cuda_arch_nums}" PARENT_SCOPE)
     set(CUDA_LINK_LIBRARIES "${_cuda_libs}" PARENT_SCOPE)
+    set(CUDA_PTX_NVCC_FLAGS "${_cuda_shared_nvcc_flags}" PARENT_SCOPE)
     set(CUDA_CONFIGURED ON PARENT_SCOPE)
 endfunction()

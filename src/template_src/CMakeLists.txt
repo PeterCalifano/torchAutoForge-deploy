@@ -16,6 +16,14 @@ file(GLOB srcCudaFilesToPTX_local "*.ptx.cu")
 get_filename_component(CURRENT_FOLDER_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 message(STATUS "Library src files found in ${CURRENT_FOLDER_NAME}: ${srcLibFiles_local}")
 
+#################
+# User specified subdirectories
+
+# Add subdirectories here
+#add_subdirectory(subdir_name)
+
+#################
+
 # Set global # Export list of src files to parent scope
 set(srcLibFiles ${srcLibFiles} ${srcLibFiles_local} PARENT_SCOPE)
 set(srcCudaFilesToPTX ${srcCudaFilesToPTX} ${srcCudaFilesToPTX_local} PARENT_SCOPE)
