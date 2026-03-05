@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Generate VERSION file without building.
-# Fallback chain: git tags → existing VERSION file → hardcoded default.
+# Fallback chain: git tags --> existing VERSION file --> hardcoded default.
 
 set -Eeuo pipefail
 IFS=$'\n\t'

@@ -14,8 +14,8 @@ C++/CUDA library for deploying machine learning models via ONNX Runtime (ORT). P
 | ONNX Runtime | any | Yes |
 | OpenCV | any | No (image preprocessing) |
 | CUDA Toolkit | ≥ 12.0 | No (GPU acceleration) |
-| OptiX | — | No (requires CUDA) |
-| gtwrap | — | No (Python/MATLAB bindings) |
+| OptiX | - | No (requires CUDA) |
+| gtwrap | - | No (Python/MATLAB bindings) |
 
 If ORT is installed in a non-standard location, set `OnnxRuntime_DIR` before configuring.
 
@@ -69,27 +69,27 @@ Tests use Catch2 v3 (auto-fetched if not found). Any `test*.cpp` file placed in 
 
 ## Architecture
 
-```
+```text
 src/
   inference/
-    onnx_runtime/   — CInferenceManager_ORT (core, under development)
-    tensorrt/       — CEngineLoader stub (not implemented)
+    onnx_runtime/   - CInferenceManager_ORT (core, under development)
+    tensorrt/       - CEngineLoader stub (not implemented)
   auxiliary/
-    common_defs.h   — SInputOutputSpecs<> tensor I/O descriptor
-    common_ops.h    — AccumProduct(), file-check utilities
-    images_prepro.h — OpenCV image preprocessing (stub)
+    common_defs.h   - SInputOutputSpecs<> tensor I/O descriptor
+    common_ops.h    - AccumProduct(), file-check utilities
+    images_prepro.h - OpenCV image preprocessing (stub)
   programs/
-    get_available_providers  — lists ORT providers at runtime
-    run_ort_inference        — placeholder CLI runner
-  wrap_interface.i           — gtwrap top-level interface (empty)
-  inference/inference.i      — gtwrap inference interface (empty)
-  config.h.in                — version header (PrintVersion / GetVersionString)
+    get_available_providers  - lists ORT providers at runtime
+    run_ort_inference        - placeholder CLI runner
+  wrap_interface.i           - gtwrap top-level interface (empty)
+  inference/inference.i      - gtwrap inference interface (empty)
+  config.h.in                - version header (PrintVersion / GetVersionString)
 examples/
-  object_detection_yoloV7/  — YOLOv7 object detection example
+  object_detection_yoloV7/  - YOLOv7 object detection example
 tests/
-  inference/                — C++ tests for CInferenceManager_ORT
-  matlab/                   — MATLAB import and inference tests
-  simulink/                 — Simulink inference tests
+  inference/                - C++ tests for CInferenceManager_ORT
+  matlab/                   - MATLAB import and inference tests
+  simulink/                 - Simulink inference tests
 ```
 
 ---
@@ -98,25 +98,25 @@ tests/
 
 ### Core: `CInferenceManager_ORT`
 
-- [ ] Fix constructor argument-order mismatch: header declares `(bool inplace_init, const std::string& model_path, ...)` but `.cpp` implements them in opposite order; test file uses yet another order `(model_path, bool)` — pick one signature and make all sites consistent
-- [ ] Implement `initialize()`: currently creates an empty `SInputOutputSpecs` — must query the ORT session for actual input/output names and shapes after session creation
+- [ ] Fix constructor argument-order mismatch: header declares `(bool inplace_init, const std::string& model_path, ...)` but `.cpp` implements them in opposite order; test file uses yet another order `(model_path, bool)` - pick one signature and make all sites consistent
+- [ ] Implement `initialize()`: currently creates an empty `SInputOutputSpecs` - must query the ORT session for actual input/output names and shapes after session creation
 - [ ] Remove hardcoded `initialize<float>()` call in constructor: infer type from model metadata or expose it as a parameter/template argument
 - [ ] Fix tensor allocation in `initialize()` (marked `FIXME`): input/output shapes are empty at allocation time; allocation must happen after specs are populated from the session
 - [ ] Implement YAML config constructor: the `(const std::string session_config_path)` overload has a `TODO` and parses nothing
-- [ ] Implement `infer()` fully: the method runs the session but provides no way to supply input data or retrieve output data — add typed data-in/data-out parameters or buffer accessors
+- [ ] Implement `infer()` fully: the method runs the session but provides no way to supply input data or retrieve output data - add typed data-in/data-out parameters or buffer accessors
 
 ### `SInputOutputSpecs` / `SImagesInputOutputSpecs`
 
-- [ ] Fix dangling `const char*` pointers: `input_names` / `output_names` store `.c_str()` of local `std::string` objects that go out of scope — store owned `std::vector<std::string>` and expose `const char*` views separately
+- [ ] **[BUG]** Dangling `const char*` pointers in `SInputOutputSpecs`: `input_names` / `output_names` store `.c_str()` of constructor-parameter `std::string` objects that are destroyed after construction, leaving the pointers invalid before the first ORT call. Fix: add a `std::vector<std::string> input_names_owned` / `output_names_owned` member to hold the strings, then rebuild the `const char*` views (`input_names`, `output_names`) from those owned strings.
 - [ ] Fix `SImagesInputOutputSpecs` shape construction: `this->input_shapes.emplace_back(INPUT_T{batch_size, num_channels, height, width})` is invalid when `INPUT_T = int64_t`; input shape should be a flat `{batch, channels, height, width}` vector of scalars
 - [ ] Extend `SInputOutputSpecs` to support multiple input tensors with independent shapes (currently only a flat single-tensor shape vector)
 
 ### Programs / CLI
 
-- [ ] Remove hardcoded absolute path from `run_ort_inference.cpp` — use CLI argument or relative path
+- [ ] Remove hardcoded absolute path from `run_ort_inference.cpp` - use CLI argument or relative path
 - [ ] Add CLI argument parsing to `run_ort_inference` (noted in source as `// TODO add tclap for argument parsing`)
 
-### Tests
+### Test Coverage
 
 - [ ] Fix `testCInferenceManager_ORT.cpp` constructor call: `CInferenceManager_ORT(invalid_model_path, false)` does not match any declared constructor signature
 - [ ] Implement dummy-value inference test (`CInferenceManager_ORT_infer` section is a stub)
@@ -145,4 +145,4 @@ tests/
 - [ ] Replace `DEBUG` preprocessor macro in `onnxruntime_inference_tools.hpp` with a proper logging mechanism; current `printd` logic with `!NDEBUG` is fragile
 - [ ] Add `<filesystem>` include directly to `onnxruntime_inference_tools.hpp` (currently relies on transitive include from `common_ops.h`)
 - [ ] Add `.gitignore` entry or clean up committed `build/` artifacts inside `examples/object_detection_yoloV7/build/`
-- [ ] Complete YOLOv7 example: `object_detection_yoloV7.h` is nearly empty; end-to-end pipeline (preprocess → infer → NMS → draw) is unfinished
+- [ ] Complete YOLOv7 example: `object_detection_yoloV7.h` is nearly empty; end-to-end pipeline (preprocess --> infer --> NMS --> draw) is unfinished

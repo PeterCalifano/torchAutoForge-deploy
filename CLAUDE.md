@@ -64,18 +64,18 @@ Tests use Catch2 v3 (auto-fetched if not found). New test files named `test*.cpp
 
 ### Core Module: `src/inference/onnx_runtime/`
 
-- **`onnxruntime_inference_tools.hpp/.cpp`** — `CInferenceManager_ORT` class: initializes ORT environment/sessions, loads ONNX models, runs typed inference. Currently under active development (see `TODO` at project root).
+- **`onnxruntime_inference_tools.hpp/.cpp`** - `CInferenceManager_ORT` class: initializes ORT environment/sessions, loads ONNX models, runs typed inference. Currently under active development (see `TODO` at project root).
 
 ### Auxiliary: `src/auxiliary/`
 
-- **`common_defs.h`** — `SInputOutputSpecs<>` template struct defining tensor I/O (names, shapes, types)
-- **`common_ops.h`** — `AccumProduct()` utility for computing tensor element counts
-- **`images_prepro.h`** — OpenCV-based image preprocessing helpers
+- **`common_defs.h`** - `SInputOutputSpecs<>` template struct defining tensor I/O (names, shapes, types)
+- **`common_ops.h`** - `AccumProduct()` utility for computing tensor element counts
+- **`images_prepro.h`** - OpenCV-based image preprocessing helpers
 
 ### Standalone Programs: `src/programs/`
 
-- `get_available_providers` — lists ORT execution providers at runtime
-- `run_ort_inference` — placeholder inference runner
+- `get_available_providers` - lists ORT execution providers at runtime
+- `run_ort_inference` - placeholder inference runner
 
 ### Bindings
 
