@@ -18,6 +18,7 @@ endif()
 # Major options
 option(ENABLE_OPTIX "Enable OptiX" OFF)
 option(ENABLE_CUDA "Enable CUDA" OFF)
+option(BUILD_SHARED_LIBS "Build libraries as shared" ON)
 include(cmake/HandleOpenMP.cmake)
 
 set(languages CXX) # ACHTUNG: PTX code requires C language!
@@ -478,6 +479,7 @@ message(STATUS "==============================================================="
 message(STATUS "================  Configuration Options  ======================")
 # Project info
 message(STATUS "LIBRARY NAME                              : ${project_name}")
+message(STATUS "LIBRARY TARGET TYPE                       : ${PROJECT_LIBRARY_KIND}")
 message(STATUS "CROSS COMPILING                           : ${CMAKE_CROSSCOMPILING}")
 message(STATUS "HOST SYSTEM                               : ${CMAKE_HOST_SYSTEM}")
 message(STATUS "TARGET SYSTEM                             : ${CMAKE_SYSTEM}")
@@ -520,6 +522,7 @@ message(STATUS "CMAKE_INSTALL_PREFIX                      : ${CMAKE_INSTALL_PREF
 message(STATUS "CMAKE_INSTALL_LIBDIR                      : ${CMAKE_INSTALL_LIBDIR}")
 message(STATUS "CMAKE_INSTALL_INCLUDEDIR                  : ${CMAKE_INSTALL_INCLUDEDIR}")
 message(STATUS "CMAKE_INSTALL_BINDIR                      : ${CMAKE_INSTALL_BINDIR}")
+message(STATUS "BUILD_SHARED_LIBS                         : ${BUILD_SHARED_LIBS}")
 
 # Build type
 if(NOT MSVC AND NOT XCODE_VERSION)
