@@ -1,12 +1,21 @@
+include_guard(GLOBAL)
+if(COMMAND add_examples AND COMMAND add_tests AND COMMAND filter_files_in_list)
+    return()
+endif()
+
 # CMAKE script containing utility functions for cmake configuration
 
 # Function for entry exclusion in a list based on pattern matching
 function(filter_files_in_list input_var output_var exclude_list)
     set(filtered_files "")
+    set(exclude_entries ${${exclude_list}})
     foreach(testFile ${${input_var}})
-        get_filename_component(fileName ${testFile} NAME_WE)
-        list(FIND ${exclude_list} ${fileName} index)
-        if(index EQUAL -1)
+        get_filename_component(fileName ${testFile} NAME)
+        get_filename_component(fileNameNoExt ${testFile} NAME_WE)
+
+        list(FIND exclude_entries "${fileName}" index_with_ext)
+        list(FIND exclude_entries "${fileNameNoExt}" index_no_ext)
+        if(index_with_ext EQUAL -1 AND index_no_ext EQUAL -1)
             list(APPEND filtered_files ${testFile})
         endif()
     endforeach()

@@ -231,20 +231,20 @@ while [[ $# -gt 0 ]]; do
       BASE_IMAGE_SET="yes"
       ;;
     --ros)
-      shift
       ROS_MODE="ros"
-      ROS_DISTRO="${1:-}"
       ROS_MODE_SET="yes"
-      if [[ -n "$ROS_DISTRO" ]]; then
+      if [[ $# -ge 2 && "${2}" != -* ]]; then
+        shift
+        ROS_DISTRO="$1"
         ROS_DISTRO_SET="yes"
       fi
       ;;
     --ros2)
-      shift
       ROS_MODE="ros2"
-      ROS_DISTRO="${1:-}"
       ROS_MODE_SET="yes"
-      if [[ -n "$ROS_DISTRO" ]]; then
+      if [[ $# -ge 2 && "${2}" != -* ]]; then
+        shift
+        ROS_DISTRO="$1"
         ROS_DISTRO_SET="yes"
       fi
       ;;
@@ -311,7 +311,7 @@ if [[ "$NON_INTERACTIVE" != "yes" ]]; then
   echo "Selected base image: $BASE"
 
   # ROS / ROS 2
-  if [[ "$ROS_MODE_SET" != "yes" && "$ROS_MODE" != "none" ]]; then
+  if [[ "$ROS_MODE_SET" != "yes" ]]; then
     ROS_MODE="$(prompt_select "Select ROS option:" "$ROS_MODE" "none" "ros" "ros2")"
   fi
   case "$ROS_MODE" in

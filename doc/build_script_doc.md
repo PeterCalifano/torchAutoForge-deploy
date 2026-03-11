@@ -1,4 +1,4 @@
-# build_lib.sh — Detailed changes & option reference
+# build_lib.sh - Detailed changes & option reference
 
 ## 1) Shell safety & ergonomics
 
@@ -42,7 +42,7 @@ The script now uses **GNU `getopt`** to support:
 
 ---
 
-## 3) Options — full reference
+## 3) Options - full reference
 
 ### Build layout & performance
 
@@ -193,7 +193,7 @@ The script now uses **GNU `getopt`** to support:
 
 ## 8) Optional future extensions
 
-* `--preset <name>` → `cmake --preset <name>` / `cmake --build --preset <name>` / `ctest --preset <name>`.
+* `--preset <name>` --> `cmake --preset <name>` / `cmake --build --preset <name>` / `ctest --preset <name>`.
 * Sanitizer toggles for debug: `--asan`, `--ubsan`, `--tsan` that append safe defaults and adjust `LD_PRELOAD`/`ASAN_OPTIONS` for tests.
 * Colorized `ctest` output via `--output-on-failure` (already used) and `CTEST_OUTPUT_ON_FAILURE=1` environment.
 

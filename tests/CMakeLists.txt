@@ -12,12 +12,12 @@ set(CATCH2_TEST_PROPERTIES "--output-on-failure;--reporter=compact")
 
 # Exclude EXCLUDED_LIST from the list of tests
 set(EXCLUDED_LIST "test_to_exclude")  # Specify files to exclude WE
-set(TESTS_LIST "")
+set(TESTS_LIST "") 
 
 # Include the content of the fixtures directory
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-# Add subdirectory
+# Add subdirectory 
 add_subdirectory(template_test)
 add_subdirectory(template_fixtures)
 
