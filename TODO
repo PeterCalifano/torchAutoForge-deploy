@@ -1,17 +1,26 @@
-# List of TODOs for autoforge-deploy module
+# torchAutoForge-deploy TODO
 
-- [x] Add configuration for python library module (use same as ML Gears). This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead.  
+Authoritative staged plan: `doc/development/autoforge_deploy_upgrade_plan.md`.
 
-- [ ] Implement prototype module for Inference management with Onnx runtime library (ORT)
-  - [x] Fix compilation issues to build program
-  - [ ] Complete implementation of class CInferenceManager_ORT version 1
-  - [ ] Test inference with dummy model and values and compare against python
-  - [ ] Implement prototype wrapper module for MATLAB/python (automatic)
-  - [ ] Test execution within MATLAB to check for issues due to multithreads
-  - [ ] Test inference of onnx model in MATLAB
+## Closed In Current Local WIP
 
-- [ ] Implement prototype binding of ORT inference to python through pybind11 or gtwrap
+- [x] Configure CMake build and installation basics.
+- [x] Fix initial ORT compilation path.
+- [x] Resolve old `CInferenceManager_ORT` constructor mismatch.
+- [x] Load `.onnx` models through ONNX Runtime.
+- [x] Extract ORT input/output names, dtypes, and shapes.
+- [x] Run basic host-memory ORT inference.
+- [x] Add generic tensor metadata/view/buffer types.
+- [x] Add backend-agnostic inference facade.
+- [x] Add tests for ORT metadata, ORT inference, generic tensor helpers, facade dispatch, and TensorRT stub behavior.
 
-- [ ] Add module with pre-trained/tailored models, e.g. feature matching
+## Open Work
 
-- [x] Configure cmake build and installation of project
+- [ ] Finish wrapper interfaces for Python and MATLAB.
+- [ ] Add MATLAB wrapper smoke test for loading and running an ONNX model.
+- [ ] Replace hardcoded model path in `run_ort_inference`.
+- [ ] Add numeric C++ ORT output comparison against known reference values.
+- [ ] Review and remove redundant legacy tensor spec helpers where superseded by `deploy_infer` types.
+- [ ] Implement general model-role facade for centroiding, object detection, feature matching, tracking, optical flow, and future learned modules.
+- [ ] Add YOLO and centroiding ONNX examples through the generic model-role facade.
+- [ ] Decide whether TensorRT standalone backend remains a planned backend or is removed from public options until implemented.

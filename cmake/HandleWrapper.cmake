@@ -89,7 +89,23 @@ function(maybe_init_wrap_submodule OUT_VAR)
   endif()
 
   if("${_submodule_path}" STREQUAL "")
-    return()
+    if(NOT GTWRAP_ADD_SUBMODULE_IF_MISSING)
+      return()
+    endif()
+
+    if(NOT DEFINED GTWRAP_SUBMODULE_PATH OR "${GTWRAP_SUBMODULE_PATH}" STREQUAL "")
+      set(_submodule_path "lib/wrap")
+    else()
+      set(_submodule_path "${GTWRAP_SUBMODULE_PATH}")
+    endif()
+
+    if(NOT DEFINED GTWRAP_SUBMODULE_REPO OR "${GTWRAP_SUBMODULE_REPO}" STREQUAL "")
+      set(_gtwrap_submodule_repo "git@github.com:PeterCalifano/wrap.git")
+    else()
+      set(_gtwrap_submodule_repo "${GTWRAP_SUBMODULE_REPO}")
+    endif()
+  else()
+    set(_gtwrap_submodule_repo "")
   endif()
 
   set(_candidate_root "${PROJECT_SOURCE_DIR}/${_submodule_path}")
@@ -109,7 +125,31 @@ function(maybe_init_wrap_submodule OUT_VAR)
     return()
   endif()
 
-  message(STATUS "Initializing wrap submodule at '${_submodule_path}'...")
+  if(NOT "${_gtwrap_submodule_repo}" STREQUAL "")
+    get_filename_component(_submodule_parent "${_candidate_root}" DIRECTORY)
+    file(MAKE_DIRECTORY "${_submodule_parent}")
+
+    message(STATUS "Adding wrap submodule '${_gtwrap_submodule_repo}' at '${_submodule_path}'...")
+    execute_process(
+      COMMAND git submodule add "${_gtwrap_submodule_repo}" "${_submodule_path}"
+      WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+      RESULT_VARIABLE _add_result
+      OUTPUT_QUIET
+      ERROR_VARIABLE _add_error
+    )
+    if(NOT _add_result EQUAL 0)
+      string(STRIP "${_add_error}" _add_error)
+      if("${_add_error}" STREQUAL "")
+        set(_add_error "unknown error")
+      endif()
+      message(WARNING
+        "Failed to add wrap submodule '${_gtwrap_submodule_repo}' at '${_submodule_path}': ${_add_error}")
+      return()
+    endif()
+  else()
+    message(STATUS "Initializing wrap submodule at '${_submodule_path}'...")
+  endif()
+
   execute_process(
     COMMAND git submodule sync --recursive
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
@@ -215,11 +255,34 @@ function(configure_gtwrappers_common)
   set(_gtwrap_root_var_name "${LIB_NAMESPACE}_GTWRAP_ROOT_DIR")
   set(_gtwrap_autodiscover_option_name "${LIB_NAMESPACE}_WRAPPER_AUTODISCOVER_INTERFACE_FILES")
 
+  set(${PROJECT_NAME}_WRAPPER_DISABLE_REASON "" CACHE INTERNAL
+      "Reason why wrapper generation is disabled for the project." FORCE)
+  set(${PROJECT_NAME}_WRAPPER_INTERFACE_FILES_EFFECTIVE "" CACHE INTERNAL
+      "Effective wrapper interface files configured for the project." FORCE)
+
   if(NOT DEFINED GTWRAP_BRANCH)
     set(GTWRAP_BRANCH "master" CACHE STRING "wrap branch used when syncing local checkout")
   endif()
   if(NOT DEFINED GTWRAP_SYNC_TO_MASTER)
     option(GTWRAP_SYNC_TO_MASTER "Sync local wrap checkout to latest origin/<GTWRAP_BRANCH>" ON)
+  endif()
+  if(NOT DEFINED GTWRAP_INIT_SUBMODULE_IF_MISSING)
+    option(GTWRAP_INIT_SUBMODULE_IF_MISSING
+           "Initialize the wrap git submodule only after local search and find_package(gtwrap) both fail."
+           ON)
+  endif()
+  if(NOT DEFINED GTWRAP_ADD_SUBMODULE_IF_MISSING)
+    option(GTWRAP_ADD_SUBMODULE_IF_MISSING
+           "Add wrap as a git submodule when it is not yet declared in .gitmodules and wrapper resolution fails."
+           ON)
+  endif()
+  if(NOT DEFINED GTWRAP_SUBMODULE_REPO)
+    set(GTWRAP_SUBMODULE_REPO "git@github.com:PeterCalifano/wrap.git" CACHE STRING
+        "Git repository used when auto-adding wrap as a submodule.")
+  endif()
+  if(NOT DEFINED GTWRAP_SUBMODULE_PATH)
+    set(GTWRAP_SUBMODULE_PATH "lib/wrap" CACHE STRING
+        "Relative path used when auto-adding wrap as a submodule.")
   endif()
 
   if(NOT DEFINED ${_gtwrap_root_var_name})
@@ -266,12 +329,16 @@ function(configure_gtwrappers_common)
   endif()
 
   set(_gtwrap_interface_files ${${_gtwrap_interface_var_name}})
+  set(${PROJECT_NAME}_WRAPPER_INTERFACE_FILES_EFFECTIVE "${_gtwrap_interface_files}" CACHE INTERNAL
+      "Effective wrapper interface files configured for the project." FORCE)
   check_interface_files_validity(_valid_interface_files ${_gtwrap_interface_files})
 
   if(NOT _valid_interface_files)
     message(WARNING
       "No valid wrapper interface files were configured in '${_gtwrap_interface_var_name}'. "
       "Disabling both Python and MATLAB wrappers.")
+    set(${PROJECT_NAME}_WRAPPER_DISABLE_REASON "missing_or_invalid_interface_files" CACHE INTERNAL
+        "Reason why wrapper generation is disabled for the project." FORCE)
     set(${_gtwrap_python_option_name} OFF CACHE BOOL
         "Disable Python wrapper build due to missing interface files."
         FORCE)
@@ -296,13 +363,27 @@ function(configure_gtwrappers_common)
 
   resolve_local_wrap_root(_local_wrap_root "${_configured_wrap_root}")
   if(NOT _local_wrap_root)
-    maybe_init_wrap_submodule(_local_wrap_root)
+    find_package(gtwrap QUIET)
+    if(NOT gtwrap_FOUND AND GTWRAP_INIT_SUBMODULE_IF_MISSING)
+      maybe_init_wrap_submodule(_local_wrap_root)
+    endif()
   endif()
   if(_local_wrap_root)
     if(GTWRAP_SYNC_TO_MASTER)
       sync_wrap_checkout("${_local_wrap_root}" "${GTWRAP_BRANCH}")
     endif()
     message(STATUS "Using local wrap checkout: ${_local_wrap_root}")
+
+    if(${${_gtwrap_matlab_option_name}} AND
+       EXISTS "${_local_wrap_root}/templates/matlab_wrapper.tpl.in")
+      get_filename_component(_local_wrap_include_name "${_local_wrap_root}" NAME)
+      file(READ "${_local_wrap_root}/templates/matlab_wrapper.tpl.in"
+           _local_matlab_wrapper_template)
+      string(REPLACE "\${GTWRAP_INCLUDE_NAME}" "${_local_wrap_include_name}"
+             _local_matlab_wrapper_template "${_local_matlab_wrapper_template}")
+      file(WRITE "${_local_wrap_root}/gtwrap/matlab_wrapper/matlab_wrapper.tpl"
+           "${_local_matlab_wrapper_template}")
+    endif()
 
     list(APPEND CMAKE_MODULE_PATH "${_local_wrap_root}/cmake")
     set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" PARENT_SCOPE)
@@ -345,7 +426,6 @@ function(configure_gtwrappers_common)
 
     set(GTWRAP_ROOT_DIR "${_local_wrap_root}" PARENT_SCOPE)
   else()
-    find_package(gtwrap QUIET)
     if(gtwrap_FOUND)
       message(STATUS "Using installed gtwrap package discovered by find_package(gtwrap).")
 
@@ -430,7 +510,9 @@ function(configure_gtwrappers_common)
     else()
       message(FATAL_ERROR
         "Could not locate wrap/gtwrap. Provide a local checkout at 'wrap/' or 'lib/wrap/', "
-        "or set ${_gtwrap_root_var_name}=<path>, or install gtwrap so find_package(gtwrap) succeeds.")
+        "or set ${_gtwrap_root_var_name}=<path>, or install gtwrap so find_package(gtwrap) succeeds. "
+        "Set GTWRAP_INIT_SUBMODULE_IF_MISSING=ON to allow submodule initialization when declared in .gitmodules, "
+        "or GTWRAP_ADD_SUBMODULE_IF_MISSING=ON to auto-add '${GTWRAP_SUBMODULE_PATH}' from '${GTWRAP_SUBMODULE_REPO}'.")
     endif()
   endif()
 
@@ -526,7 +608,12 @@ function(configure_python_gtwrapper)
   set(PROJECT_PYTHON_PACKAGE_DIR "${PROJECT_PYTHON_SOURCE_DIR}/${PROJECT_NAME}")
   set(PROJECT_PYTHON_BUILD_DIRECTORY "${PROJECT_BINARY_DIR}/python")
   set(PROJECT_PYTHON_BUILD_PACKAGE_DIR "${PROJECT_PYTHON_BUILD_DIRECTORY}/${PROJECT_NAME}")
+  set(PROJECT_PYTHON_SOURCE_METADATA_FILE "${PROJECT_PYTHON_SOURCE_DIR}/pyproject.toml")
+  set(PROJECT_PYTHON_SOURCE_SETUP_FILE "${PROJECT_PYTHON_SOURCE_DIR}/setup.py")
+  set(PROJECT_PYTHON_WRAPPER_LINK_FILE "${PROJECT_PYTHON_PACKAGE_DIR}/_wrapper_build.py")
   set(PROJECT_PYTHON_TARGET_NAME "${LIB_NAMESPACE}_py")
+  set(${PROJECT_NAME}_PYTHON_WRAPPER_TARGET "${PROJECT_PYTHON_TARGET_NAME}" CACHE INTERNAL
+      "Resolved Python wrapper target name for the project." FORCE)
 
   if(NOT EXISTS "${PROJECT_PYTHON_PACKAGE_DIR}")
     message(WARNING
@@ -535,19 +622,34 @@ function(configure_python_gtwrapper)
   endif()
 
   if(NOT EXISTS "${PROJECT_PYTHON_PACKAGE_DIR}/__init__.py")
+    string(CONFIGURE [=[
+"""Python package entrypoint for @PROJECT_NAME@ bindings."""
+
+from __future__ import annotations
+
+HAS_WRAPPER = False
+WRAPPER_IMPORT_ERROR: ImportError | None = None
+
+try:
+    from .@PROJECT_NAME@ import *  # noqa: F401,F403
+except ImportError as exc:
+    WRAPPER_IMPORT_ERROR = exc
+else:
+    HAS_WRAPPER = True
+]=] _default_python_package_init @ONLY)
     file(WRITE
       "${PROJECT_PYTHON_PACKAGE_DIR}/__init__.py"
-      "\"\"\"Python package for ${PROJECT_NAME} wrappers.\"\"\"\n")
+      "${_default_python_package_init}")
   endif()
 
   file(MAKE_DIRECTORY "${PROJECT_PYTHON_BUILD_DIRECTORY}")
 
-  # Write pyproject.toml for the Python package, using the template from the wrap checkout if available
+  # Write pyproject.toml for the source Python package so `pip install python/` is the public entrypoint.
   set(_pyproject_template "${PROJECT_PYTHON_SOURCE_DIR}/pyproject.toml.in")
 
   if(NOT EXISTS "${_pyproject_template}")
     message(WARNING
-      "Missing python/pyproject.toml.in. Generating a minimal fallback template in the build tree.")
+      "Missing python/pyproject.toml.in. Generating a minimal fallback template.")
     set(_pyproject_template "${PROJECT_BINARY_DIR}/python/pyproject.toml.in.fallback")
     file(WRITE "${_pyproject_template}" [=[
 [build-system]
@@ -562,22 +664,37 @@ requires-python = ">=3.8"
 
 [tool.setuptools]
 packages = ["@PROJECT_NAME@"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"@PROJECT_NAME@" = ["*.so", "*.pyd", "*.dylib", "*.pyi", "**/*.pyi"]
 ]=])
   endif()
 
   configure_file(
     "${_pyproject_template}"
-    "${PROJECT_PYTHON_BUILD_DIRECTORY}/pyproject.toml"
+    "${PROJECT_PYTHON_SOURCE_METADATA_FILE}"
     @ONLY)
 
-  set(_python_metadata_file "${PROJECT_PYTHON_BUILD_DIRECTORY}/pyproject.toml")
+  set(_python_metadata_file "${PROJECT_PYTHON_SOURCE_METADATA_FILE}")
 
-  # Write setup.py so `pip install` from the build python folder behaves as a binary package.
+  # Write setup.py into the source python directory so the source package remains the install entrypoint.
   set(_setup_py_template "${PROJECT_PYTHON_SOURCE_DIR}/setup.py.in")
   if(EXISTS "${_setup_py_template}")
     configure_file(
       "${_setup_py_template}"
-      "${PROJECT_PYTHON_BUILD_DIRECTORY}/setup.py"
+      "${PROJECT_PYTHON_SOURCE_SETUP_FILE}"
+      @ONLY)
+  else()
+    set(_generated_setup_py_template "${PROJECT_BINARY_DIR}/python/setup.py.in.fallback")
+    file(WRITE "${_generated_setup_py_template}" [=[
+from setuptools import setup
+
+setup(zip_safe=False)
+]=])
+    configure_file(
+      "${_generated_setup_py_template}"
+      "${PROJECT_PYTHON_SOURCE_SETUP_FILE}"
       @ONLY)
   endif()
 
@@ -696,9 +813,15 @@ namespace py = pybind11;
       "${PROJECT_BINARY_DIR}"
       "${PROJECT_PYTHON_BUILD_DIRECTORY}")
 
-  copy_directory(
-    "${PROJECT_PYTHON_PACKAGE_DIR}"
-    "${PROJECT_PYTHON_BUILD_PACKAGE_DIR}")
+  set(_python_wrapper_link_content
+"\"\"\"Generated by CMake. Tracks the latest requested Python wrapper build.\"\"\"
+
+WRAPPER_MODULE_PATH = r\"$<TARGET_FILE:${PROJECT_PYTHON_TARGET_NAME}>\"
+WRAPPER_LIBRARY_DIRS = [r\"${PROJECT_BINARY_DIR}/src\"]
+")
+  file(GENERATE
+    OUTPUT "${PROJECT_PYTHON_WRAPPER_LINK_FILE}"
+    CONTENT "${_python_wrapper_link_content}")
 
   # Resolve Python install directories to support CMake installs directly into active env site-packages.
   set(_python_install_sitearch "")
@@ -726,17 +849,19 @@ namespace py = pybind11;
   # Add import test for python module if enabled
   if(ENABLE_TESTS AND BUILD_TESTING)
     set(_python_import_test_name "${LIB_NAMESPACE}_python_import")
+    set(_python_import_test_code
+        "import ${PROJECT_NAME} as module_; assert getattr(module_, 'HAS_WRAPPER', False), 'Expected HAS_WRAPPER=True';")
     add_test(
       NAME ${_python_import_test_name}
       COMMAND
         ${CMAKE_COMMAND} -E env
-        "PYTHONPATH=${PROJECT_PYTHON_BUILD_DIRECTORY}:$ENV{PYTHONPATH}"
+        "PYTHONPATH=${PROJECT_PYTHON_SOURCE_DIR}:$ENV{PYTHONPATH}"
         "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-        ${PYTHON_EXECUTABLE} -c "import ${PROJECT_NAME}")
+        ${PYTHON_EXECUTABLE} -c "${_python_import_test_code}")
     set_tests_properties(
       ${_python_import_test_name}
       PROPERTIES
-        WORKING_DIRECTORY "${PROJECT_PYTHON_BUILD_DIRECTORY}")
+        WORKING_DIRECTORY "${PROJECT_PYTHON_SOURCE_DIR}")
   endif()
 
   install(
@@ -753,14 +878,14 @@ namespace py = pybind11;
       DESTINATION "${_python_install_root}")
   endif()
 
-  # Convenience target aligned with gtsam: install the wrapper with pip from build/python.
+  # Convenience target: install the source Python package after it has been linked to the latest wrapper build.
   set(_python_pip_install_target "${LIB_NAMESPACE}_python-install")
   if(NOT TARGET ${_python_pip_install_target})
     add_custom_target(
       ${_python_pip_install_target}
-      COMMAND ${PYTHON_EXECUTABLE} -c "import subprocess, sys; cmd=[sys.executable, '-m', 'pip', 'install', '.']; subprocess.check_call(cmd)"
+      COMMAND ${PYTHON_EXECUTABLE} -c "import subprocess, sys; cmd=[sys.executable, '-m', 'pip', 'install', '--no-build-isolation', '--no-deps', '.']; subprocess.check_call(cmd)"
       DEPENDS ${PROJECT_PYTHON_TARGET_NAME}
-      WORKING_DIRECTORY "${PROJECT_PYTHON_BUILD_DIRECTORY}"
+      WORKING_DIRECTORY "${PROJECT_PYTHON_SOURCE_DIR}"
       VERBATIM)
   endif()
 
@@ -775,10 +900,10 @@ namespace py = pybind11;
       ${_python_stubs_target}
       COMMAND
         ${CMAKE_COMMAND} -E env
-        "PYTHONPATH=${PROJECT_PYTHON_BUILD_DIRECTORY}:$ENV{PYTHONPATH}"
+        "PYTHONPATH=${PROJECT_PYTHON_SOURCE_DIR}:$ENV{PYTHONPATH}"
         ${PYTHON_EXECUTABLE} -m pybind11_stubgen ${PROJECT_NAME} -o .
       DEPENDS ${PROJECT_PYTHON_TARGET_NAME}
-      WORKING_DIRECTORY "${PROJECT_PYTHON_BUILD_DIRECTORY}"
+      WORKING_DIRECTORY "${PROJECT_PYTHON_SOURCE_DIR}"
       VERBATIM)
   endif()
 
@@ -853,6 +978,11 @@ endfunction()
 function(handle_gtwrappers)
   set(_gtwrap_python_option_name "${LIB_NAMESPACE}_BUILD_PYTHON_WRAPPER")
   set(_gtwrap_matlab_option_name "${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER")
+
+  set(${PROJECT_NAME}_PYTHON_WRAPPER_TARGET "" CACHE INTERNAL
+      "Resolved Python wrapper target name for the project." FORCE)
+  set(${PROJECT_NAME}_WRAPPER_DISABLE_REASON "" CACHE INTERNAL
+      "Reason why wrapper generation is disabled for the project." FORCE)
 
   if(NOT DEFINED ${_gtwrap_python_option_name})
     set(${_gtwrap_python_option_name} OFF)

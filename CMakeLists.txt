@@ -1,5 +1,8 @@
 # VERSION CONTROL 
-cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+if(POLICY CMP0144)
+  cmake_policy(SET CMP0144 NEW)
+endif()
 set(PROJECT_PYTHON_VERSION 3.11)
 set(MATLAB_DEFAULT_RELEASE "R2023b")
 
@@ -16,22 +19,14 @@ if(NOT DEFINED CMAKE_INSTALL_PREFIX)
 endif()
 
 # Major options
-option(ENABLE_OPTIX "Enable OptiX" OFF)
 option(ENABLE_CUDA "Enable CUDA" OFF)
 option(BUILD_SHARED_LIBS "Build libraries as shared" ON)
 include(cmake/HandleOpenMP.cmake)
 
-set(languages CXX) # ACHTUNG: PTX code requires C language!
-
-if (ENABLE_OPTIX)
-  set(ENABLE_CUDA ON)
-endif()
+set(languages CXX)
 
 if (ENABLE_CUDA)
     list(APPEND languages CUDA)
-    if (ENABLE_OPTIX)
-      list(APPEND languages C)
-    endif()
 endif()
 
 # Add cmake folder to path
@@ -44,6 +39,9 @@ include(cmake/HandleGitVersion.cmake)
 set(PROJECT_VERSION_MAJOR 0)
 set(PROJECT_VERSION_MINOR 1)
 set(PROJECT_VERSION_PATCH 0)
+set(PROJECT_VERSION_PRERELEASE "")
+set(PROJECT_VERSION_METADATA "")
+set(PROJECT_VERSION_CORE "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 
 # Resolve version: git --> VERSION file --> hardcoded defaults above
 resolve_project_version()
@@ -68,7 +66,6 @@ if (DEFINED LIB_NAMESPACE_OVERRIDE)
   set(LIB_NAMESPACE "${LIB_NAMESPACE_OVERRIDE}")
 endif()
 set(CUDA_COMPILE_TARGET "${LIB_NAMESPACE}_cuda_compile_interface")
-set(OPTIX_COMPILE_TARGET "${LIB_NAMESPACE}_optix_compile_interface")
 set(OPENGL_COMPILE_TARGET "${LIB_NAMESPACE}_opengl_compile_interface")
 set(LIB_COMPILE_TARGET "${LIB_NAMESPACE}_lib_compile_interface")
 set(SANITIZER_TARGET "${LIB_NAMESPACE}_sanitizer_target_interface")
@@ -96,9 +93,8 @@ include(GNUInstallDirs)
 # Add cmake modules
 include(ExternalProject)
 
-# Add CUDA/OptiX tools
+# Add CUDA tools
 include(cmake/HandleCUDA.cmake)
-include(cmake/HandleOptiX.cmake)
 include(cmake/HandleTBB.cmake)
 
 # Add handle of python
@@ -131,7 +127,7 @@ option(${GTWRAP_MATLAB_OPTION_NAME} "Build MATLAB wrapper" ${GTWRAP_BUILD_MATLAB
 
 if (NOT DEFINED ${GTWRAP_INTERFACE_OPTION_NAME})
   set(${GTWRAP_INTERFACE_OPTION_NAME}
-      "${CMAKE_CURRENT_SOURCE_DIR}/src/wrap_interface.i"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/wrap_interface.i;${CMAKE_CURRENT_SOURCE_DIR}/src/inference/inference.i"
       CACHE STRING
       "Ordered list of gtwrap interface files (.i). First entry is the top-level module file."
       FORCE)
@@ -139,7 +135,7 @@ endif()
 
 if (NOT DEFINED ${GTWRAP_TOP_NAMESPACE_OPTION_NAME})
   set(${GTWRAP_TOP_NAMESPACE_OPTION_NAME}
-      "cpp_playground"
+      "autoforge_deploy"
       CACHE STRING
       "Top namespace used for gtwrap code generation."
       FORCE)
@@ -163,7 +159,6 @@ endif()
 
 option(NO_OPTIMIZATION "Disable optimization flags" OFF)
 option(WARNINGS_ARE_ERRORS "Treat warnings as errors" OFF)
-option(USE_SYS_OPTIX_SDK "Use Optix system folder if specified" OFF)
 option(SANITIZE_BUILD "Enable sanitizers in build" OFF)
 set(SANITIZERS "address,undefined,leak" CACHE STRING "Sanitizers to enable when SANITIZE_BUILD is ON (comma-separated)")
 option(ENABLE_TBB "Enable Intel oneTBB support" OFF)
@@ -176,8 +171,9 @@ set(CPU_EXTRA_OPT_FLAGS "" CACHE STRING "Extra CPU optimization flags for GNU/Cl
 option(CUDA_ENABLE_FMAD "Enable fused multiply-add contraction in NVCC (--fmad=true)" ON)
 option(CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION "Enable NVCC extra device vectorization" OFF)
 option(CUDA_USE_FAST_MATH "Enable NVCC fast math in regular CUDA compilation" OFF)
-option(CUDA_PTX_USE_FAST_MATH "Enable NVCC fast math when compiling PTX kernels" ON)
 set(CUDA_NVCC_EXTRA_FLAGS "" CACHE STRING "Extra flags passed to NVCC for CUDA/PTX compilation")
+set(EXTRA_C_FLAGS "" CACHE STRING "Extra C compiler flags appended to project-managed flags")
+set(EXTRA_CXX_FLAGS "" CACHE STRING "Extra C++ compiler flags appended to project-managed flags")
 set(PYTHON_EXECUTABLE "python3") # Specify the Python executable to use
 
 # Set C++ standard
@@ -186,6 +182,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # TIP: if different options need to be specified for different targets of the build, use INTERFACE targets
+
+set(_initial_c_flags "${CMAKE_C_FLAGS}")
+set(_initial_cxx_flags "${CMAKE_CXX_FLAGS}")
 
 # COMPILER FLAGS
 set(_common_c_warnings -Wall -Wextra)
@@ -252,6 +251,38 @@ list(APPEND _release_cxx_flags ${_cpu_opt_flags})
 list(APPEND _relwithdebinfo_c_flags ${_cpu_opt_flags})
 list(APPEND _relwithdebinfo_cxx_flags ${_cpu_opt_flags})
 
+set(_user_c_flags)
+if (NOT "${_initial_c_flags}" STREQUAL "")
+  separate_arguments(_initial_c_flags_list UNIX_COMMAND "${_initial_c_flags}")
+  list(APPEND _user_c_flags ${_initial_c_flags_list})
+endif()
+if (NOT "${EXTRA_C_FLAGS}" STREQUAL "")
+  separate_arguments(_extra_c_flags_list UNIX_COMMAND "${EXTRA_C_FLAGS}")
+  list(APPEND _user_c_flags ${_extra_c_flags_list})
+endif()
+list(REMOVE_DUPLICATES _user_c_flags)
+
+set(_user_cxx_flags)
+if (NOT "${_initial_cxx_flags}" STREQUAL "")
+  separate_arguments(_initial_cxx_flags_list UNIX_COMMAND "${_initial_cxx_flags}")
+  list(APPEND _user_cxx_flags ${_initial_cxx_flags_list})
+endif()
+if (NOT "${EXTRA_CXX_FLAGS}" STREQUAL "")
+  separate_arguments(_extra_cxx_flags_list UNIX_COMMAND "${EXTRA_CXX_FLAGS}")
+  list(APPEND _user_cxx_flags ${_extra_cxx_flags_list})
+endif()
+list(REMOVE_DUPLICATES _user_cxx_flags)
+
+list(APPEND _debug_c_flags ${_user_c_flags})
+list(APPEND _release_c_flags ${_user_c_flags})
+list(APPEND _relwithdebinfo_c_flags ${_user_c_flags})
+list(APPEND _noptim_c_flags ${_user_c_flags})
+
+list(APPEND _debug_cxx_flags ${_user_cxx_flags})
+list(APPEND _release_cxx_flags ${_user_cxx_flags})
+list(APPEND _relwithdebinfo_cxx_flags ${_user_cxx_flags})
+list(APPEND _noptim_cxx_flags ${_user_cxx_flags})
+
 string(JOIN " " CMAKE_C_FLAGS_DEBUG ${_debug_c_flags})
 string(JOIN " " CMAKE_CXX_FLAGS_DEBUG ${_debug_cxx_flags})
 string(JOIN " " CMAKE_C_FLAGS_RELEASE ${_release_c_flags})
@@ -270,6 +301,7 @@ handle_sanitizers()
 
 # Handle profiling support
 include(cmake/HandleProfiling.cmake)
+option(PROFILING_PROPAGATES_TO_CONSUMERS "Propagate profiling interface flags/definitions to targets consuming the project library" OFF)
 set(PROFILING_COMPILE_TARGET "${LIB_NAMESPACE}_profiling_interface")
 handle_profiling(TARGET ${PROFILING_COMPILE_TARGET})
 
@@ -309,16 +341,9 @@ include(cmake/HandleCatch2.cmake)
 # Include cmake tools (depends on Catch2)
 include(cmake/cmake_utils.cmake)
 
-# Configure CUDA/OptiX (creates interface targets even when disabled)
+# Configure CUDA (creates interface target even when disabled)
 handle_cuda(TARGET ${CUDA_COMPILE_TARGET} 
             MIN_VERSION 12.0)
-handle_optix(TARGET ${OPTIX_COMPILE_TARGET} 
-            CUDA_TARGET ${CUDA_COMPILE_TARGET})
-
-if (ENABLE_CUDA)
-  # Add tools to manage cuda and ptx
-  include(cmake/cmake_cuda_ptx_tools.cmake)
-endif()
 
 # Handle OpenGL (creates interface targets even when disabled)
 include(cmake/HandleOpenGL.cmake)
@@ -358,8 +383,8 @@ handle_tbb(TARGET ${LIB_COMPILE_TARGET})
 
 if (CMAKE_BUILD_TYPE_LOWER MATCHES "debug")
   # Set compile flags
-  set(CMAKE_C_FLAGS ${CMAKE_CXX_FLAGS_DEBUG})
-  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_DEBUG})
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_DEBUG}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
 
   # Set compile options for the interface target
   set(_sanitizer_flags)
@@ -378,17 +403,17 @@ if (CMAKE_BUILD_TYPE_LOWER MATCHES "debug")
 
 elseif (CMAKE_BUILD_TYPE_LOWER MATCHES "release" AND NOT NO_OPTIMIZATION)
   # Set compile flags
-  set(CMAKE_C_FLAGS ${CMAKE_CXX_FLAGS_RELEASE})
-  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_RELEASE})
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_RELEASE}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}")
 
 elseif (CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo" AND NOT NO_OPTIMIZATION) 
   # Set compile flags
-  set(CMAKE_C_FLAGS ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 
 elseif (NO_OPTIMIZATION)
-  set(CMAKE_C_FLAGS ${CMAKE_CXX_FLAGS_NOPTIM})
-  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_NOPTIM})
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_NOPTIM}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_NOPTIM}")
   target_compile_definitions(${LIB_COMPILE_TARGET} INTERFACE NDEBUG)
 
 else()
@@ -418,7 +443,6 @@ target_include_directories(${project_name}_include INTERFACE
                            #$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/rapidyaml_PeterCdev>
                            #$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/gdt>
                            #$<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}> 
-                           #$<BUILD_INTERFACE:${OPTIX_INCLUDE_DIR}>   
                            #$<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>  # Add OpenCV include directories
                            $<INSTALL_INTERFACE:include/${project_name}>  # Used in installed projects
 )
@@ -451,11 +475,13 @@ if (ENABLE_TESTS AND Catch2_FOUND AND BUILD_AS_MAIN_PROJECT)
 endif()
 
 # Add documentation
-set(DOC_SUBDIRS "${CMAKE_SOURCE_DIR}/src")
-if (DOXYGEN_FOUND)
-    add_subdirectory( "doc" )
-else()
-    message(STATUS "Doxygen not found. Skipping building documentation.") 
+if (BUILD_AS_MAIN_PROJECT)
+  set(DOC_SUBDIRS "${CMAKE_SOURCE_DIR}/src")
+  if (DOXYGEN_FOUND)
+      add_subdirectory( "doc" )
+  else()
+      message(STATUS "Doxygen not found. Skipping building documentation.")
+  endif()
 endif()
 
 ###########################################################################
@@ -478,6 +504,7 @@ endif()
 message(STATUS "===============================================================")
 message(STATUS "================  Configuration Options  ======================")
 # Project info
+message(STATUS "CMAKE_VERSION                             : ${CMAKE_VERSION}")
 message(STATUS "LIBRARY NAME                              : ${project_name}")
 message(STATUS "LIBRARY TARGET TYPE                       : ${PROJECT_LIBRARY_KIND}")
 message(STATUS "CROSS COMPILING                           : ${CMAKE_CROSSCOMPILING}")
@@ -488,13 +515,6 @@ message(STATUS "TARGET ARCHITECTURE                       : ${CMAKE_SYSTEM_PROCE
 message(STATUS "CMAKE_CXX_COMPILER                        : ${CMAKE_CXX_COMPILER}")
 message(STATUS "CMAKE_CXX_COMPILER_ID type                : ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_COMPILER_VERSION                : ${CMAKE_CXX_COMPILER_VERSION}")
-
-if (ENABLE_OPTIX)
-  # C compiler
-  message(STATUS "CMAKE_C_COMPILER                          : ${CMAKE_C_COMPILER}")
-  message(STATUS "CMAKE_C_COMPILER_ID type                  : ${CMAKE_C_COMPILER_ID}")
-  message(STATUS "CMAKE_C_COMPILER_VERSION                  : ${CMAKE_C_COMPILER_VERSION}")
-endif()
 
 # CUDA arch and compiler
 if (ENABLE_CUDA)
@@ -507,7 +527,6 @@ if (ENABLE_CUDA)
   message(STATUS "CUDA FMAD                                : ${CUDA_ENABLE_FMAD}")
   message(STATUS "CUDA extra device vectorization          : ${CUDA_ENABLE_EXTRA_DEVICE_VECTORIZATION}")
   message(STATUS "CUDA fast math (regular compile)         : ${CUDA_USE_FAST_MATH}")
-  message(STATUS "CUDA fast math (PTX compile)             : ${CUDA_PTX_USE_FAST_MATH}")
   message(STATUS "CUDA extra NVCC flags                    : ${CUDA_NVCC_EXTRA_FLAGS}")
 endif()
 message(STATUS "TBB enabled                              : ${ENABLE_TBB}")
@@ -516,6 +535,9 @@ message(STATUS "CPU SIMD enabled                         : ${CPU_ENABLE_SIMD}")
 message(STATUS "CPU SIMD level                           : ${CPU_SIMD_LEVEL}")
 message(STATUS "CPU FMA                                  : ${CPU_ENABLE_FMA}")
 message(STATUS "CPU extra optimization flags             : ${CPU_EXTRA_OPT_FLAGS}")
+message(STATUS "Project extra C flags                    : ${EXTRA_C_FLAGS}")
+message(STATUS "Project extra C++ flags                  : ${EXTRA_CXX_FLAGS}")
+message(STATUS "OpenCV found                             : ${OpenCV_FOUND}")
 
 # Installation
 message(STATUS "CMAKE_INSTALL_PREFIX                      : ${CMAKE_INSTALL_PREFIX}")
@@ -530,17 +552,17 @@ if(NOT MSVC AND NOT XCODE_VERSION)
   message(STATUS "Optimization override:                    : ${NO_OPTIMIZATION}")  
 
   if(CMAKE_BUILD_TYPE MATCHES Debug)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_DEBUG}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}")
+    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
+    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
   elseif (CMAKE_BUILD_TYPE MATCHES Release)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_RELEASE}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
+    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
+    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
   elseif (CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
+    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
   elseif (NO_OPTIMIZATION)
-    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_NOPTIM}")
-    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_NOPTIM}")
+    message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
+    message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
   else()
     message(STATUS "  C compilation flags                     : ${CMAKE_C_FLAGS}")
     message(STATUS "  C++ compilation flags                   : ${CMAKE_CXX_FLAGS}")
@@ -579,6 +601,11 @@ include(InstallRequiredSystemLibraries)
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+if(DEFINED FULL_VERSION AND NOT "${FULL_VERSION}" STREQUAL "")
+  set(CPACK_PACKAGE_FILE_NAME "${project_name}-${FULL_VERSION}")
+  set(CPACK_SOURCE_PACKAGE_FILE_NAME "${project_name}-${FULL_VERSION}")
+endif()
 set(CPACK_GENERATOR "TGZ")
 set(CPACK_SOURCE_GENERATOR "TGZ")
 include(CPack)

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoforge_deploy"
+version = "0.1.0"
+description = "Python bindings for autoforge_deploy."
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+  {name = "torchAutoForge-deploy contributors"}
+]
+
+[tool.setuptools]
+packages = ["autoforge_deploy"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"autoforge_deploy" = ["*.so", "*.pyd", "*.dylib", "*.pyi", "**/*.pyi"]

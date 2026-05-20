@@ -1,46 +1,69 @@
 # torchAutoForge-deploy
 
-C++/CUDA library for deploying machine learning models via ONNX Runtime (ORT). Provides a `CInferenceManager_ORT` class that wraps ORT sessions with optional CUDA/OptiX GPU acceleration and optional Python/MATLAB bindings via gtwrap.
+C++20 library for deploying machine-learning models through ONNX Runtime (ORT),
+with optional CUDA execution-provider support and planned Python/MATLAB bindings
+through gtwrap.
 
 ## Status
 
-**Early development / prototype.** The core inference manager compiles but is not yet fully functional. See [TODO](#todo) for open issues.
+Prototype, but no longer an empty ORT stub. Current local implementation can:
+
+- load an `.onnx` model with `deploy_ort::CInferenceManager_ORT`;
+- query ORT model input/output names, element types, and shapes;
+- run host-memory tensor inference through `deploy_infer::STensorView`;
+- return owned output buffers through `deploy_infer::STensorBuffer`;
+- dispatch through the generic `deploy_infer::CInferenceManager` facade for
+  `.onnx` artifacts.
+
+Still open:
+
+- Python/MATLAB wrapper interfaces are not populated yet.
+- TensorRT standalone backend is an explicit not-implemented stub.
+- `run_ort_inference` is still a metadata probe with a hardcoded path.
+- Higher-level model roles for centroiding, object detection, feature matching,
+  tracking, and optical flow are planned but not implemented.
+
+See `doc/development/autoforge_deploy_upgrade_plan.md` for the staged upgrade
+plan.
 
 ## Dependencies
 
-| Dependency | Version | Required |
-|------------|---------|----------|
-| Eigen3 | ≥ 3.4 | Yes |
-| ONNX Runtime | any | Yes |
-| OpenCV | any | No (image preprocessing) |
-| CUDA Toolkit | ≥ 12.0 | No (GPU acceleration) |
-| OptiX | - | No (requires CUDA) |
-| gtwrap | - | No (Python/MATLAB bindings) |
+| Dependency | Version | Required | Notes |
+|------------|---------|----------|-------|
+| Eigen3 | >= 3.4 | Yes | Core C++ dependency |
+| ONNX Runtime | local install | Yes | CMake package required |
+| OpenCV | any | Optional | Image preprocessing/model adapters |
+| CUDA Toolkit | >= 12.0 | Optional | ORT CUDA provider support |
+| gtwrap | local or installed | Optional | Python/MATLAB wrappers |
 
-If ORT is installed in a non-standard location, set `OnnxRuntime_DIR` before configuring.
+OptiX is not part of this repo scope. Keep OptiX support in renderer/template
+repos, not in `torchAutoForge-deploy`.
+
+If ORT is installed in a non-standard location, set `onnxruntime_DIR` or
+`ONNXRUNTIME_ROOT` before configuring.
 
 ## Build
 
-The primary interface is `build_lib.sh`:
+Primary entrypoint:
 
 ```bash
 ./build_lib.sh                        # RelWithDebInfo: configure + build + test
 ./build_lib.sh -t debug               # Debug build
 ./build_lib.sh -t release -i          # Release build + install
-./build_lib.sh -r                     # Rebuild only (skip CMake configure)
+./build_lib.sh -r                     # Rebuild only, skip configure
 ./build_lib.sh --clean -t debug       # Clean reconfigure
 ./build_lib.sh -N                     # Use Ninja generator
 ./build_lib.sh -j 8                   # Parallel jobs
 ./build_lib.sh --skip-tests           # Skip test execution
-./build_lib.sh -D ENABLE_CUDA=ON      # Pass extra CMake definitions
-./build_lib.sh -p                     # Enable Python wrapper (requires gtwrap)
-./build_lib.sh -m                     # Enable MATLAB wrapper
+./build_lib.sh -D ENABLE_CUDA=ON      # Enable CUDA language/provider plumbing
+./build_lib.sh -p                     # Enable Python wrapper generation
+./build_lib.sh -m                     # Enable MATLAB wrapper generation
 ```
 
 Manual CMake:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build --parallel $(nproc)
 ctest --test-dir build --output-on-failure -j $(nproc)
 ```
@@ -49,100 +72,65 @@ ctest --test-dir build --output-on-failure -j $(nproc)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `ENABLE_CUDA` | OFF | CUDA support (requires CUDA 12.0+) |
-| `ENABLE_OPTIX` | OFF | OptiX acceleration (requires CUDA) |
-| `ENABLE_TESTS` | ON | Build and run tests |
-| `SANITIZE_BUILD` | OFF | Enable sanitizers |
-| `WARNINGS_ARE_ERRORS` | OFF | `-Werror` |
-| `autoforge_deploy_BUILD_PYTHON_WRAPPER` | OFF | gtwrap Python bindings |
-| `autoforge_deploy_BUILD_MATLAB_WRAPPER` | OFF | gtwrap MATLAB bindings |
+| `ENABLE_CUDA` | OFF | Enable CUDA language and CUDA compile interface |
+| `ENABLE_TESTS` | ON | Build and run Catch2 tests |
+| `SANITIZE_BUILD` | OFF | Enable configured sanitizers |
+| `WARNINGS_ARE_ERRORS` | OFF | Add `-Werror` |
+| `autoforge_deploy_BUILD_PYTHON_WRAPPER` | OFF | Build gtwrap Python bindings |
+| `autoforge_deploy_BUILD_MATLAB_WRAPPER` | OFF | Build gtwrap MATLAB bindings |
+| `autoforge_deploy_WRAPPER_INTERFACE_FILES` | `src/wrap_interface.i` | Ordered gtwrap interface files |
 
 ## Tests
 
 ```bash
 ctest --test-dir build --output-on-failure -j $(nproc)
-ctest --test-dir build -R CInferenceManager_ORT -V   # single test
-ctest --test-dir build --show-only                   # list tests
+ctest --test-dir build -R CInferenceManager_ORT -V
+ctest --test-dir build --show-only
 ```
 
-Tests use Catch2 v3 (auto-fetched if not found). Any `test*.cpp` file placed in a subdirectory under `tests/` is auto-discovered.
+Current configured tests cover:
+
+- ORT model metadata extraction;
+- ORT host-buffer inference on the checked-in ONNX fixture;
+- tensor helper byte-count/dynamic-shape behavior;
+- facade artifact dispatch;
+- TensorRT backend stub failure mode.
 
 ## Architecture
 
 ```text
 src/
   inference/
-    onnx_runtime/   - CInferenceManager_ORT (core, under development)
-    tensorrt/       - CEngineLoader stub (not implemented)
+    inference_common.h      - generic tensor descriptors, views, buffers, options
+    inference_manager.*     - backend-agnostic facade
+    onnx_runtime/           - CInferenceManager_ORT backend
+    tensorrt/               - explicit not-implemented TensorRT stub
   auxiliary/
-    common_defs.h   - SInputOutputSpecs<> tensor I/O descriptor
-    common_ops.h    - AccumProduct(), file-check utilities
-    images_prepro.h - OpenCV image preprocessing (stub)
+    common_defs.h           - legacy tensor/image specs
+    common_ops.h            - file checks and small utilities
+    images_prepro.h         - image preprocessing helpers
   programs/
-    get_available_providers  - lists ORT providers at runtime
-    run_ort_inference        - placeholder CLI runner
-  wrap_interface.i           - gtwrap top-level interface (empty)
-  inference/inference.i      - gtwrap inference interface (empty)
-  config.h.in                - version header (PrintVersion / GetVersionString)
-examples/
-  object_detection_yoloV7/  - YOLOv7 object detection example
-tests/
-  inference/                - C++ tests for CInferenceManager_ORT
-  matlab/                   - MATLAB import and inference tests
-  simulink/                 - Simulink inference tests
+    get_available_providers - lists ORT providers
+    run_ort_inference       - placeholder metadata probe
+  wrap_interface.i          - gtwrap top-level interface, pending population
+  inference/inference.i     - gtwrap inference interface, pending population
 ```
 
----
+Public direction:
 
-## TODO
+- `deploy_infer::CInferenceManager` should become the stable facade.
+- `deploy_ort::CInferenceManager_ORT` should remain backend-specific.
+- Higher-level model facades should sit above raw tensor inference, so YOLO,
+  centroiding, feature matching, tracking, optical flow, and future models can
+  share infrastructure without hardcoded model-specific branches in core ORT code.
 
-### Core: `CInferenceManager_ORT`
+## Current Gaps
 
-- [ ] Fix constructor argument-order mismatch: header declares `(bool inplace_init, const std::string& model_path, ...)` but `.cpp` implements them in opposite order; test file uses yet another order `(model_path, bool)` - pick one signature and make all sites consistent
-- [ ] Implement `initialize()`: currently creates an empty `SInputOutputSpecs` - must query the ORT session for actual input/output names and shapes after session creation
-- [ ] Remove hardcoded `initialize<float>()` call in constructor: infer type from model metadata or expose it as a parameter/template argument
-- [ ] Fix tensor allocation in `initialize()` (marked `FIXME`): input/output shapes are empty at allocation time; allocation must happen after specs are populated from the session
-- [ ] Implement YAML config constructor: the `(const std::string session_config_path)` overload has a `TODO` and parses nothing
-- [ ] Implement `infer()` fully: the method runs the session but provides no way to supply input data or retrieve output data - add typed data-in/data-out parameters or buffer accessors
-
-### `SInputOutputSpecs` / `SImagesInputOutputSpecs`
-
-- [ ] **[BUG]** Dangling `const char*` pointers in `SInputOutputSpecs`: `input_names` / `output_names` store `.c_str()` of constructor-parameter `std::string` objects that are destroyed after construction, leaving the pointers invalid before the first ORT call. Fix: add a `std::vector<std::string> input_names_owned` / `output_names_owned` member to hold the strings, then rebuild the `const char*` views (`input_names`, `output_names`) from those owned strings.
-- [ ] Fix `SImagesInputOutputSpecs` shape construction: `this->input_shapes.emplace_back(INPUT_T{batch_size, num_channels, height, width})` is invalid when `INPUT_T = int64_t`; input shape should be a flat `{batch, channels, height, width}` vector of scalars
-- [ ] Extend `SInputOutputSpecs` to support multiple input tensors with independent shapes (currently only a flat single-tensor shape vector)
-
-### Programs / CLI
-
-- [ ] Remove hardcoded absolute path from `run_ort_inference.cpp` - use CLI argument or relative path
-- [ ] Add CLI argument parsing to `run_ort_inference` (noted in source as `// TODO add tclap for argument parsing`)
-
-### Test Coverage
-
-- [ ] Fix `testCInferenceManager_ORT.cpp` constructor call: `CInferenceManager_ORT(invalid_model_path, false)` does not match any declared constructor signature
-- [ ] Implement dummy-value inference test (`CInferenceManager_ORT_infer` section is a stub)
-- [ ] Add a cross-validation test: run inference in C++ and compare output numerically against Python/ORT reference values
-
-### Stubs / Not Implemented
-
-- [ ] Implement image preprocessing functions in `images_prepro.h` (namespace is declared but empty)
-- [ ] Implement TensorRT backend: `CEngineLoader` in `src/inference/tensorrt/` is an empty class skeleton
-- [ ] Populate `src/wrap_interface.i` and `src/inference/inference.i` to expose the inference manager to Python/MATLAB via gtwrap
-
-### Bindings
-
-- [ ] Implement and test Python wrapper via gtwrap or pybind11
-- [ ] Implement and test MATLAB wrapper
-- [ ] Test MATLAB multi-thread safety (ORT session calls from MATLAB environment)
-- [ ] Test end-to-end ORT inference from within MATLAB
-
-### MATLAB Module (see also `matlab/TODO.md`)
-
-- [ ] Implement script to export `.pth`/`.pt` model to ONNX from within MATLAB workflow
-- [ ] Investigate Simulink codegen from exported ONNX model
-
-### Housekeeping
-
-- [ ] Replace `DEBUG` preprocessor macro in `onnxruntime_inference_tools.hpp` with a proper logging mechanism; current `printd` logic with `!NDEBUG` is fragile
-- [ ] Add `<filesystem>` include directly to `onnxruntime_inference_tools.hpp` (currently relies on transitive include from `common_ops.h`)
-- [ ] Add `.gitignore` entry or clean up committed `build/` artifacts inside `examples/object_detection_yoloV7/build/`
-- [ ] Complete YOLOv7 example: `object_detection_yoloV7.h` is nearly empty; end-to-end pipeline (preprocess --> infer --> NMS --> draw) is unfinished
+- Wrapper interfaces need a stable MATLAB/Python-safe API surface.
+- CLI needs model path and runtime options instead of hardcoded paths.
+- Legacy `SInputOutputSpecs` / image-specific specs need review against
+  `STensorDescriptor` and friends.
+- Numeric inference tests should compare C++ ORT outputs against reference
+  values.
+- MATLAB wrapper smoke tests must prove model loading and inference inside
+  MATLAB.
