@@ -11,6 +11,7 @@ _deps
 CMakeUserPresets.json
 
 .model_checkpoints
+models/
 
 **/slprj*
 *.asv
@@ -20,6 +21,7 @@ CMakeUserPresets.json
 **/install*/
 .idea
 *.pyc
+python/autoforge_deploy/_wrapper_build.py
 *.DS_Store
 *.swp
 /examples/Data/dubrovnik-3-7-pre-rewritten.txt
