@@ -20,6 +20,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 # Add subdirectory 
 add_subdirectory(template_test)
 add_subdirectory(template_fixtures)
+add_subdirectory(inference)
 
 # Add tests to build
 add_tests(${project_name} EXCLUDED_LIST TESTS_LIST ${CUDA_COMPILE_TARGET} CATCH2_TEST_PROPERTIES Catch2::Catch2WithMain)

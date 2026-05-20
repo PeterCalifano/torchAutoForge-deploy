@@ -21,8 +21,9 @@
 
 ## Stage 3: Wrapper Configuration
 
-- [ ] Make `src/wrap_interface.i` top-level namespace and includes match this package.
-- [ ] Populate `src/inference/inference.i` around `deploy_infer::CInferenceManager` and wrapper-safe value types.
+- [ ] Use `ptafdeploy` as the project namespace and `ptafdeploy::inference` as the nested namespace for inference APIs; do not keep the old `deploy_infer` namespace.
+- [ ] Make `src/wrap_interface.i` top-level namespace and includes match `ptafdeploy`.
+- [ ] Populate `src/inference/inference.i` around `ptafdeploy::inference::CInferenceManager` and wrapper-safe value types.
 - [ ] Expose model loading, metadata query, and float host-buffer inference to Python/MATLAB.
 - [ ] Avoid wrapping raw ORT handles, raw `void*`, and `std::byte` storage directly.
 - [ ] Add Python import smoke test.
@@ -31,7 +32,7 @@
 
 ## Stage 4: Implementation Review And Cleanup
 
-- [ ] Review `deploy_infer` tensor types against legacy `SInputOutputSpecs` and `SImagesInputOutputSpecs`.
+- [ ] Review `ptafdeploy::inference` tensor types against legacy `SInputOutputSpecs` and `SImagesInputOutputSpecs`.
 - [ ] Remove or deprecate redundant legacy specs where covered by generic descriptors/views/buffers.
 - [ ] Audit ORT backend helper functions for readability, reuse, and error clarity.
 - [ ] Remove useless one-off local helpers that only hide simple operations.
