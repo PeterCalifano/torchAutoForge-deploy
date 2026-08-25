@@ -7,9 +7,6 @@
 #add_executable(custom-main-tests test.cpp test-main.cpp)
 #target_link_libraries(custom-main-tests PRIVATE Catch2::Catch2)
 
-# Set additional properties for Catch2 test targets
-set(CATCH2_TEST_PROPERTIES "--output-on-failure;--reporter=compact") 
-
 # Exclude EXCLUDED_LIST from the list of tests
 set(EXCLUDED_LIST "test_to_exclude")  # Specify files to exclude WE
 set(TESTS_LIST "") 
@@ -17,9 +14,7 @@ set(TESTS_LIST "")
 # Include the content of the fixtures directory
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-# Add subdirectory 
-add_subdirectory(template_test)
-add_subdirectory(template_fixtures)
+# Add target-owned test subdirectories.
 add_subdirectory(inference)
 
 # Add tests to build

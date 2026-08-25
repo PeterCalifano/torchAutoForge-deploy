@@ -75,21 +75,21 @@ echo "deb [arch=${arch} signed-by=${keyring}] ${repo_url} ${UBUNTU_CODENAME} mai
 # Install ROS dev tools
 apt-get update
 apt-get install -y "$ros_package" python3-rosdep
-apt-get install ros-dev-tools -y
 
-# Install additional packages for ROS 2
+# ros-dev-tools is provided by the ROS 2 repository.
 if [[ "$ros_mode" == "ros2" ]]; then
-  apt-get install -y python3-colcon-common-extensions
+  apt-get install -y ros-dev-tools python3-colcon-common-extensions
 fi
 
 # Clean up
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 
-# Source the ROS setup file
-echo "source /opt/ros/${ros_distro}/setup.bash" >> ~/.bashrc
+# Image construction runs as root, so install the environment system-wide for
+# the non-root devcontainer user.
+echo "source /opt/ros/${ros_distro}/setup.bash" >> /etc/bash.bashrc
 source /opt/ros/${ros_distro}/setup.bash
-rosdep init
+rosdep init || true
 rosdep update
 
 set -eu

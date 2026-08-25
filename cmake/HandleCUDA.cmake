@@ -280,7 +280,7 @@ function(handle_cuda)
         set(CUDA_CONFIGURED OFF PARENT_SCOPE)
         set(cuda_arch "" PARENT_SCOPE)
         set(sm_version "" PARENT_SCOPE)
-        set(CUDA_PTX_NVCC_FLAGS "" PARENT_SCOPE)
+        set(CUDA_SHARED_NVCC_FLAGS "" PARENT_SCOPE)
         return()
     endif()
 
@@ -293,8 +293,12 @@ function(handle_cuda)
     message(STATUS "CUDA found: ${CUDAToolkit_VERSION}")
     message(STATUS "CUDA_INCLUDE_DIRS: ${CUDAToolkit_INCLUDE_DIRS}")
 
-    # Add include dirs and definitions to the target
-    target_include_directories(${HCUDA_TARGET} INTERFACE ${CUDAToolkit_INCLUDE_DIRS})
+    # CUDA imported targets recreate toolkit includes for installed consumers.
+    # Keep direct paths build-only so exports do not capture this machine.
+    foreach(_cuda_include_dir IN LISTS CUDAToolkit_INCLUDE_DIRS)
+        target_include_directories(${HCUDA_TARGET} INTERFACE
+            "$<BUILD_INTERFACE:${_cuda_include_dir}>")
+    endforeach()
     target_compile_definitions(${HCUDA_TARGET} INTERFACE __CUDA_ENABLED__=1)
 
     # Configure shared NVCC optimization flags.
@@ -366,6 +370,6 @@ function(handle_cuda)
     set(cuda_arch "${_cuda_arch_names}" PARENT_SCOPE)
     set(sm_version "${_cuda_arch_nums}" PARENT_SCOPE)
     set(CUDA_LINK_LIBRARIES "${_cuda_libs}" PARENT_SCOPE)
-    set(CUDA_PTX_NVCC_FLAGS "${_cuda_shared_nvcc_flags}" PARENT_SCOPE)
+    set(CUDA_SHARED_NVCC_FLAGS "${_cuda_shared_nvcc_flags}" PARENT_SCOPE)
     set(CUDA_CONFIGURED ON PARENT_SCOPE)
 endfunction()

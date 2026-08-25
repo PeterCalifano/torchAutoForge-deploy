@@ -41,6 +41,36 @@ apt-get install -y \
   libeigen3-dev \
   libsdl2-dev
 
+valgrind_option="${INSTALL_VALGRIND:-on}"
+case "${valgrind_option,,}" in
+  false|off|0|no|disabled) build_valgrind=false ;;
+  *) build_valgrind=true ;;
+esac
+
+if [[ "$build_valgrind" == true ]]; then
+  valgrind_version="${VALGRIND_VERSION:-3.27.1}"
+  valgrind_temp="$(mktemp -d)"
+  set +e
+  (
+    set -e
+    apt-get install -y bzip2 libc6-dbg
+    curl -fsSL \
+      "https://sourceware.org/pub/valgrind/valgrind-${valgrind_version}.tar.bz2" \
+      -o "${valgrind_temp}/valgrind.tar.bz2"
+    tar -xjf "${valgrind_temp}/valgrind.tar.bz2" -C "$valgrind_temp"
+    cd "${valgrind_temp}/valgrind-${valgrind_version}"
+    ./configure --prefix=/usr/local
+    make -j"$(nproc)"
+    make install
+  )
+  valgrind_status=$?
+  set -e
+  rm -rf "$valgrind_temp"
+  if [[ "$valgrind_status" -ne 0 ]]; then
+    echo "custom-setup.sh: valgrind build failed; continuing." >&2
+  fi
+fi
+
 os_id=""
 os_version=""
 if [[ -r /etc/os-release ]]; then

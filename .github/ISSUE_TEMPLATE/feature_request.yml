@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a scoped inference, wrapper, deployment, CUDA, or ROS capability.
+title: "[FEATURE] "
+labels:
+  - major-enhancement
+assignees:
+  - PeterCalifano
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or missing capability
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owning surface
+      options:
+        - Generic inference facade
+        - Model-role adapter
+        - ONNX Runtime backend
+        - TensorRT backend
+        - CUDA or PTX build
+        - Python or MATLAB wrapper
+        - ROS 2 bridge
+        - Packaging, docs, or CI
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed contract
+      description: Describe the API, model role, artifact, build option, or ROS behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Target-specific validation
+      description: List tests for repo functionality; do not propose tests of generic template machinery.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

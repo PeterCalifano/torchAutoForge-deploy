@@ -1,0 +1,2 @@
+# Archival donor patches preserve the exact recorded diff, including whitespace.
+doc/development/*.patch -whitespace
