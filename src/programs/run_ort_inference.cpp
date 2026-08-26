@@ -1,22 +1,55 @@
+/**
+ * @file run_ort_inference.cpp
+ * @brief Command-line ONNX model metadata probe through the generic facade.
+ */
+
 #include <filesystem>
-#include <inference/onnx_runtime/onnxruntime_inference_tools.hpp>
+#include <inference/inference_manager.h>
 #include <iostream>
+#include <utils/logging/CLogger.h>
 
-// TODO add tclap for argument parsing
-
-using deploy_ort::CInferenceManager_ORT;
-
-int main()
+namespace
 {
-    std::cout << "This is a placeholder main function." << "\n";
+    namespace logging = ptafdeploy::logging;
 
-    std::filesystem::path model_path = "/home/peterc/devDir/ML-repos/torchAutoForge-deploy/tests/.test_samples/zealous-cow-471_epoch_2893_0.onnx";
-    bool in_place_init = true;
+    [[nodiscard]] logging::CLogger& GetLogger()
+    {
+        static logging::CLogger logger("run_ort_inference", logging::ELogLevel::Info,
+                                       logging::ELogColorMode::Disabled, std::clog, std::clog);
+        static const bool environment_applied = logger.setLevelFromEnvironment();
+        static_cast<void>(environment_applied);
+        return logger;
+    }
+} // namespace
 
-    CInferenceManager_ORT inference_manager(in_place_init, model_path.string());
+/**
+ * @brief Load an ONNX artifact and print its generic metadata summary.
+ * @return Zero on success, nonzero for usage or model-load errors.
+ */
+int main(int argc, char** argv)
+{
+    GetLogger().info("ONNX Runtime inference metadata probe");
+    if (argc != 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <model.onnx>" << "\n";
+        return 1;
+    }
 
-    // TODO add inference calls
+    try
+    {
+        const std::filesystem::path model_path = argv[1];
+        GetLogger().debug("Loading ONNX artifact: ", model_path.string());
+        ptafdeploy::inference::CInferenceManager inference_manager(model_path);
+        const ptafdeploy::inference::SModelMetadata& metadata =
+            inference_manager.GetModelMetadata();
 
-    // TODO any cleanup needed?
-    return 0;
+        std::cout << "Inputs: " << metadata.inputs.size() << "\n";
+        std::cout << "Outputs: " << metadata.outputs.size() << "\n";
+        return 0;
+    }
+    catch (const std::exception& error)
+    {
+        GetLogger().error(error.what());
+        return 2;
+    }
 }

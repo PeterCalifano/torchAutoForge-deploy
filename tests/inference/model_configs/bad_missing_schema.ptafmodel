@@ -1,0 +1,2 @@
+artifact_path = ../../matlab/testSamples/tracedSampleModel.onnx
+role = centroiding

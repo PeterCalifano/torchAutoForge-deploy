@@ -1,0 +1,13 @@
+# ptafdeploy model config v1
+schema_version = 1
+artifact_path = ../../matlab/testSamples/tracedSampleModel.onnx
+role = centroiding
+preprocessing = caller_supplied_tensors
+postprocessing = centroid_xy_float32
+backend = onnxruntime
+artifact = onnx
+execution_target_priority = cpu
+allow_fallback = false
+device_id = 0
+intra_op_num_threads = 1
+inter_op_num_threads = 1

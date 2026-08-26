@@ -1,16 +1,17 @@
 //*************************************************************************
-// interfaceName MATLAB/Python wrapper definition file.
+// MATLAB/Python wrapper definition file.
 //*************************************************************************
 
-namespace myspace
+namespace ptafdeploy
 {
+    namespace inference
+    {
 
-} // ACHTUNG: do not add semi-colon here!
+#include <inference/inference_common.h>
+#include <inference/inference_manager.h>
+#include <inference/model_facade.h>
+#include <inference/task_adapters.h>
+#include <inference/task_value_types.h>
 
-namespace placeholder
-{
-#include <template_src/placeholder.h>
-
-    void placeholder_fcn();
-
-} // ACHTUNG: do not add semi-colon here!
+    } // namespace inference
+} // namespace ptafdeploy

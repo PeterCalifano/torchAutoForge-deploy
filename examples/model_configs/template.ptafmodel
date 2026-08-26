@@ -1,0 +1,16 @@
+# ptafdeploy model config v1
+schema_version = 1
+artifact_path = relative/or/absolute/model.onnx
+role = raw_tensor
+preprocessing = caller_supplied_tensors
+postprocessing = raw_model_outputs
+backend = auto
+artifact = auto
+execution_target_priority = cuda,cpu
+allow_fallback = true
+device_id = 0
+intra_op_num_threads = 1
+inter_op_num_threads = 1
+enable_profiling = false
+log_id = autoforge_deploy
+tensorrt_optimization_profile_index = 0

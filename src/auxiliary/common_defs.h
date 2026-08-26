@@ -78,6 +78,7 @@ namespace deploy_common_defs
          * @brief Compute the number of elements in a linearized tensor given its shape.
          *
          * @param shape_array The shape of the tensor as a vector of dimensions.
+         * @param initial_value Initial accumulator value for callers that need a prefactor.
          * @return uint64_t The total number of elements in the tensor.
          */
         uint64_t computeNumElementsLinearArray(const std::vector<INPUT_T> &shape_array, 
