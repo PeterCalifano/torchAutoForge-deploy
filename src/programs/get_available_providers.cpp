@@ -5,12 +5,13 @@
 
 #include <inference/inference_config_parsing.h>
 #include <inference/onnx_runtime/onnxruntime_inference_tools.hpp>
-
-#include <cstdlib>
-#include <iostream>
-#include <stdexcept>
-#include <string>
 #include <utils/logging/CLogger.h>
+
+#include <tclap/CmdLine.h>
+
+#include <exception>
+#include <iostream>
+#include <string>
 #include <vector>
 
 namespace
@@ -27,11 +28,6 @@ namespace
         return logger;
     }
 
-    void PrintUsage(const char* program_name)
-    {
-        std::cerr << "Usage: " << program_name << " [--require-targets cpu,cuda,tensorrt]\n";
-    }
-
     void PrintProviders()
     {
         const std::vector<std::string> providers =
@@ -45,29 +41,22 @@ namespace
     [[nodiscard]] std::vector<infer::EExecutionTarget> ParseRequiredTargets(const int argc,
                                                                             char** argv)
     {
-        std::vector<infer::EExecutionTarget> required_targets;
-        for (int i = 1; i < argc; ++i)
+        TCLAP::CmdLine command(
+            "Report ONNX Runtime execution providers and optionally require backend-neutral "
+            "execution targets.",
+            ' ', PTAFDEPLOY_CLI_VERSION);
+        command.setExceptionHandling(false);
+
+        TCLAP::ValueArg<std::string> required_targets(
+            "", "require-targets", "Comma-separated execution targets that must be available",
+            false, "", "cpu,cuda,tensorrt", command);
+        command.parse(argc, argv);
+        if (!required_targets.isSet())
         {
-            const std::string flag = argv[i];
-            if (flag == "--require-targets")
-            {
-                if (i + 1 >= argc)
-                {
-                    throw std::invalid_argument("Missing value for --require-targets.");
-                }
-                required_targets = infer::ParseExecutionTargetPriority(argv[++i]);
-            }
-            else if (flag == "--help" || flag == "-h")
-            {
-                PrintUsage(argv[0]);
-                std::exit(0);
-            }
-            else
-            {
-                throw std::invalid_argument("Unknown flag: " + flag);
-            }
+            return {};
         }
-        return required_targets;
+
+        return infer::ParseExecutionTargetPriority(required_targets.getValue());
     }
 
     [[nodiscard]] int RequireTargets(const std::vector<infer::EExecutionTarget>& required_targets)
@@ -111,6 +100,15 @@ int main(int argc, char** argv)
             ParseRequiredTargets(argc, argv);
         PrintProviders();
         return RequireTargets(required_targets);
+    }
+    catch (const TCLAP::ExitException& exit_request)
+    {
+        return exit_request.getExitStatus();
+    }
+    catch (const TCLAP::ArgException& error)
+    {
+        GetLogger().error("Invalid command line: ", error.error(), " for ", error.argId());
+        return 1;
     }
     catch (const std::exception& error)
     {

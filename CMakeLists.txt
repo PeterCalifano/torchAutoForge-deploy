@@ -141,6 +141,7 @@ set(OPENGL_COMPILE_TARGET "${LIB_NAMESPACE}_opengl_compile_interface")
 set(TENSORRT_COMPILE_TARGET "${LIB_NAMESPACE}_tensorrt_interface")
 set(LIB_COMPILE_TARGET "${LIB_NAMESPACE}_lib_compile_interface")
 set(SANITIZER_TARGET "${LIB_NAMESPACE}_sanitizer_target_interface")
+set(TCLAP_COMPILE_TARGET "${LIB_NAMESPACE}_tclap_interface")
 
 # Set the actual library target name while preserving the canonical package
 # namespace. An empty override intentionally means "use project_name".
@@ -453,8 +454,10 @@ elseif(UNIX)
 endif()
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
 
-# Add libraries subdirectories if needed
-include_directories( lib/header_only ) # tclap, fast_obj, stb image, rapidyaml, rapidjson
+# Configure bundled header-only dependencies only when source-built CLIs need them.
+if(BUILD_AS_MAIN_PROJECT AND ${${BUILD_PROGRAMS_OPTION_NAME}})
+  add_subdirectory(lib/header_only)
+endif()
 
 message(STATUS "===================================================================")
 message(STATUS "====================  Library composition  ========================")

@@ -1,0 +1,8 @@
+builtin_interfaces/Time stamp
+string lifecycle_state
+bool model_loaded
+string model_role
+string backend_detail
+uint64 inference_count
+float64 last_inference_ms
+string last_error

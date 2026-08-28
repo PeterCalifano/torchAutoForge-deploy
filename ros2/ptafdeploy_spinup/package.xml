@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ptafdeploy_spinup</name>
+  <version>0.1.0</version>
+  <description>C++20 deployment library for ONNX Runtime and optional TensorRT inference: ROS 2 launch and runtime assets.</description>
+  <maintainer email="petercalifano.gs@gmail.com">Pietro Califano</maintainer>
+  <license>MIT</license>
+  <url type="website">https://github.com/PeterCalifano/torchAutoForge-deploy</url>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>lifecycle_msgs</exec_depend>
+  <exec_depend>ptafdeploy_ros</exec_depend>
+  <exec_depend>rclcpp_components</exec_depend>
+
+  <test_depend>launch_testing_ament_cmake</test_depend>
+  <test_depend>ptafdeploy_interfaces</test_depend>
+  <test_depend>rclpy</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

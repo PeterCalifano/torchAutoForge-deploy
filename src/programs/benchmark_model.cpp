@@ -3,15 +3,19 @@
  * @brief Generic model-facade inference benchmark for supported runtimes.
  */
 
-#include <chrono>
-#include <cstdlib>
-#include <filesystem>
 #include <inference/inference_config_parsing.h>
 #include <inference/model_facade.h>
+#include <utils/logging/CLogger.h>
+
+#include <tclap/CmdLine.h>
+
+#include <chrono>
+#include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <utils/logging/CLogger.h>
+#include <vector>
 
 namespace
 {
@@ -75,97 +79,54 @@ namespace
         return shape;
     }
 
-    void PrintUsage(const char* program_name)
-    {
-        std::cerr << "Usage: " << program_name
-                  << " <model.ptafmodel|model.onnx|model.engine> [--iterations N] [--warmup N]"
-                  << " [--targets cpu,cuda,tensorrt] [--device N] [--no-fallback]"
-                  << " [--trt-profile N]" << " [--backend auto|onnxruntime|tensorrt_engine]"
-                  << " [--artifact auto|onnx|tensorrt_engine]"
-                  << " [--role raw_tensor|centroiding|object_detection|custom]"
-                  << " [--input-shape d0,d1,...]\n";
-    }
-
     [[nodiscard]] SBenchmarkArgs ParseArgs(const int argc, char** argv)
     {
-        if (argc < 2)
-        {
-            PrintUsage(argv[0]);
-            throw std::invalid_argument("Missing model or config path.");
-        }
+        TCLAP::CmdLine command(
+            "Benchmark supported model artifacts through CModelFacade with generated zero-valued "
+            "float inputs.",
+            ' ', PTAFDEPLOY_CLI_VERSION);
+        command.setExceptionHandling(false);
+
+        TCLAP::UnlabeledValueArg<std::string> model_path(
+            "model", "Path to a model manifest or supported raw artifact", true, "",
+            "model.ptafmodel|model.onnx|model.engine", command);
+        TCLAP::ValueArg<int> iterations(
+            "", "iterations", "Number of timed inference iterations", false, 20,
+            "positive integer", command);
+        TCLAP::ValueArg<int> warmup(
+            "", "warmup", "Number of untimed warmup iterations", false, 3,
+            "non-negative integer", command);
+        TCLAP::ValueArg<std::string> targets(
+            "", "targets", "Comma-separated execution-target priority", false, "",
+            "cpu,cuda,tensorrt", command);
+        TCLAP::ValueArg<int> device(
+            "", "device", "Non-negative runtime device index", false, 0,
+            "non-negative integer", command);
+        TCLAP::SwitchArg no_fallback(
+            "", "no-fallback", "Reject runtime fallback to a lower-priority target", command,
+            false);
+        TCLAP::ValueArg<int> tensor_rt_profile(
+            "", "trt-profile", "TensorRT optimization-profile index", false, 0,
+            "non-negative integer", command);
+        TCLAP::ValueArg<std::string> backend(
+            "", "backend", "Inference backend override", false, "",
+            "auto|onnxruntime|tensorrt_engine", command);
+        TCLAP::ValueArg<std::string> artifact(
+            "", "artifact", "Model artifact override", false, "",
+            "auto|onnx|tensorrt_engine", command);
+        TCLAP::ValueArg<std::string> role(
+            "", "role", "Model role for raw artifacts", false, "",
+            "raw_tensor|centroiding|object_detection|custom", command);
+        TCLAP::ValueArg<std::string> input_shape(
+            "", "input-shape", "Concrete shape override for a single model input", false, "",
+            "d0,d1,...", command);
+
+        command.parse(argc, argv);
 
         SBenchmarkArgs args;
-        args.model_or_config_path = argv[1];
-
-        for (int i = 2; i < argc; ++i)
-        {
-            const std::string flag = argv[i];
-            const auto require_value = [&]()
-            {
-                if (i + 1 >= argc)
-                {
-                    throw std::invalid_argument("Missing value for " + flag);
-                }
-                return std::string{argv[++i]};
-            };
-
-            if (flag == "--iterations")
-            {
-                args.iterations = ParseInt(require_value(), flag);
-            }
-            else if (flag == "--warmup")
-            {
-                args.warmup_iterations = ParseInt(require_value(), flag);
-            }
-            else if (flag == "--targets")
-            {
-                args.runtime.execution_target_priority =
-                    infer::ParseExecutionTargetPriority(require_value());
-                args.runtime_overridden = true;
-            }
-            else if (flag == "--device")
-            {
-                args.runtime.device_id = ParseInt(require_value(), flag);
-                args.runtime_overridden = true;
-            }
-            else if (flag == "--trt-profile")
-            {
-                args.runtime.SetTensorRtOptimizationProfileIndex(ParseInt(require_value(), flag));
-                args.runtime_overridden = true;
-            }
-            else if (flag == "--backend")
-            {
-                args.runtime.backend = infer::ParseInferenceBackendName(require_value());
-                args.runtime_overridden = true;
-            }
-            else if (flag == "--artifact")
-            {
-                args.runtime.artifact = infer::ParseModelArtifactName(require_value());
-                args.runtime_overridden = true;
-            }
-            else if (flag == "--role")
-            {
-                args.role = infer::ParseModelRoleName(require_value());
-            }
-            else if (flag == "--input-shape")
-            {
-                args.single_input_shape_override = ParseShape(require_value());
-            }
-            else if (flag == "--no-fallback")
-            {
-                args.runtime.allow_fallback = false;
-                args.runtime_overridden = true;
-            }
-            else if (flag == "--help" || flag == "-h")
-            {
-                PrintUsage(argv[0]);
-                std::exit(0);
-            }
-            else
-            {
-                throw std::invalid_argument("Unknown flag: " + flag);
-            }
-        }
+        args.model_or_config_path = model_path.getValue();
+        args.iterations = iterations.getValue();
+        args.warmup_iterations = warmup.getValue();
 
         if (args.iterations <= 0)
         {
@@ -175,9 +136,43 @@ namespace
         {
             throw std::invalid_argument("--warmup must be non-negative.");
         }
-        if (args.runtime.device_id < 0)
+
+        // Apply only explicit runtime overrides so manifest defaults remain authoritative.
+        if (targets.isSet())
         {
-            throw std::invalid_argument("--device must be non-negative.");
+            args.runtime.execution_target_priority =
+                infer::ParseExecutionTargetPriority(targets.getValue());
+        }
+        if (device.isSet())
+        {
+            args.runtime.SetDeviceId(device.getValue());
+        }
+        if (tensor_rt_profile.isSet())
+        {
+            args.runtime.SetTensorRtOptimizationProfileIndex(tensor_rt_profile.getValue());
+        }
+        if (backend.isSet())
+        {
+            args.runtime.backend = infer::ParseInferenceBackendName(backend.getValue());
+        }
+        if (artifact.isSet())
+        {
+            args.runtime.artifact = infer::ParseModelArtifactName(artifact.getValue());
+        }
+        if (no_fallback.getValue())
+        {
+            args.runtime.SetAllowFallback(false);
+        }
+        args.runtime_overridden = targets.isSet() || device.isSet() || tensor_rt_profile.isSet() ||
+                                  backend.isSet() || artifact.isSet() || no_fallback.getValue();
+
+        if (role.isSet())
+        {
+            args.role = infer::ParseModelRoleName(role.getValue());
+        }
+        if (input_shape.isSet())
+        {
+            args.single_input_shape_override = ParseShape(input_shape.getValue());
         }
 
         return args;
@@ -289,6 +284,15 @@ int main(int argc, char** argv)
         std::cout << "warmup_iterations=" << args.warmup_iterations << "\n";
         std::cout << "iterations=" << args.iterations << "\n";
         std::cout << "avg_ms=" << avg_ms << "\n";
+    }
+    catch (const TCLAP::ExitException& exit_request)
+    {
+        return exit_request.getExitStatus();
+    }
+    catch (const TCLAP::ArgException& error)
+    {
+        GetLogger().error("Invalid command line: ", error.error(), " for ", error.argId());
+        return 1;
     }
     catch (const std::exception& e)
     {

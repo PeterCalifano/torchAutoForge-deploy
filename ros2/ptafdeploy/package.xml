@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ptafdeploy</name>
+  <version>0.1.0</version>
+  <description>C++20 deployment library for ONNX Runtime and optional TensorRT inference: ROS 2 colcon shim package.</description>
+  <maintainer email="petercalifano.gs@gmail.com">Pietro Califano</maintainer>
+  <license>MIT</license>
+  <url type="website">https://github.com/PeterCalifano/torchAutoForge-deploy</url>
+
+  <buildtool_depend>cmake</buildtool_depend>
+  <depend>eigen</depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>
