@@ -84,14 +84,67 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET get_available_providers)
     PASS_REGULAR_EXPRESSION "required_targets_available=cpu")
 endif()
 
-# Verify metadata-probe help and model-load failure behavior.
+# Exercise one-shot ONNX inference and its explicit metadata-only mode.
 if(ENABLE_TESTS AND BUILD_TESTING AND TARGET run_ort_inference)
+  set(_run_ort_fixture_model
+    "${PROJECT_SOURCE_DIR}/tests/matlab/testSamples/tracedSampleModel.onnx")
+  set(_run_ort_fixture_input
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_data/run_ort_input_1x11.f32")
+
   add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_cli_help
     COMMAND $<TARGET_FILE:run_ort_inference> --help)
 
   set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_cli_help PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "model.onnx")
+    PASS_REGULAR_EXPRESSION "--input")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_metadata_only
+    COMMAND $<TARGET_FILE:run_ort_inference>
+            "${_run_ort_fixture_model}"
+            --metadata-only)
+
+  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_metadata_only PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "model\\.input\\[0\\]\\.shape=\\[-1,11\\]")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_metadata_rejects_tensor_source
+    COMMAND $<TARGET_FILE:run_ort_inference>
+            "${_run_ort_fixture_model}"
+            --metadata-only
+            --fill 0)
+
+  set_tests_properties(
+    ${LIB_NAMESPACE}_run_ort_inference_metadata_rejects_tensor_source PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    WILL_FAIL TRUE)
+
+  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_zero_fill
+    COMMAND $<TARGET_FILE:run_ort_inference>
+            "${_run_ort_fixture_model}"
+            --shape 1,11
+            --fill 0)
+
+  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_zero_fill PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "output\\[0\\]\\.values=")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_raw_input_and_output
+    COMMAND $<TARGET_FILE:run_ort_inference>
+            "${_run_ort_fixture_model}"
+            --shape 1,11
+            --input "${_run_ort_fixture_input}"
+            --output-dir "${CMAKE_CURRENT_BINARY_DIR}/run_ort_cli_outputs")
+
+  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_raw_input_and_output PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "output\\[0\\]\\.file=.*0_output\\.f32")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_requires_input_source
+    COMMAND $<TARGET_FILE:run_ort_inference> "${_run_ort_fixture_model}")
+
+  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_requires_input_source PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    WILL_FAIL TRUE)
 
   add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_rejects_missing_model
     COMMAND $<TARGET_FILE:run_ort_inference>

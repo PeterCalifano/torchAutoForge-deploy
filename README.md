@@ -14,12 +14,13 @@ Prototype, but no longer an empty ORT stub. Current local implementation can:
 - return owned output buffers through `deploy_infer::STensorBuffer`;
 - dispatch through the generic `deploy_infer::CInferenceManager` facade for
   `.onnx` artifacts.
+- run one prepared float32 tensor set through ONNX Runtime with
+  `run_ort_inference`, including dynamic shapes and optional raw output files.
 
 Still open:
 
 - Python/MATLAB wrapper interfaces are not populated yet.
 - TensorRT standalone backend is an explicit not-implemented stub.
-- `run_ort_inference` is still a metadata probe with a hardcoded path.
 - Higher-level model roles for centroiding, object detection, feature matching,
   tracking, and optical flow are planned but not implemented.
 
@@ -117,6 +118,24 @@ Current configured tests cover:
 - tensor helper byte-count/dynamic-shape behavior;
 - facade artifact dispatch;
 - TensorRT backend stub failure mode.
+- one-shot ONNX CLI metadata, input-source validation, and real inference.
+
+## One-Shot ONNX Inference
+
+`run_ort_inference` accepts already-prepared float32 tensors and runs exactly one
+inference. For a single dynamic input, this zero-filled smoke command is enough:
+
+```bash
+./build/src/programs/run_ort_inference model.onnx \
+  --shape 1,3,640,640 --fill 0 --targets cpu --no-fallback
+```
+
+Use repeated `--input [name=]path.f32`, `--shape [name=]d0,d1,...`, and
+`--fill [name=]value` options for multi-input models. `--metadata-only` inspects
+the model without requiring tensor data, and `--output-dir` writes raw float32
+outputs in addition to the bounded stdout preview. See
+[`doc/run_ort_inference.md`](doc/run_ort_inference.md) for the complete binary
+format, naming rules, runtime options, output contract, and troubleshooting.
 
 ## Architecture
 
@@ -133,7 +152,7 @@ src/
     images_prepro.h         - image preprocessing helpers
   programs/
     get_available_providers - lists ORT providers
-    run_ort_inference       - placeholder metadata probe
+    run_ort_inference       - one-shot prepared-tensor ONNX inference
   wrap_interface.i          - gtwrap top-level interface, pending population
   inference/inference.i     - gtwrap inference interface, pending population
 ```
@@ -149,7 +168,6 @@ Public direction:
 ## Current Gaps
 
 - Wrapper interfaces need a stable MATLAB/Python-safe API surface.
-- CLI needs model path and runtime options instead of hardcoded paths.
 - Legacy `SInputOutputSpecs` / image-specific specs need review against
   `STensorDescriptor` and friends.
 - Numeric inference tests should compare C++ ORT outputs against reference

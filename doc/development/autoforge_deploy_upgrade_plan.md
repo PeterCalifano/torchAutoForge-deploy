@@ -479,3 +479,80 @@ Deferred follow-on after ROS 2 consolidation:
 
 - [x] Remind the user to review the design and implementation of the plain
   centroiding model for product use.
+
+## Stage 16: One-Shot ONNX Tensor Inference CLI
+
+Keep `run_ort_inference` backend-generic at the tensor boundary while making its
+name truthful: the default operation must execute one ONNX inference, and an
+explicit metadata-only mode must preserve the existing inspection use case.
+
+- [x] Add target-owned CLI tests first and observe the expected failures for
+  real zero-filled inference, missing input data, and documented help behavior.
+- [x] Accept repeated raw float32 inputs using `[name=]path.f32`, repeated
+  `[name=]d0,d1,...` dynamic-shape overrides, and repeated `[name=]value`
+  deterministic fills.
+- [x] Infer concrete static shapes from model metadata; require explicit shape
+  overrides for dynamic dimensions and explicit names for ambiguous multi-input
+  models.
+- [x] Map execution-target, device, fallback, and thread options to the existing
+  backend-neutral runtime configuration without introducing ORT handles.
+- [x] Print stable metadata and bounded output previews, and optionally persist
+  each output as raw float32 under `--output-dir`.
+- [x] Validate names, duplicate specifications, tensor dtype, shape cardinality,
+  raw file size, output destination, and mutually exclusive file/fill sources
+  with actionable logger diagnostics.
+- [x] Document raw tensor layout, multi-input rules, dynamic shapes, output
+  naming, log-level control, examples, and exit behavior in the user README and
+  CLI help.
+- [x] Run focused red-green-refactor checks, the complete native target-owned
+  suite, strict compilation, and staged-diff validation.
+- [x] Stage only the reviewed CLI, its target-owned tests, documentation, and
+  this tracker update, then stop for review.
+
+Acceptance snapshot on 2026-08-28:
+
+- the initial metadata-only implementation failed the four new execution/help
+  assertions for the intended reasons before production code was replaced;
+- the follow-up metadata/result namespace and ignored-option checks each failed
+  before their focused corrections and passed afterward;
+- a fresh `WARNINGS_ARE_ERRORS=ON` build completed with the explicit local ORT
+  config package, and all 38 registered native tests passed; the two external
+  FiLM centroiding fixture cases remained skipped by their existing contract;
+- an archive reconstructed from `HEAD` plus only the cached patch passed its
+  warnings-as-errors build and all 36 tests, proving that the batch does not
+  depend on unrelated unstaged headers or the untracked FiLM test;
+- both deterministic fill and checked-in raw float32 inputs executed through
+  ORT, and the persisted two-float output was verified as eight bytes; and
+- no template-conformance, recursive CMake, Python, or generic helper test was
+  added.
+
+## Stage 17: Plain Image-Only Centroiding Demo
+
+Implement the plain CNN separately from FiLM integrations. The demo owns its
+image semantics above the generic inference facade and accepts an ordinary PNG
+as its sole user input.
+
+- [ ] Confirm or export the selected plain checkpoint as an external ONNX
+  artifact with exactly one float32 image input and one two-value prediction
+  output; record its checksum and complete preprocessing/output contract.
+- [ ] Add a repo-local `.ptafmodel` manifest for the external plain ONNX without
+  embedding a machine-local artifact path.
+- [ ] Add a standalone C++20/OpenCV example that loads any readable PNG,
+  converts it to grayscale, resizes it to the model input, scales it to
+  `[0,1]`, and creates the NCHW tensor through shared adapter functionality.
+- [ ] Run inference through `CModelFacade`, interpret normalized `[x,y]`, and
+  report normalized coordinates plus coordinates mapped to the original PNG.
+- [ ] Reuse generic tensor, geometry, runtime-selection, logging, and CLI parsing
+  surfaces; keep plain-centroiding policy out of the ORT backend and generic
+  MATLAB adapters.
+- [ ] Add a small tracked black PNG with a bright ellipse and an opt-in real-model
+  end-to-end test that rejects non-finite/out-of-range output and verifies the
+  predicted center against the known ellipse center with an empirically justified
+  tolerance.
+- [ ] If the exported model does not respond meaningfully to the coherent
+  synthetic ellipse, stop for design review rather than weakening the test into
+  a non-functional smoke assertion.
+- [ ] Document build dependencies, artifact placement, manifest editing, CPU/CUDA
+  invocation, expected output, resizing semantics, and fixture limitations.
+- [ ] Review, validate, and stage this example as a separate batch only after
+  Stage 16 has left the index through explicit user action.
