@@ -1,19 +1,25 @@
 /**
  * @file run_ort_inference.cpp
  * @brief Run one ONNX inference from prepared float32 tensors.
+ *
+ * The executable owns CLI collection, raw float32 file IO, and stable textual
+ * output. Model loading and inference remain behind `CInferenceManager`, while
+ * reusable value and tensor-specification grammar comes from the installed
+ * parsing APIs.
  */
 
 #include <auxiliary/common_ops.h>
 #include <inference/inference_config_parsing.h>
 #include <inference/inference_manager.h>
+#include <inference/inference_tensor_parsing.h>
 #include <utils/logging/CLogger.h>
+#include <utils/value_parsing.h>
 
 #include <tclap/CmdLine.h>
 #include <tclap/MultiArg.h>
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -26,8 +32,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -36,9 +41,11 @@ namespace
     namespace fs = std::filesystem;
     namespace infer = ptafdeploy::inference;
     namespace logging = ptafdeploy::logging;
+    namespace parsing = ptafdeploy::parsing;
 
-    using TNamedSpecs = std::unordered_map<std::string, std::string>;
+    using TNamedValues = std::vector<parsing::SNamedValue>;
 
+    /** @brief Return the process-wide logger configured from the environment once. */
     [[nodiscard]] logging::CLogger& GetLogger()
     {
         static logging::CLogger logger("run_ort_inference", logging::ELogLevel::Info,
@@ -48,143 +55,43 @@ namespace
         return logger;
     }
 
-    /** @brief Parsed command-line values for one invocation. */
+    /** @brief Validated command-line state for one metadata or inference invocation. */
     struct SArguments
     {
+        /** @brief ONNX artifact requested by the user. */
         fs::path model_path{};
+
+        /** @brief Backend-neutral execution-provider and threading policy. */
         infer::SRuntimeConfig runtime{};
+
+        /** @brief Repeated `[name=]path.f32` input specifications. */
         std::vector<std::string> input_specs{};
+
+        /** @brief Repeated `[name=]d0,d1,...` concrete-shape specifications. */
         std::vector<std::string> shape_specs{};
+
+        /** @brief Repeated `[name=]value` deterministic-fill specifications. */
         std::vector<std::string> fill_specs{};
+
+        /** @brief Optional directory receiving raw float32 output files. */
         std::optional<fs::path> output_dir{};
+
+        /** @brief Maximum values printed in each output preview. */
         size_t max_output_values{16U};
+
+        /** @brief Whether to stop after printing model metadata. */
         bool metadata_only{false};
     };
 
-    /** @brief One optional-name command-line specification. */
-    struct SNamedSpec
-    {
-        std::string name{};
-        std::string value{};
-    };
-
-    [[nodiscard]] SNamedSpec ParseNamedSpec(const std::string& specification,
-                                            const std::string& option_name)
-    {
-        if (specification.empty())
-        {
-            throw std::invalid_argument(option_name + " expects a non-empty value.");
-        }
-
-        const size_t separator = specification.find('=');
-        if (separator == std::string::npos)
-        {
-            return SNamedSpec{"", specification};
-        }
-        if (separator == 0U || separator + 1U == specification.size())
-        {
-            throw std::invalid_argument(option_name +
-                                        " expects [tensor_name=]value with both sides non-empty.");
-        }
-
-        return SNamedSpec{specification.substr(0U, separator),
-                          specification.substr(separator + 1U)};
-    }
-
-    [[nodiscard]] TNamedSpecs ResolveNamedSpecs(const std::vector<std::string>& specifications,
-                                                const std::vector<infer::STensorInfo>& input_infos,
-                                                const std::string& option_name)
-    {
-        std::unordered_set<std::string> input_names;
-        for (const infer::STensorInfo& input_info : input_infos)
-        {
-            input_names.insert(input_info.name);
-        }
-
-        TNamedSpecs resolved;
-        for (const std::string& specification : specifications)
-        {
-            SNamedSpec parsed = ParseNamedSpec(specification, option_name);
-            if (parsed.name.empty())
-            {
-                if (input_infos.size() != 1U)
-                {
-                    throw std::invalid_argument(option_name +
-                                                " requires tensor_name= for multi-input models.");
-                }
-                parsed.name = input_infos.front().name;
-            }
-            else if (!input_names.contains(parsed.name))
-            {
-                throw std::invalid_argument(option_name + " names unknown model input '" +
-                                            parsed.name + "'.");
-            }
-
-            if (!resolved.emplace(parsed.name, std::move(parsed.value)).second)
-            {
-                throw std::invalid_argument(option_name + " specifies model input '" + parsed.name +
-                                            "' more than once.");
-            }
-        }
-        return resolved;
-    }
-
-    [[nodiscard]] int64_t ParsePositiveDimension(const std::string& value)
-    {
-        try
-        {
-            size_t parsed_chars = 0U;
-            const long long parsed = std::stoll(value, &parsed_chars);
-            if (parsed_chars != value.size() || parsed <= 0)
-            {
-                throw std::invalid_argument("not a positive integer");
-            }
-            return static_cast<int64_t>(parsed);
-        }
-        catch (const std::exception&)
-        {
-            throw std::invalid_argument("Invalid positive dimension in --shape: '" + value + "'.");
-        }
-    }
-
-    [[nodiscard]] std::vector<int64_t> ParseShape(const std::string& value)
-    {
-        std::vector<int64_t> shape;
-        std::stringstream stream(value);
-        std::string token;
-        while (std::getline(stream, token, ','))
-        {
-            if (token.empty())
-            {
-                throw std::invalid_argument("--shape dimensions must not be empty.");
-            }
-            shape.push_back(ParsePositiveDimension(token));
-        }
-        if (shape.empty())
-        {
-            throw std::invalid_argument("--shape expects at least one positive dimension.");
-        }
-        return shape;
-    }
-
-    [[nodiscard]] float ParseFiniteFloat(const std::string& value)
-    {
-        try
-        {
-            size_t parsed_chars = 0U;
-            const float parsed = std::stof(value, &parsed_chars);
-            if (parsed_chars != value.size() || !std::isfinite(parsed))
-            {
-                throw std::invalid_argument("not a finite float");
-            }
-            return parsed;
-        }
-        catch (const std::exception&)
-        {
-            throw std::invalid_argument("Invalid finite float in --fill: '" + value + "'.");
-        }
-    }
-
+    /**
+     * @brief Declare, collect, and cross-validate one command line.
+     * @param argc Number of command-line arguments.
+     * @param argv Command-line argument values owned by the process.
+     * @return Validated invocation state independent of TCLAP types.
+     * @throws TCLAP::ExitException When help or version output requests an early exit.
+     * @throws TCLAP::ArgException If TCLAP rejects an option or value.
+     * @throws std::invalid_argument If option combinations violate the program contract.
+     */
     [[nodiscard]] SArguments ParseArguments(const int argc, char** argv)
     {
         TCLAP::CmdLine command("Run one ONNX inference from prepared float32 "
@@ -195,45 +102,102 @@ namespace
                                ' ', PTAFDEPLOY_CLI_VERSION);
         command.setExceptionHandling(false);
 
-        TCLAP::UnlabeledValueArg<std::string> model_path("model", "Path to the ONNX model artifact",
-                                                         true, "", "model.onnx", command);
+        // TCLAP remains a private collection and help layer; reusable value
+        // syntax is parsed only after model metadata is available.
+        TCLAP::UnlabeledValueArg<std::string> model_path(
+            "model",
+            "Path to the ONNX model artifact",
+            true,
+            "",
+            "model.onnx",
+            command);
         TCLAP::MultiArg<std::string> inputs(
-            "", "input", "Raw native-endian float32 input as [tensor_name=]path.f32", false,
-            "[name=]path.f32", command);
-        TCLAP::MultiArg<std::string> shapes("", "shape",
-                                            "Concrete input shape as [tensor_name=]d0,d1,...",
-                                            false, "[name=]d0,d1,...", command);
+            "",
+            "input",
+            "Raw native-endian float32 input as [tensor_name=]path.f32",
+            false,
+            "[name=]path.f32",
+            command);
+        TCLAP::MultiArg<std::string> shapes(
+            "",
+            "shape",
+            "Concrete input shape as [tensor_name=]d0,d1,...",
+            false,
+            "[name=]d0,d1,...",
+            command);
         TCLAP::MultiArg<std::string> fills(
-            "", "fill", "Fill an input with one finite float as [tensor_name=]value", false,
-            "[name=]value", command);
-        TCLAP::ValueArg<std::string> targets("", "targets",
-                                             "Comma-separated ORT execution-target priority", false,
-                                             "", "cpu,cuda,tensorrt", command);
-        TCLAP::ValueArg<int> device("", "device", "Non-negative runtime device index", false, 0,
-                                    "non-negative integer", command);
-        TCLAP::ValueArg<int> intra_op_threads("", "intra-op-threads",
-                                              "ORT intra-operation threads; zero uses its default",
-                                              false, 1, "non-negative integer", command);
-        TCLAP::ValueArg<int> inter_op_threads("", "inter-op-threads",
-                                              "ORT inter-operation threads; zero uses its default",
-                                              false, 1, "non-negative integer", command);
-        TCLAP::SwitchArg no_fallback("", "no-fallback",
-                                     "Reject fallback below the requested execution targets",
-                                     command, false);
-        TCLAP::SwitchArg metadata_only("", "metadata-only",
-                                       "Print the loaded tensor contract without executing",
-                                       command, false);
+            "",
+            "fill",
+            "Fill an input with one finite float as [tensor_name=]value",
+            false,
+            "[name=]value",
+            command);
+        TCLAP::ValueArg<std::string> targets(
+            "",
+            "targets",
+            "Comma-separated ORT execution-target priority",
+            false,
+            "",
+            "cpu,cuda,tensorrt",
+            command);
+        TCLAP::ValueArg<int> device(
+            "",
+            "device",
+            "Non-negative runtime device index",
+            false,
+            0,
+            "non-negative integer",
+            command);
+        TCLAP::ValueArg<int> intra_op_threads(
+            "",
+            "intra-op-threads",
+            "ORT intra-operation threads; zero uses its default",
+            false,
+            1,
+            "non-negative integer",
+            command);
+        TCLAP::ValueArg<int> inter_op_threads(
+            "",
+            "inter-op-threads",
+            "ORT inter-operation threads; zero uses its default",
+            false,
+            1,
+            "non-negative integer",
+            command);
+        TCLAP::SwitchArg no_fallback(
+            "",
+            "no-fallback",
+            "Reject fallback below the requested execution targets",
+            command,
+            false);
+        TCLAP::SwitchArg metadata_only(
+            "",
+            "metadata-only",
+            "Print the loaded tensor contract without executing",
+            command,
+            false);
         TCLAP::ValueArg<std::string> output_dir(
-            "", "output-dir", "Write each output to INDEX_NAME.f32 in this directory", false, "",
-            "directory", command);
+            "",
+            "output-dir",
+            "Write each output to INDEX_NAME.f32 in this directory",
+            false,
+            "",
+            "directory",
+            command);
         TCLAP::ValueArg<long long> max_output_values(
-            "", "max-output-values", "Maximum preview values printed for each output", false, 16LL,
-            "non-negative integer", command);
+            "",
+            "max-output-values",
+            "Maximum preview values printed for each output",
+            false,
+            16LL,
+            "non-negative integer",
+            command);
 
         command.parse(argc, argv);
 
-        if (max_output_values.getValue() < 0 ||
-            static_cast<unsigned long long>(max_output_values.getValue()) >
+        const long long requested_preview_count = max_output_values.getValue();
+        if (requested_preview_count < 0 ||
+            static_cast<unsigned long long>(requested_preview_count) >
                 std::numeric_limits<size_t>::max())
         {
             throw std::invalid_argument("--max-output-values expects a non-negative integer.");
@@ -244,7 +208,7 @@ namespace
         arguments.input_specs = inputs.getValue();
         arguments.shape_specs = shapes.getValue();
         arguments.fill_specs = fills.getValue();
-        arguments.max_output_values = static_cast<size_t>(max_output_values.getValue());
+        arguments.max_output_values = static_cast<size_t>(requested_preview_count);
         arguments.metadata_only = metadata_only.getValue();
         if (output_dir.isSet())
         {
@@ -259,8 +223,11 @@ namespace
                 "--metadata-only cannot be combined with tensor or output options.");
         }
 
+        // Translate collected values into the backend-neutral runtime contract.
         arguments.runtime.SetDeviceId(device.getValue());
-        arguments.runtime.SetThreadCounts(intra_op_threads.getValue(), inter_op_threads.getValue());
+        arguments.runtime.SetThreadCounts(
+            intra_op_threads.getValue(),
+            inter_op_threads.getValue());
         arguments.runtime.SetAllowFallback(!no_fallback.getValue());
         arguments.runtime.SetLogId("run_ort_inference");
         if (targets.isSet())
@@ -271,6 +238,11 @@ namespace
         return arguments;
     }
 
+    /**
+     * @brief Format dimensions as a stable comma-separated bracketed list.
+     * @param shape Dimensions to format in logical tensor order.
+     * @return Text such as `[1,3,640,640]`.
+     */
     [[nodiscard]] std::string FormatShape(const std::vector<int64_t>& shape)
     {
         std::ostringstream stream;
@@ -287,6 +259,27 @@ namespace
         return stream.str();
     }
 
+    /**
+     * @brief Find one resolved optional-name value without copying it.
+     * @param values Values already resolved to model input names.
+     * @param name Exact model input name to find.
+     * @return Pointer into `values`, or `nullptr` when the input was not specified.
+     * @note The pointer remains valid only while `values` is alive and unmodified.
+     */
+    [[nodiscard]] const std::string* FindNamedValue(const TNamedValues& values,
+                                                    const std::string_view name)
+    {
+        const auto match =
+            std::find_if(values.begin(), values.end(), [name](const parsing::SNamedValue& value) {
+                return value.name == name;
+            });
+        return match == values.end() ? nullptr : &match->value;
+    }
+
+    /**
+     * @brief Print stable line-oriented model metadata to standard output.
+     * @param manager Loaded inference facade providing backend and tensor metadata.
+     */
     void PrintMetadata(const infer::CInferenceManager& manager)
     {
         const std::vector<infer::STensorInfo> inputs = manager.GetInputInfos();
@@ -312,14 +305,23 @@ namespace
         }
     }
 
-    [[nodiscard]] std::vector<int64_t> ResolveShape(const infer::STensorInfo& input_info,
-                                                    const TNamedSpecs& shape_specs)
+    /**
+     * @brief Resolve and validate one runtime input shape against model metadata.
+     * @param input_info Declared model input name, rank, and static/dynamic dimensions.
+     * @param shape_specs User overrides already resolved to model input names.
+     * @return A positive concrete shape compatible with every declared static dimension.
+     * @throws std::invalid_argument If an override changes rank or a static dimension, or if a
+     * dynamic dimension remains unresolved.
+     */
+    [[nodiscard]] std::vector<int64_t> ResolveShape(
+        const infer::STensorInfo& input_info,
+        const TNamedValues& shape_specs)
     {
         std::vector<int64_t> shape = input_info.shape;
-        if (const auto shape_spec = shape_specs.find(input_info.name);
-            shape_spec != shape_specs.end())
+        if (const std::string* shape_spec = FindNamedValue(shape_specs, input_info.name))
         {
-            shape = ParseShape(shape_spec->second);
+            shape = infer::ParseTensorShape(*shape_spec,
+                                            "--shape for input '" + input_info.name + "'");
             if (shape.size() != input_info.shape.size())
             {
                 throw std::invalid_argument("--shape for input '" + input_info.name +
@@ -327,6 +329,8 @@ namespace
                                             ", but the model reports rank " +
                                             std::to_string(input_info.shape.size()) + ".");
             }
+            // Explicit shapes may resolve dynamic dimensions but cannot alter
+            // the static dimensions declared by the loaded model.
             for (size_t index = 0U; index < shape.size(); ++index)
             {
                 if (input_info.shape[index] > 0 && shape[index] != input_info.shape[index])
@@ -348,9 +352,21 @@ namespace
         return shape;
     }
 
-    [[nodiscard]] std::vector<float> ReadFloatTensor(const fs::path& path,
-                                                     const size_t element_count,
-                                                     const std::string& input_name)
+    /**
+     * @brief Read one dense native-endian float32 tensor from a headerless file.
+     * @param path Regular file containing exactly `element_count` float values.
+     * @param element_count Expected number of tensor elements.
+     * @param input_name Model input name used in diagnostics.
+     * @return Owned tensor values in file order.
+     * @throws std::invalid_argument If the path or exact file size violates the input contract.
+     * @throws std::filesystem::filesystem_error If path metadata cannot be inspected.
+     * @throws std::overflow_error If the byte count cannot be represented by the IO interface.
+     * @throws std::runtime_error If the complete file cannot be opened or read.
+     */
+    [[nodiscard]] std::vector<float> ReadFloatTensor(
+        const fs::path& path,
+        const size_t element_count,
+        const std::string& input_name)
     {
         if (!fs::is_regular_file(path))
         {
@@ -362,6 +378,8 @@ namespace
             throw std::overflow_error("Raw input byte count exceeds size_t capacity.");
         }
 
+        // Validate cardinality before allocating or opening the file so malformed
+        // inputs cannot produce partial tensor state.
         const size_t expected_bytes = element_count * sizeof(float);
         const uintmax_t actual_bytes = fs::file_size(path);
         if (actual_bytes != expected_bytes)
@@ -390,16 +408,28 @@ namespace
         return values;
     }
 
+    /**
+     * @brief Build all wrapper-safe float tensors required by the loaded model.
+     * @param manager Loaded inference facade providing authoritative input metadata.
+     * @param arguments Validated CLI state containing sources, fills, and shape overrides.
+     * @return Inputs in model-declared order with owned concrete shapes and values.
+     * @throws std::invalid_argument If names, dtypes, shapes, or source cardinality are invalid.
+     * @throws std::filesystem::filesystem_error If raw-input metadata cannot be inspected.
+     * @throws std::overflow_error If a tensor size exceeds supported host limits.
+     * @throws std::runtime_error If a raw input cannot be read completely.
+     */
     [[nodiscard]] std::vector<infer::SFloatTensor> PrepareInputs(
         const infer::CInferenceManager& manager, const SArguments& arguments)
     {
+        // Resolve every repeated CLI grammar once against the authoritative
+        // model contract before materializing any tensor storage.
         const std::vector<infer::STensorInfo> input_infos = manager.GetInputInfos();
-        const TNamedSpecs input_specs =
-            ResolveNamedSpecs(arguments.input_specs, input_infos, "--input");
-        const TNamedSpecs shape_specs =
-            ResolveNamedSpecs(arguments.shape_specs, input_infos, "--shape");
-        const TNamedSpecs fill_specs =
-            ResolveNamedSpecs(arguments.fill_specs, input_infos, "--fill");
+        const TNamedValues input_specs =
+            infer::ResolveNamedTensorValues(arguments.input_specs, input_infos, "--input");
+        const TNamedValues shape_specs =
+            infer::ResolveNamedTensorValues(arguments.shape_specs, input_infos, "--shape");
+        const TNamedValues fill_specs =
+            infer::ResolveNamedTensorValues(arguments.fill_specs, input_infos, "--fill");
 
         std::vector<infer::SFloatTensor> inputs;
         inputs.reserve(input_infos.size());
@@ -412,8 +442,12 @@ namespace
                                             "; run_ort_inference accepts float32 only.");
             }
 
-            const bool has_file = input_specs.contains(input_info.name);
-            const bool has_fill = fill_specs.contains(input_info.name);
+            // Each model input must select exactly one data source; shape
+            // overrides remain independent of whether data comes from file or fill.
+            const std::string* input_spec = FindNamedValue(input_specs, input_info.name);
+            const std::string* fill_spec = FindNamedValue(fill_specs, input_info.name);
+            const bool has_file = input_spec != nullptr;
+            const bool has_fill = fill_spec != nullptr;
             if (has_file == has_fill)
             {
                 throw std::invalid_argument("Input '" + input_info.name +
@@ -425,12 +459,14 @@ namespace
             std::vector<float> values;
             if (has_file)
             {
-                values = ReadFloatTensor(input_specs.at(input_info.name), element_count,
-                                         input_info.name);
+                values = ReadFloatTensor(*input_spec, element_count, input_info.name);
             }
             else
             {
-                values.assign(element_count, ParseFiniteFloat(fill_specs.at(input_info.name)));
+                const float fill_value = parsing::ParseFiniteFloat(
+                    *fill_spec,
+                    "--fill for input '" + input_info.name + "'");
+                values.assign(element_count, fill_value);
             }
 
             GetLogger().debug("Prepared input ", input_info.name, " shape=", FormatShape(shape),
@@ -440,6 +476,11 @@ namespace
         return inputs;
     }
 
+    /**
+     * @brief Convert a model output name into a portable filename component.
+     * @param name Model-provided output name copied for in-place sanitization.
+     * @return A non-empty name containing only alphanumeric, hyphen, or underscore characters.
+     */
     [[nodiscard]] std::string SanitizeFilename(std::string name)
     {
         for (char& character : name)
@@ -453,8 +494,19 @@ namespace
         return name.empty() ? "output" : name;
     }
 
-    [[nodiscard]] fs::path WriteOutput(const infer::SFloatTensor& output, const size_t index,
-                                       const fs::path& output_dir)
+    /**
+     * @brief Persist one output as a headerless native-endian float32 file.
+     * @param output Named output tensor whose values are written in logical order.
+     * @param index Stable output index used to avoid filename collisions.
+     * @param output_dir Existing destination directory.
+     * @return Complete path of the written output.
+     * @throws std::overflow_error If the output size exceeds the stream interface.
+     * @throws std::runtime_error If the output cannot be opened or written completely.
+     */
+    [[nodiscard]] fs::path WriteOutput(
+        const infer::SFloatTensor& output,
+        const size_t index,
+        const fs::path& output_dir)
     {
         if (output.values.size() >
             static_cast<size_t>(std::numeric_limits<std::streamsize>::max()) / sizeof(float))
@@ -481,8 +533,20 @@ namespace
         return output_path;
     }
 
-    void PrintOutputs(const std::vector<infer::SFloatTensor>& outputs,
-                      const size_t max_output_values, const std::optional<fs::path>& output_dir)
+    /**
+     * @brief Print stable output summaries and optionally persist raw tensors.
+     * @param outputs Inference outputs in model order.
+     * @param max_output_values Maximum values included in each standard-output preview.
+     * @param output_dir Optional directory created before writing raw output files.
+     * @throws std::invalid_argument If an existing output path is not a directory.
+     * @throws std::filesystem::filesystem_error If directory creation fails.
+     * @throws std::overflow_error If an output is too large for stream IO.
+     * @throws std::runtime_error If an output file cannot be written completely.
+     */
+    void PrintOutputs(
+        const std::vector<infer::SFloatTensor>& outputs,
+        const size_t max_output_values,
+        const std::optional<fs::path>& output_dir)
     {
         if (output_dir.has_value())
         {
@@ -552,7 +616,8 @@ int main(const int argc, char** argv)
             return 0;
         }
 
-        const std::vector<infer::SFloatTensor> inputs = PrepareInputs(inference_manager, arguments);
+        const std::vector<infer::SFloatTensor> inputs =
+            PrepareInputs(inference_manager, arguments);
         GetLogger().info("Running one inference with ", inputs.size(), " input tensor(s).");
         const std::vector<infer::SFloatTensor> outputs =
             inference_manager.InferFloatTensors(inputs);

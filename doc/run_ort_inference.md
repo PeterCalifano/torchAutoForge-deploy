@@ -119,6 +119,49 @@ Human diagnostics go to stderr through `CLogger`, leaving stdout available for
 result parsing. Set `PTAFDEPLOY_LOG_LEVEL=debug`, `info`, `warning`, `error`,
 `critical`, or `off` to change verbosity.
 
+## Reusable C++ Parsing API
+
+Installed C++ consumers can reuse the strict value grammar without depending on
+the command-line framework used by this executable. Link the compiled library
+through its exported target:
+
+```cmake
+find_package(autoforge_deploy CONFIG REQUIRED)
+target_link_libraries(my_application PRIVATE autoforge_deploy::autoforge_deploy)
+```
+
+```cpp
+#include <inference/inference_tensor_parsing.h>
+#include <utils/value_parsing.h>
+
+const auto shape =
+    ptafdeploy::inference::ParseTensorShape("1,3,640,640", "input shape");
+const float fill =
+    ptafdeploy::parsing::ParseFiniteFloat("0.25", "--fill");
+```
+
+The installed surfaces have separate ownership:
+
+- `ptafdeploy::parsing::ParseNamedValue` parses `[name=]value`, splitting only
+  the first equals sign and preserving the remaining value text.
+- `ptafdeploy::parsing::ParseIntegerList` converts a strict delimiter-separated
+  signed-integer list with checked range and complete-token consumption.
+- `ptafdeploy::parsing::ParseFiniteFloat` accepts finite decimal, scientific,
+  and `0x`-prefixed hexadecimal notation.
+- `ptafdeploy::inference::ParseTensorShape` adds the requirement that every
+  parsed dimension is concrete and positive.
+- `ptafdeploy::inference::ResolveNamedTensorValues` validates optional-name
+  values against `STensorInfo` metadata and returns them in model-input order.
+
+Unqualified values are valid only for a single-input model. Returned
+`SNamedValue` objects own their strings; input `std::string_view` and `std::span`
+arguments need to remain valid only for the duration of each call.
+
+The API uses `std::string_view` and `std::from_chars` at the parsing boundary.
+It neither exposes nor requires TCLAP: applications remain free to collect
+arguments with TCLAP, another CLI framework, configuration files, or their own
+integration layer.
+
 ## Exit Status
 
 - `0`: help/version request, metadata inspection, or successful inference

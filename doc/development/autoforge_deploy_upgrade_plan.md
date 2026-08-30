@@ -526,6 +526,60 @@ Acceptance snapshot on 2026-08-28:
 - no template-conformance, recursive CMake, Python, or generic helper test was
   added.
 
+## Stage 16A: Installed C++ Parsing Utilities
+
+Consolidate the native programs' repeated value parsing behind a small,
+framework-independent installed API. Keep TCLAP responsible for command-line
+collection and help text while making the reusable subgrammars available to
+downstream C++ consumers without exposing TCLAP as a public dependency.
+
+- [x] Confirm that Stage 16 has left the index and record the unrelated dirty
+  work that this new commit batch must preserve.
+- [x] Add focused failing Catch2 coverage for optional-name specifications,
+  integer lists, finite floats, positive tensor shapes, and model-input
+  resolution.
+- [x] Implement allocation-conscious generic parsing with `std::string_view`
+  and `std::from_chars`, including actionable validation for malformed,
+  overflowing, trailing, empty, and non-finite values.
+- [x] Implement inference-specific tensor-shape parsing and deterministic
+  named-input resolution without exposing backend or command-line framework
+  types.
+- [x] Migrate `run_ort_inference` and `benchmark_model` to the installed API,
+  retaining TCLAP for option declaration, collection, and user help.
+- [x] Review the complete touched C++ surface for behavior-preserving
+  simplification, cohesive logical blocks, four-space Allman formatting, and
+  required Doxygen contracts.
+- [x] Expand the staged reader-facing pass with functional-unit Doxygen,
+  contract-oriented block comments, and less densely packed calls and test
+  fixtures.
+- [x] Document the API boundary and consumer usage, including the distinction
+  between CLI collection and reusable value parsing.
+- [x] Run focused and complete target-owned tests, strict compilation, an
+  explicit installed-consumer acceptance check, and staged-diff validation.
+- [x] Stage only this reviewed parsing/API batch through an explicit allowlist,
+  report exclusions and caveats, and stop for review before the plain
+  centroiding stage.
+
+Acceptance snapshot on 2026-08-29:
+
+- the initial focused target failed because the planned installed headers did
+  not exist, and the leading-plus and hexadecimal-float compatibility assertions
+  each failed before their corresponding implementation was added;
+- the final focused target passed 36 assertions across seven target-owned
+  Catch2 cases, including malformed, overflowing, trailing, non-finite,
+  ambiguous, duplicate, and invalid-metadata boundaries;
+- a fresh `WARNINGS_ARE_ERRORS=ON` build completed, and the 45-test suite
+  reported no failures: 43 passed and the two existing external FiLM fixture
+  cases were intentionally skipped;
+- an archive reconstructed from `HEAD` plus only the cached patch passed the
+  strict build and all 43 registered tests, proving that this batch does not
+  depend on the unrelated dirty headers or untracked FiLM test;
+- Doxygen generated the new public API; its existing warning for the README's
+  Markdown link to `doc/run_ort_inference.md` remains outside this batch; and
+- an installed CMake consumer compiled and ran through
+  `autoforge_deploy::autoforge_deploy` with the external ONNX Runtime loader path
+  supplied, while installed headers and exports remained free of TCLAP.
+
 ## Stage 17: Plain Image-Only Centroiding Demo
 
 Implement the plain CNN separately from FiLM integrations. The demo owns its
