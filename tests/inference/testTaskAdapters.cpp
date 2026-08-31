@@ -232,3 +232,24 @@ TEST_CASE("matlab_adapters_serialize_generic_detection_rows", "[inference][task_
     REQUIRE(detections(0, 4) == Catch::Approx(0.4));
     REQUIRE(detections(0, 5) == Catch::Approx(1.0));
 }
+
+TEST_CASE("matlab_adapters_serialize_generic_feature_rows", "[inference][task_adapters][matlab]")
+{
+    infer::SFeatureRowSchema schema;
+    schema.attribute_axis = 1;
+    schema.score_index = 2;
+
+    const gtsam::Matrix features = infer::DecodeFeatureRowsMatrix(
+        infer::SFloatTensor{"features", {1, 3, 2},
+                            {10.0F, 20.0F, 11.0F, 21.0F, 0.5F, 0.75F}},
+        schema);
+
+    REQUIRE(features.rows() == 2);
+    REQUIRE(features.cols() == 3);
+    REQUIRE(features(0, 0) == Catch::Approx(10.0));
+    REQUIRE(features(0, 1) == Catch::Approx(11.0));
+    REQUIRE(features(0, 2) == Catch::Approx(0.5));
+    REQUIRE(features(1, 0) == Catch::Approx(20.0));
+    REQUIRE(features(1, 1) == Catch::Approx(21.0));
+    REQUIRE(features(1, 2) == Catch::Approx(0.75));
+}

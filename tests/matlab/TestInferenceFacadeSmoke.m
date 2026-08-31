@@ -60,6 +60,7 @@ oObjectModel = ptafdeploy.inference.CModelFacade();
 oObjectModel.LoadModelConfig(char(sObjectDetectionConfigPath));
 assert(strcmp(oObjectModel.GetRole(), 'object_detection'));
 assert(oObjectModel.GetNumInputs() == 1);
+VerifyGenericFeatureAdapter_();
 VerifyGenericDetectionAdapter_();
 
 bCaughtExpectedError = false;
@@ -78,6 +79,22 @@ assert(numel(vdOutputAfterError) == 2);
 clear oManager oCentroidModel oObjectModel oInputInfo;
 clear vdOutput vdCentroidOutput vdOutputAfterError;
 clear mex; %#ok<CLMEX> Release wrapper state before the CTest process exits.
+end
+
+
+function VerifyGenericFeatureAdapter_()
+% Verify generic feature decoding through the MATLAB numeric bridge.
+oOutput = ptafdeploy.inference.MakeFloatTensorFromVector( ...
+    'features', double([0.25, 0.75]'), double([1, 2]'));
+oSchema = ptafdeploy.inference.SFeatureRowSchema();
+
+mFeatures = ptafdeploy.inference.DecodeFeatureRowsMatrix(oOutput, oSchema);
+assert(isequal(size(mFeatures), [1, 3]));
+assert(abs(mFeatures(1, 1) - 0.25) < 1.0e-6);
+assert(abs(mFeatures(1, 2) - 0.75) < 1.0e-6);
+assert(abs(mFeatures(1, 3) - 1.0) < 1.0e-6);
+
+clear oOutput oSchema mFeatures;
 end
 
 

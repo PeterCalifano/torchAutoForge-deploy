@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import sys
-from typing import Sequence
 
 import autoforge_deploy as ptaf
 
@@ -76,6 +76,19 @@ def verify_generic_task_adapter() -> None:
     )
 
 
+def verify_generic_feature_adapter() -> None:
+    """Verify generic feature rows survive the generated Python wrapper."""
+
+    schema = ptaf.SFeatureRowSchema()
+    tensor = ptaf.SFloatTensor("features", [1, 2], [0.25, 0.75])
+    features = ptaf.DecodeFeatureRows(tensor, schema)
+
+    require(len(features) == 1, "expected one decoded feature")
+    require(abs(features[0].position.x - 0.25) < 1.0e-6, "unexpected feature x")
+    require(abs(features[0].position.y - 0.75) < 1.0e-6, "unexpected feature y")
+    require(abs(features[0].score - 1.0) < 1.0e-6, "unexpected feature score")
+
+
 def run_smoke(paths: SmokePaths) -> None:
     """Exercise the generated manager, facade, and generic adapter bindings."""
 
@@ -94,6 +107,7 @@ def run_smoke(paths: SmokePaths) -> None:
     facade_outputs = model.InferSingleFloatInput(input_values, [1, 11])
     require(len(facade_outputs) == 2, "facade fixture must return two values")
     verify_generic_task_adapter()
+    verify_generic_feature_adapter()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

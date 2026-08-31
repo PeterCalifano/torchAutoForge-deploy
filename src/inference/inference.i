@@ -329,6 +329,9 @@ ptafdeploy::inference::SFloatTensor MakeNchwFloatTensorFromHwcVector(
     size_t channels,
     double scale,
     bool swap_rb);
+gtsam::Matrix DecodeFeatureRowsMatrix(
+    const ptafdeploy::inference::SFloatTensor& output,
+    const ptafdeploy::inference::SFeatureRowSchema& schema);
 gtsam::Matrix DecodeDetectionRowsMatrix(
     const ptafdeploy::inference::SFloatTensor& output,
     const ptafdeploy::inference::SDetectionRowSchema& schema,

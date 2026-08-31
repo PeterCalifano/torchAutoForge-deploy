@@ -586,27 +586,81 @@ Implement the plain CNN separately from FiLM integrations. The demo owns its
 image semantics above the generic inference facade and accepts an ordinary PNG
 as its sole user input.
 
-- [ ] Confirm or export the selected plain checkpoint as an external ONNX
+- [x] Confirm or export the selected plain checkpoint as an external ONNX
   artifact with exactly one float32 image input and one two-value prediction
   output; record its checksum and complete preprocessing/output contract.
-- [ ] Add a repo-local `.ptafmodel` manifest for the external plain ONNX without
+- [x] Add a repo-local `.ptafmodel` manifest for the external plain ONNX without
   embedding a machine-local artifact path.
-- [ ] Add a standalone C++20/OpenCV example that loads any readable PNG,
+- [x] Add a standalone C++20/OpenCV example that loads any readable PNG,
   converts it to grayscale, resizes it to the model input, scales it to
   `[0,1]`, and creates the NCHW tensor through shared adapter functionality.
-- [ ] Run inference through `CModelFacade`, interpret normalized `[x,y]`, and
+- [x] Run inference through `CModelFacade`, interpret normalized `[x,y]`, and
   report normalized coordinates plus coordinates mapped to the original PNG.
-- [ ] Reuse generic tensor, geometry, runtime-selection, logging, and CLI parsing
+- [x] Reuse generic tensor, geometry, runtime-selection, logging, and CLI parsing
   surfaces; keep plain-centroiding policy out of the ORT backend and generic
   MATLAB adapters.
-- [ ] Add a small tracked black PNG with a bright ellipse and an opt-in real-model
+- [x] Add a small tracked black PNG with a bright ellipse and an opt-in real-model
   end-to-end test that rejects non-finite/out-of-range output and verifies the
   predicted center against the known ellipse center with an empirically justified
   tolerance.
-- [ ] If the exported model does not respond meaningfully to the coherent
+- [x] If the exported model does not respond meaningfully to the coherent
   synthetic ellipse, stop for design review rather than weakening the test into
   a non-functional smoke assertion.
-- [ ] Document build dependencies, artifact placement, manifest editing, CPU/CUDA
+- [x] Document build dependencies, artifact placement, manifest editing, CPU/CUDA
   invocation, expected output, resizing semantics, and fixture limitations.
-- [ ] Review, validate, and stage this example as a separate batch only after
+- [x] Review, validate, and stage this example as a separate batch only after
   Stage 16 has left the index through explicit user action.
+- [x] Expose generic feature rows to MATLAB as numeric `[x,y,score]` rows
+  without adding plain-centroiding policy to the wrapper interface.
+- [x] Add Python and MATLAB wrapper demos that own language-specific image
+  conversion, use `CModelFacade`, and report the same coordinate spaces as the
+  native CLI.
+- [x] Extend the existing generated-wrapper smokes with generic feature-row
+  coverage and run both wrapper demos end to end on the tracked ellipse.
+- [x] Re-review and stage the enlarged native/wrapper example batch without
+  absorbing unrelated source, export, MATLAB-program, or FiLM work.
+
+Acceptance snapshot on 2026-08-30:
+
+- the 50,805,325-byte plain checkpoint retained SHA-256
+  `8022e92f4de8b86788bc523d5e45d5d09ab414161eac85def1d15c10fc39f12d`;
+  its verified opset-11 ONNX export has SHA-256
+  `8ba4f46355b0f6b542ec848b4c1130760bea194f9bf3b16e7b36bad9f380af4b`
+  and contract `image [-1,1,1536,2048]` to `prediction [-1,2]`;
+- the checkpoint followed three coherent synthetic ellipse positions with
+  5.0--11.2 px error before export, and the tracked 320x240 PNG produced a
+  1.90 px original-image error after the documented OpenCV resize path;
+- the missing support header and missing CLI executable were each observed as
+  the expected RED state before their corresponding implementation;
+- a fresh warnings-as-errors standalone build passed all six native example
+  tests with the external ONNX, including manifest CLI and tolerance-based
+  ellipse inference; without the test-model environment variable the external
+  Catch2 case was reported as skipped rather than failed;
+- the current main suite passed 43 tests with its two existing external FiLM
+  cases skipped;
+- CPU and CUDA CLI runs both applied the requested provider and reported the
+  ellipse center near `(217.62, 89.14)` for the labeled `(218, 91)` center; and
+- a `HEAD` plus cached-patch reconstruction passed its strict producer build,
+  all 43 main tests, strict standalone example build, and all six example tests
+  using only the documented external ONNX prerequisite.
+
+Wrapper extension snapshot on 2026-09-01:
+
+- the missing generic MATLAB feature-matrix function and missing Python/MATLAB
+  demos were each observed as RED before implementation;
+- generated Python and MATLAB wrapper builds passed with the project-owned
+  feature-row smokes; global `WARNINGS_ARE_ERRORS=ON` remains unsuitable for
+  generated gtwrap/pybind/MATLAB sources because it promotes their existing
+  third-party warnings, so the strict native build remains the owned-source
+  warning gate;
+- the generated Python stub target completed; strict checking of the authored
+  demo passed after excluding three pre-existing diagnostics emitted by the
+  generated gtwrap stub;
+- Python CPU and CUDA demos applied the requested providers and reported
+  `(217.6168, 89.1426)` and `(217.6199, 89.1446)`, respectively;
+- MATLAB CPU and CUDA inference reported `(217.6175, 89.1478)`, preserved the
+  5 px ellipse acceptance limit, returned the concrete submitted input shape,
+  and applied the requested providers;
+  and
+- Python 3.12 compilation and MATLAB R2024b `checkcode` completed without
+  source diagnostics.

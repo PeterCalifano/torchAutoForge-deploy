@@ -282,6 +282,30 @@ namespace ptafdeploy::inference
     }
 
     /**
+     * @brief Decode generic feature rows into a MATLAB-compatible numeric matrix.
+     * @param output Concrete tensor whose configured axis contains row attributes.
+     * @param schema Generic coordinate and optional score-column mapping.
+     * @return One feature per row as `[x, y, score]`.
+     * @throws std::exception If the tensor, schema, or decoded values are invalid.
+     */
+    [[nodiscard]] inline gtsam::Matrix DecodeFeatureRowsMatrix(
+        const SFloatTensor& output, const SFeatureRowSchema& schema)
+    {
+        const std::vector<SFeature2D> features = DecodeFeatureRows(output, schema);
+        gtsam::Matrix matrix(static_cast<Eigen::Index>(features.size()), 3);
+        for (size_t row = 0U; row < features.size(); ++row)
+        {
+            const SFeature2D& feature = features[row];
+            const Eigen::Index matrix_row = static_cast<Eigen::Index>(row);
+            matrix(matrix_row, 0) = static_cast<double>(feature.position.x);
+            matrix(matrix_row, 1) = static_cast<double>(feature.position.y);
+            matrix(matrix_row, 2) = static_cast<double>(feature.score);
+        }
+
+        return matrix;
+    }
+
+    /**
      * @brief Decode generic detections into a MATLAB-compatible numeric matrix.
      * @param output Concrete tensor whose configured axis contains row attributes.
      * @param schema Generic attribute, box, objectness, and class-score mapping.

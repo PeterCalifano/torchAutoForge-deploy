@@ -1,0 +1,18 @@
+# ptafdeploy model config v1
+# Plain image-only checkpoint: traveling-goat-68 / 22b61bbd4ddd4d6cb6f503a22f050a25
+# Exported ONNX SHA-256: 8ba4f46355b0f6b542ec848b4c1130760bea194f9bf3b16e7b36bad9f380af4b
+# Keep the ignored ONNX external or place it at this repo-relative model path.
+schema_version = 1
+artifact_path = ../../models/onnx/best_model_plain_traveling-goat-68_22b61bbd4ddd.onnx
+role = centroiding
+preprocessing = opencv_grayscale_resize_linear_nchw_unit_scale
+postprocessing = normalized_centroid_xy
+backend = onnxruntime
+artifact = onnx
+execution_target_priority = cpu
+allow_fallback = false
+device_id = 0
+intra_op_num_threads = 1
+inter_op_num_threads = 1
+enable_profiling = false
+log_id = ptafdeploy_centroiding_plain
