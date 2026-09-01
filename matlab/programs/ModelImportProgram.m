@@ -3,9 +3,12 @@ clear
 clc
 
 %% Options
-cd( fileparts(which(mfilename)) )
-charOnnxFileRootPath = "/home/peterc/devDir/ML-repos/torchAutoForge-deploy/.model_checkpoints/onnx_exported_models";
-charMatlabFileRootPath = "/home/peterc/devDir/ML-repos/torchAutoForge-deploy/.model_checkpoints/matlab_models";
+charProgramRootPath = fileparts(mfilename('fullpath'));
+cd(charProgramRootPath)
+
+charRepositoryRootPath = fileparts(fileparts(charProgramRootPath));
+charOnnxFileRootPath = fullfile(charRepositoryRootPath, "models", "onnx");
+charMatlabFileRootPath = fullfile(charRepositoryRootPath, "models", "matlab");
 
 charOnnxFileName = "zealous-cow-471_epoch_2893_0";
 
