@@ -347,8 +347,7 @@ scope.
    `/home/peterc/devDir/dev-tools/cpp_cuda_template_project` signed tag
    `v2.0.1` at `1d87153b2d060bf03c2c9adcd1df6c6d4f40ea09`, while preserving
    ORT-specific dependency wiring, independent TensorRT/CUDA policy, and the
-   intentional absence of OptiX. Keep the earlier v1.11.3/v1.12.2 upgrade plan
-   only as historical provenance for the protected staged batch.
+   intentional absence of OptiX.
 2. Make wrappers work for MATLAB/Python through a stable generic inference
    facade.
 3. Review current implementation for redundancy and readability before adding
