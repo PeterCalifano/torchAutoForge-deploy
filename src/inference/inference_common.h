@@ -630,6 +630,7 @@ namespace ptafdeploy::inference
      * @throws std::invalid_argument When a dimension is dynamic.
      * @throws std::overflow_error When the product exceeds `size_t`.
      */
+    // TODO (PC) Implement compile-time models implementation to remove all dynamical allocation (this becomes constexpr then)
     [[nodiscard]] inline size_t ComputeElementCount(const std::vector<int64_t> &shape)
     {
         size_t num_elements = 1;

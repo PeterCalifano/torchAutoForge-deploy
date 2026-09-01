@@ -155,6 +155,7 @@ namespace ptafdeploy::inference
         [[nodiscard]] static EModelArtifact DetectArtifactType(const fs::path &model_path);
 
       private:
+      // TODO (PC) evaluate direct templating in place of std::variant usage.
         TBackendVariant backend_{};
     };
 }
