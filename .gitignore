@@ -10,7 +10,6 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 
-.model_checkpoints
 # Keep local/generated model artifacts out of source control while allowing the
 # repository-owned layout contract to remain visible.
 models/*
