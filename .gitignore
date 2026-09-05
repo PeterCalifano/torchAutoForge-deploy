@@ -11,6 +11,10 @@ _deps
 CMakeUserPresets.json
 VERSION
 
+log/
+build/
+install/
+
 # Keep local/generated model artifacts out of source control while allowing the
 # repository-owned layout contract to remain visible.
 models/*
