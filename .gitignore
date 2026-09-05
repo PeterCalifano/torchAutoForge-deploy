@@ -9,6 +9,7 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
+VERSION
 
 # Keep local/generated model artifacts out of source control while allowing the
 # repository-owned layout contract to remain visible.

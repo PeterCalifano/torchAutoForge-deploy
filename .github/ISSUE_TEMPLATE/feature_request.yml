@@ -2,7 +2,7 @@ name: Feature request
 description: Propose a scoped inference, wrapper, deployment, CUDA, or ROS capability.
 title: "[FEATURE] "
 labels:
-  - major-enhancement
+  - enhancement
 assignees:
   - PeterCalifano
 body:
