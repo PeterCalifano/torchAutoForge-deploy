@@ -1,0 +1,235 @@
+name: build_linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/build_linux.yml'
+      - 'CMakeLists.txt'
+      - 'VERSION'
+      - 'build_lib.sh'
+      - 'cmake/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'python/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'generate_version.sh'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/build_linux.yml'
+      - 'CMakeLists.txt'
+      - 'VERSION'
+      - 'build_lib.sh'
+      - 'cmake/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'python/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'generate_version.sh'
+
+concurrency:
+  group: ptafdeploy-linux-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUILD_TYPE: RelWithDebInfo
+  ORT_VERSION: '1.23.0'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  native:
+    # Automatic push/PR runs are accepted above; manual runs are develop-only.
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/develop' }}
+    name: ${{ matrix.arch }} C++
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+            build_dir: build-ci-x86_64
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+            build_dir: build-ci-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates \
+            cmake \
+            curl \
+            g++ \
+            git \
+            libeigen3-dev \
+            ninja-build \
+            python3-dev \
+            tar
+
+      - name: Restore ONNX Runtime cache
+        uses: actions/cache@v4
+        with:
+          path: .ci_deps/onnxruntime
+          key: ort-${{ runner.os }}-${{ matrix.arch }}-${{ env.ORT_VERSION }}
+
+      - name: Setup ONNX Runtime
+        run: |
+          ort_root="$("${GITHUB_WORKSPACE}/.github/scripts/install_onnxruntime.sh" "${{ matrix.arch }}" "${GITHUB_WORKSPACE}/.ci_deps/onnxruntime")"
+          {
+            echo "ONNXRUNTIME_ROOT=${ort_root}"
+            echo "onnxruntime_DIR=${ort_root}/lib/cmake/onnxruntime"
+            echo "LD_LIBRARY_PATH=${ort_root}/lib:${LD_LIBRARY_PATH:-}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Configure
+        run: |
+          cmake -S . -B "${{ matrix.build_dir }}" -G Ninja \
+            -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}" \
+            -Donnxruntime_DIR="${onnxruntime_DIR}" \
+            -DCPU_ENABLE_NATIVE_TUNING=OFF \
+            -Dautoforge_deploy_ENABLE_CUDA=OFF \
+            -Dautoforge_deploy_ENABLE_TENSORRT=OFF \
+            -DENABLE_TESTS=ON \
+            -DBUILD_DOC_HTML=OFF
+
+      - name: Build
+        run: cmake --build "${{ matrix.build_dir }}" --parallel 2
+
+      - name: Test target functionality
+        run: >-
+          ctest --test-dir "${{ matrix.build_dir }}" --output-on-failure
+          --parallel 2 --no-tests=error
+
+      - name: Verify CPU provider
+        run: "${{ matrix.build_dir }}/src/programs/get_available_providers --require-targets cpu"
+
+      - name: Verify install
+        if: matrix.arch == 'x86_64'
+        run: cmake --install "${{ matrix.build_dir }}" --prefix "${RUNNER_TEMP}/ptafdeploy-install"
+
+  python-wrapper:
+    # Keep the manual branch policy consistent across every job in the workflow.
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/develop' }}
+    name: x86_64 Python wrapper and wheel
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates \
+            cmake \
+            curl \
+            g++ \
+            git \
+            libeigen3-dev \
+            ninja-build \
+            tar
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install wrapper build dependencies
+        run: python -m pip install 'pyparsing>=3.2.5' setuptools wheel
+
+      - name: Restore ONNX Runtime cache
+        uses: actions/cache@v4
+        with:
+          path: .ci_deps/onnxruntime
+          key: ort-${{ runner.os }}-x86_64-${{ env.ORT_VERSION }}
+
+      - name: Setup ONNX Runtime
+        run: |
+          ort_root="$("${GITHUB_WORKSPACE}/.github/scripts/install_onnxruntime.sh" x86_64 "${GITHUB_WORKSPACE}/.ci_deps/onnxruntime")"
+          {
+            echo "ONNXRUNTIME_ROOT=${ort_root}"
+            echo "onnxruntime_DIR=${ort_root}/lib/cmake/onnxruntime"
+            echo "LD_LIBRARY_PATH=${ort_root}/lib:${LD_LIBRARY_PATH:-}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Configure wrapper
+        run: |
+          cmake -S . -B build-ci-python -G Ninja \
+            -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}" \
+            -Donnxruntime_DIR="${onnxruntime_DIR}" \
+            -DCPU_ENABLE_NATIVE_TUNING=OFF \
+            -Dautoforge_deploy_ENABLE_CUDA=OFF \
+            -Dautoforge_deploy_ENABLE_TENSORRT=OFF \
+            -DENABLE_TESTS=ON \
+            -DBUILD_DOC_HTML=OFF \
+            -DPYTHON_EXECUTABLE="$(command -v python)" \
+            -Dautoforge_deploy_BUILD_PYTHON_WRAPPER=ON \
+            -Dautoforge_deploy_BUILD_MATLAB_WRAPPER=OFF \
+            -Dautoforge_deploy_GTWRAP_ROOT_DIR="${GITHUB_WORKSPACE}/lib/wrap" \
+            -DGTWRAP_SYNC_TO_MASTER=OFF
+
+      - name: Build wrapper
+        run: cmake --build build-ci-python --parallel 2 --target autoforge_deploy_py
+
+      - name: Test target Python facade
+        run: >-
+          ctest --test-dir build-ci-python
+          -R 'autoforge_deploy_python_(import|facade_smoke)'
+          --output-on-failure --no-tests=error
+
+      - name: Build wheel
+        run: python -m pip wheel ./build-ci-python/python --no-build-isolation --no-deps --wheel-dir build-ci-python/wheelhouse
+
+      - name: Test installed wheel inference
+        run: |
+          wheel_file="$(find build-ci-python/wheelhouse -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "${wheel_file}"
+          python -m venv build-ci-python/wheel-venv
+          build-ci-python/wheel-venv/bin/python -m pip install --no-deps "${wheel_file}"
+          cd "${RUNNER_TEMP}"
+          "${GITHUB_WORKSPACE}/build-ci-python/wheel-venv/bin/python" - <<'PY'
+          import os
+          from pathlib import Path
+          import autoforge_deploy as module
+
+          assert module.HAS_WRAPPER, module.WRAPPER_IMPORT_ERROR
+          fixture = Path(os.environ["GITHUB_WORKSPACE"]) / "tests/matlab/testSamples/tracedSampleModel.onnx"
+          manager = module.CInferenceManager(str(fixture))
+          outputs = manager.InferSingleFloatInput(
+              [float(value) for value in range(1, 12)], [1, 11])
+          assert len(outputs) == 2, outputs
+          PY
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoforge-deploy-python-wheel
+          path: build-ci-python/wheelhouse/*.whl
+          if-no-files-found: error
+          retention-days: 7
