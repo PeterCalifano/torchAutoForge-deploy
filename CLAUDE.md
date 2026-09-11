@@ -2,18 +2,24 @@
 
 Guidance for Claude Code when working in `torchAutoForge-deploy`.
 
-This file mirrors the current repository guidance in `AGENTS.md`.
+Read `AGENTS.md` first for engineering standards, package identity, repository
+tailoring, and staged review. This file summarizes common commands and project
+priorities; `AGENTS.md` remains authoritative.
 
 ## Project Overview
 
 `torchAutoForge-deploy` is a C++20 deployment library for ONNX Runtime-backed
-ML inference. The current direction is:
+and optional TensorRT-backed ML inference:
 
-- `deploy_infer::CInferenceManager` is the public backend-agnostic facade.
-- `deploy_ort::CInferenceManager_ORT` is the ONNX Runtime backend.
-- TensorRT standalone support is currently a not-implemented stub.
-- Python/MATLAB wrappers are planned through gtwrap but interface files are not
-  populated yet.
+- `ptafdeploy::inference::CInferenceManager` is the public backend-agnostic
+  facade.
+- `ptafdeploy::inference::CModelFacade` is the role-level facade used by
+  C++/Python/MATLAB consumers.
+- `ptafdeploy::inference::onnxruntime::CInferenceManager_ORT` is the ONNX
+  Runtime backend.
+- `ptafdeploy::inference::tensorrt::CInferenceManager_TensorRT_Engine` is the
+  optional serialized-engine backend when `autoforge_deploy_ENABLE_TENSORRT=ON`.
+- Python/MATLAB wrappers use the populated gtwrap interfaces under `src/`.
 - OptiX is out of scope for this repo; keep this build lighter than renderer
   projects.
 
@@ -27,9 +33,13 @@ ML inference. The current direction is:
 ./build_lib.sh --clean -t debug
 ./build_lib.sh -N
 ./build_lib.sh --skip-tests
-./build_lib.sh -D ENABLE_CUDA=ON
+./build_lib.sh -D autoforge_deploy_ENABLE_CUDA=ON
+./build_lib.sh -D autoforge_deploy_ENABLE_TENSORRT=ON -D TENSORRT_ROOT=/path/to/TensorRT
 ./build_lib.sh -p
 ./build_lib.sh -m
+./build_lib.sh -p --wrap-update
+./build_ros2.sh --clean
+./run_in_container.sh --build -- ./build_lib.sh
 ```
 
 Manual CMake:
@@ -46,13 +56,34 @@ Tests use Catch2 v3. New `test*.cpp` files under `tests/<subdir>/` are
 auto-discovered.
 
 Current tests cover ORT metadata extraction, ORT inference, generic tensor
-helpers, facade dispatch, and TensorRT stub failure behavior.
+helpers, facade/model-role behavior, target-specific wrapper paths, optional
+TensorRT behavior, and the ROS lifecycle bridge.
+
+Do not add tests for generic template/logger/PTX/CMake mechanics while
+tailoring template upgrades. Permanent tests here must exercise
+`torchAutoForge-deploy` inference, wrappers, programs, or ROS-facing behavior.
+
+Do not import `VerifyTemplateProject*` scripts or place recursive
+configure/build/install/package/consumer checks in ordinary CTest. Run those as
+fresh out-of-tree acceptance commands or CI jobs. Keep any exceptional
+CMake-script test lightweight, target-owned, non-recursive, and limited to
+behavior unavailable through Catch2, pytest, an existing target, or the
+acceptance matrix. ROS ament/launch tests remain a deliberate project-specific
+exception.
+
+Ordinary configure/build operations must leave the gtwrap checkout and
+superproject gitlink unchanged. Wrapper updates and submodule initialization are
+explicit maintenance operations. Python wheels include only project-owned
+runtime libraries alongside the extension; ONNX Runtime remains an external
+runtime prerequisite.
 
 ## Development Priorities
 
-1. Keep CMake/build config synced with
-   `/home/peterc/devDir/dev-tools/cpp_cuda_template_project`, while preserving
-   ORT-specific dependency wiring and avoiding OptiX.
+1. Maintain the completed semantic alignment with
+   `/home/peterc/devDir/dev-tools/cpp_cuda_template_project` signed tag
+   `v2.0.1` at `1d87153b2d060bf03c2c9adcd1df6c6d4f40ea09`. Preserve ORT
+   dependency wiring, independent TensorRT/CUDA policy, and the absence of OptiX.
+   Track product work in `doc/development/autoforge_deploy_upgrade_plan.md`.
 2. Make wrappers work for MATLAB/Python through a stable generic inference
    facade.
 3. Review implementation for redundancy and readability before adding

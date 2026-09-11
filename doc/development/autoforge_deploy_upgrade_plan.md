@@ -664,3 +664,196 @@ Wrapper extension snapshot on 2026-09-01:
   and
 - Python 3.12 compilation and MATLAB R2024b `checkcode` completed without
   source diagnostics.
+
+## Stage 18: Centroiding Sequences And Native JSON Output
+
+Approved on 2026-09-11. Consolidate overlapping existing work before extending
+native, Python, and MATLAB image-only demos. Native C++ writes JSON directly
+through embedded RapidJSON; overlays are disabled by default. Review locally
+without subagents. Do not commit or push without separate authorization.
+
+### Pre-stage: Consolidate existing changes
+
+- [x] Inspect the complete worktree and index; the starting index is empty at
+  `3a8ca14` on `feature/ort_manager_pipeline_wrapped`.
+- [x] Classify existing changed paths and preserve unrelated content, as recorded
+  in the review inventory below.
+- [x] Reconcile README and CLAUDE guidance with current source, workflows, and
+  authoritative AGENTS.md; record this approved plan and cross-link it from TODO.
+- [ ] Reconcile the separate export tracker against its owning repository before
+  accepting its completion claims; preserve its current dirty contents meanwhile.
+- [ ] Review auxiliary-header ownership, copy/move, and computation changes and
+  run focused validation before accepting a functional batch.
+- [ ] Review the wrapper gitlink change and validate affected wrapper behavior
+  before accepting it; do not update or initialize the checkout implicitly.
+- [ ] Assess the legacy export-script changes against the approved Python
+  consolidation plan before retaining or relocating them.
+- [x] Classify FiLM, mobile-design, and workspace changes separately; finishing
+  these projects is not a prerequisite for image-only centroiding.
+- [ ] Validate and stage one coherent consolidation batch at a time using an
+  explicit path/hunk allowlist; report evidence and the proposed commit message.
+- [ ] Stop for review after each batch. Advance only after `next`, confirming the
+  preceding batch has left the index through explicit user action.
+- [ ] Finish the pre-stage with overlapping work settled, the index clear, and
+  a list of deferred changes to preserve. A clean tree is not required.
+
+Review inventory on 2026-09-11. These are static findings; runtime validation remains open:
+
+| Paths | Disposition and evidence |
+|---|---|
+| `README.md`, `CLAUDE.md` | First documentation batch: retain useful existing updates; correct obsolete template/tracker references, CI caching/publication claims, CUDA policy, and distinguish historical validation from current evidence |
+| `src/auxiliary/common_defs.h`, `common_ops.h`, `images_prepro.h` | Separate functional review: name ownership/copying, nested shape accounting, release-mode validation, serial accumulation, and include cleanup; `noexcept` moves call allocating `refreshNameViews()`, requiring correction or justification |
+| `lib/wrap` | Clean dependency checkout advanced from `bf9f786` to `4b34b59`; changes affect MATLAB `ImportWrapBuildDir` and its tests; wrapper validation remains open |
+| `python/scripts/tmp_to_rework_as_generic/ExportPytorchToONNX.py` | Deferred export-owner review: path migration to `models/pytorch` and `models/onnx` in a protected legacy exporter |
+| `doc/development/model_export_and_python_consolidation_plan.md` | Preserve separately: Stage 1 checkbox updates and dated cross-repository export/test evidence have not been revalidated here |
+| `examples/model_configs/ml_based_centroiding_film.ptafmodel`, `tests/inference/testRealCentroidingOnnx.cpp` | Deferred FiLM work: image plus prior input and two outputs; test uses fixed temporary manifest names and a broad CUDA exception-to-skip path needing later review |
+| `doc/development/mobile_deployment_pipeline_design.md` | Deferred design-only Android/mobile work; no implementation or qualification accepted by this batch |
+| `torchAutoForge-deploy.code-workspace` | Preserve separate local workspace additions; no product dependency change |
+
+### Stage 18.1: Record the plan and rename the integration
+
+- [x] Record the approved checklist here and cross-link it from TODO.
+- [ ] Rename `examples/plain_centroiding/` to `examples/centroiding_models/`.
+- [ ] Rename `run_plain_centroiding.cpp/.py` to `run_centroiding.cpp/.py`,
+  `RunPlainCentroidingFacadeDemo.m` to `RunCentroidingFacadeDemo.m`, and
+  `plain_centroiding_support.h` to `centroiding_support.h`.
+- [ ] Update namespaces, CMake targets, tests, identifiers, and active documentation.
+  Retain `plain` for architecture/checkpoint identifiers and historical evidence.
+- [ ] Preserve manifest/raw-ONNX loading, runtime options, preprocessing, generic
+  adapters, and CModelFacade ownership; verify the renamed single-image invocation.
+
+Contract: one image tensor input, independent batch-one execution, and one `[1,2]`
+output. FiLM adapters, prior vectors, tracking, and public inference-facade changes
+are excluded. Pause for design review if this boundary must change.
+
+### Stage 18.2: Deterministic sequence execution
+
+- [ ] Accept positional `input_path` as one image or a directory. Preserve
+  decoder-supported explicit single-file inputs.
+- [ ] Enumerate directories once before creating output, non-recursively, selecting
+  regular files with case-insensitive `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tif`, and
+  `.tiff` extensions; reject empty selected sequences.
+- [ ] Match natural filename ordering across languages: compare ASCII digit runs
+  numerically without integer overflow, other text case-sensitively by Unicode
+  code point, and equivalent natural keys by the complete original filename lexically.
+- [ ] Load/validate the model once and process each frame independently at batch
+  size one; fail clearly on an unreadable selected image.
+- [ ] Preserve existing grayscale conversion, direct bilinear resize, and unit
+  scaling. Retain only current-frame image/tensor buffers, never image arrays.
+- [ ] Preserve console prediction fields and add frame identity for sequences.
+- [ ] Time only InferSingleFloatTensor with monotonic elapsed time, including its
+  existing facade/wrapper overhead but excluding loading, preprocessing, and output IO.
+
+### Stage 18.3: Embedded RapidJSON and native reports
+
+- [ ] Embed the RapidJSON header distribution and license under
+  `lib/header_only/rapidjson`, with donor paths and provenance recorded alongside it.
+- [ ] Reconfirm the inspected raytracer headers match local RapidJSON revision
+  `24b5e7a8b27f42fa16b96fc70aade9106cf7102f`; record raytracer import commit
+  `b50e068e81d32e7f79bb89089305200b2ec892d1`. Use the matching checkout's license.
+- [ ] Keep RapidJSON private to the native application and its tests; import no donor
+  build machinery or JSON-library conformance tests.
+- [ ] Add `--output PATH`, writing `PATH/predictions.json` directly from C++ without
+  Python or MATLAB and without overlays by default.
+- [ ] Use schema_version 1 with status, model, input, preprocessing, and ordered
+  frames fields, plus error details for failed runs.
+- [ ] Record model/config paths, role, effective runtime configuration, backend
+  detail, and tensor metadata from GetContract(). Record each demo's preprocessing
+  and image-library identity separately from declarative manifest pipeline labels.
+- [ ] Record supplied input path, input kind, selected frame count, and ordering.
+- [ ] Record each frame's zero-based index, relative source path, original
+  dimensions, raw output name/shape/values, normalized coordinates, coordinates
+  in model and image pixels, inside_image, inference_ms, and relative overlay path or null.
+- [ ] Stream native frame records to disk instead of accumulating report records
+  in memory; the filename inventory may remain in memory for sorting.
+
+### Stage 18.4: Opt-in overlays and failure handling
+
+- [ ] Add `--overlays`, requiring `--output`.
+- [ ] Accept a new output directory or an existing empty directory; reject
+  nonempty destinations and output paths equal to or containing the input location.
+  Permit an output child directory because enumeration is fixed and non-recursive.
+- [ ] Save original-resolution PNG overlays as `overlays/000000_<source-stem>.png`.
+  Preserve source appearance outside contrasting crosshair strokes; extra overlay
+  decoding must not change inference preprocessing.
+- [ ] Draw at the true predicted coordinate and clip strokes naturally; fully
+  off-image crosshairs remain invisible. Never clamp recorded predictions.
+- [ ] Accept finite out-of-range coordinates while retaining invalid-shape and
+  non-finite-value rejection. Document upper-left origin, x rightward, y downward,
+  coordinates multiplied by width/height, and inside bounds `0 <= x < width`,
+  `0 <= y < height`; normalized 1 is outside the corresponding upper boundary.
+- [ ] Create an initial valid incomplete report. Spool frame records and atomically
+  publish an assembled report on success or caught failure.
+- [ ] Stop at the first decoding, inference, validation, or output error; record
+  its stage, frame index, source, and actionable message. Preserve completed-frame
+  records and mark complete only after all frames and requested overlays succeed.
+- [ ] On report-publication failure, retain the prior incomplete report and spool,
+  identify their locations, and return failure. Abrupt-termination recovery is excluded.
+
+### Stage 18.5: Matching Python and MATLAB behavior
+
+- [ ] Match input selection, sorting, model reuse, JSON-only default, opt-in
+  overlays, and failure semantics using native Python/MATLAB JSON facilities.
+- [ ] Preserve language-specific preprocessing conventions and document expected
+  small numerical differences.
+- [ ] Add MATLAB options `strOutputPath=""` and `bOverlays=false`; return one run
+  struct matching the report schema for both input modes, including frames.
+  Retain compact metadata for that return value, never image arrays.
+- [ ] Verify matching singleton/empty arrays, numeric arrays, booleans, and null overlays.
+
+### Stage 18.6: Validation and documentation
+
+- [ ] Test single-image compatibility, natural ordering/ties, leading zeros, mixed
+  case, long digit runs, non-recursion, empty input, and unreadable images.
+- [ ] Verify one model load and independent batch-one inference; test exact
+  coordinate mapping using controlled outputs, including boundary/off-image values.
+- [ ] Test JSON-only defaults, overlays, original dimensions, marker placement,
+  unchanged pixels outside marker strokes, collisions, and output beneath input.
+- [ ] Test failure after successful frames, retained partial results, report fields,
+  ordering, and completion status across languages.
+- [ ] Use synthetic ellipse/blob images to test image preparation and coordinate
+  mapping. Replace the learned-model geometric-center assertion with
+  contract/output checks; do not
+  require arbitrary geometric centers as learned-model ground truth.
+- [ ] Run a fresh native standalone build, focused tests, Python/MATLAB demo tests,
+  and available real-ONNX sequence smokes; report unavailable checks explicitly.
+- [ ] Document runnable native/Python/MATLAB examples and expected output,
+  dependencies, ordering, coordinates, collision policy, and failure guarantees.
+
+Planned native/Python argument forms (not implemented yet):
+
+```bash
+run_centroiding model.ptafmodel image.png
+run_centroiding model.ptafmodel frames/ --output results/
+run_centroiding model.ptafmodel frames/ --output results/ --overlays
+```
+
+### Stage 18.7: Review and stage the extension
+
+- [ ] Review correctness, repeated loading, unnecessary abstractions,
+  excessive copies, comments, formatting, and public documentation.
+- [ ] Update these checkboxes with validation results and limitations.
+- [ ] Recheck worktree/index and the review gate; stage one coherent extension
+  batch using reviewed paths/hunks while preserving deferred pre-stage work.
+- [ ] Inspect the complete cached diff and run `git diff --cached --check`.
+- [ ] Report staged paths, evidence, exclusions, limitations, and proposed message;
+  stop without committing, pushing, or preparing another batch.
+
+Proposed extension subject: `Extend centroiding demos with sequences and native JSON output`.
+
+Pre-stage documentation review, 2026-09-11:
+
+- [x] Review the full candidate documentation diff and verify local Markdown
+  links/anchors, code-fence balance, and `git diff --check`.
+- [x] Check current workflow definitions: ORT-package caches remain, CMake-tree
+  caches are absent, and the Pages deployment job is disabled. Correct README
+  accordingly without changing workflow behavior or claiming current CI success.
+- [x] Verify SHA-256 preservation of all nine excluded dirty/untracked files and
+  preserve the clean wrapper checkout at `4b34b59`.
+- [x] Revise this batch using the scientific-writing and no-ai-slop skills;
+  consolidate repeated README capability summaries and retain technical constraints.
+- [x] Receive user authorization to commit README, CLAUDE, TODO, and this tracker
+  with the subject below and proceed to the next consolidation batch. Runtime
+  tests are not rerun for this documentation-only batch.
+
+Approved first-batch subject: `Revise documents and record centroiding stages`.

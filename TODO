@@ -45,6 +45,10 @@ Authoritative staged plan: `doc/development/autoforge_deploy_upgrade_plan.md`.
 
 ## Open Work
 
+- [ ] Complete the Stage 18 consolidation pre-stage, then implement centroiding
+  sequences and native JSON output using the checklist in
+  [Stage 18](doc/development/autoforge_deploy_upgrade_plan.md#stage-18-centroiding-sequences-and-native-json-output).
+
 - [ ] Add optional NMS and alternate object-detection box-format adapters when target model contracts require them.
 - [ ] Validate CUDA/TensorRT runtime path on Jetson hardware.
 - [ ] Validate ONNX Runtime TensorRT Execution Provider when an ORT build exposing `TensorrtExecutionProvider` is available.
