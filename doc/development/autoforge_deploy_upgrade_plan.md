@@ -684,8 +684,8 @@ without subagents. Do not commit or push without separate authorization.
   accepting its completion claims; preserve its current dirty contents meanwhile.
 - [ ] Review auxiliary-header ownership, copy/move, and computation changes and
   run focused validation before accepting a functional batch.
-- [ ] Review the wrapper gitlink change and validate affected wrapper behavior
-  before accepting it; do not update or initialize the checkout implicitly.
+- [x] Review the wrapper gitlink change and validate affected wrapper behavior;
+  record the tests and existing-binary limitation below. Preserve the checkout.
 - [ ] Assess the legacy export-script changes against the approved Python
   consolidation plan before retaining or relocating them.
 - [x] Classify FiLM, mobile-design, and workspace changes separately; finishing
@@ -857,3 +857,37 @@ Pre-stage documentation review, 2026-09-11:
   tests are not rerun for this documentation-only batch.
 
 Approved first-batch subject: `Revise documents and record centroiding stages`.
+
+Pre-stage wrapper review, 2026-09-11:
+
+- [x] Commit the preceding documentation batch as `280c42f` with the approved
+  subject, `Revise documents and record centroiding stages`, and verify that
+  the index is clear before preparing this batch.
+- [x] Review the single dependency commit from `bf9f78617830bfa88c70d81a1a791c0a0c90b548`
+  to `4b34b593247f9e365f7685cd430d37a7cc921839`. It changes only
+  `matlab/ImportWrapBuildDir.m` and `matlab/tests/testImportWrapBuildDir.m`.
+  The helper prefers an explicitly named namespace directory, retains repository
+  and generated-wrapper discovery fallbacks, and returns only paths it added.
+- [x] Run all three donor MATLAB function tests on R2024b: namespace precedence,
+  renamed wrapper discovery, and repository-folder fallback passed.
+- [x] Check a temporary MEX-only directory with an empty namespace list. The
+  returned value contains exactly the MEX directory, with no empty path entry.
+  The helper emits the expected warning for the absent optional wrapper folder.
+- [x] Call ImportWrapBuildDir on `build-stage17-wrappers` with
+  `ptafdeploy.inference`. Verify the returned wrapper/MEX paths and resolution of
+  CModelFacade, then run the project's TestInferenceFacadeSmoke with the tracked
+  ONNX, centroiding, and object-detection fixtures. All assertions passed.
+- [x] Confirm the dependency checkout is clean, the old revision is an ancestor
+  of the new one, and the donor diff passes `git diff --check`. No dependency
+  source was edited, fetched, initialized, or committed during this review.
+- [ ] Complete user review of the wrapper gitlink and this evidence before
+  committing or advancing to another consolidation batch.
+
+The target smoke uses existing generated MATLAB/MEX binaries in
+`build-stage17-wrappers`, with its `src` directory on LD_LIBRARY_PATH. It validates
+this MATLAB discovery change against those binaries; no fresh native build,
+wrapper generation, Python test run, or current-source runtime qualification is
+claimed. Existing auxiliary-header, export, FiLM, mobile, and workspace changes
+remain outside this batch.
+
+Proposed wrapper subject: `Update wrapper revision for MATLAB directory discovery`.
