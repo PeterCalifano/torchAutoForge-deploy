@@ -997,3 +997,16 @@ tracker update is left unstaged. Stop before starting any centroiding demo rewor
 before benchmarks and validation remains in force.
 
 Proposed subject: `Reconcile export status and defer legacy script migration`.
+
+### Consolidation follow-up: legacy exporter retirement
+
+- [x] Supersede the earlier export-script deferral after verifying committed PTAF
+  numerical validation and receiving user confirmation that .mat export is unused.
+- [x] Remove ExportPytorchToONNX.py and its pending path edits, with a recovery copy
+  under `/tmp/ptaf-retire-export-vceqr0sk`. Update its active documentation reference.
+- [ ] Complete the staged source-removal review before further source changes.
+
+Workspace additions and the untracked FiLM test remain separate. The shared
+workspace's ml-based-centroiding entry is relevant to the next plan; the two
+machine-local worktree entries belong in a personal workspace. Their contents are
+preserved pending that separate cleanup. Centroiding demo rework has not started.

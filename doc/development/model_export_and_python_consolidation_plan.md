@@ -608,9 +608,9 @@ unique historical or prototype material.
 
 ### Classification and destinations
 
-- [ ] Treat `python/scripts/tmp_to_rework_as_generic/ExportPytorchToONNX.py` as a
-  hard-coded predecessor replaced by PTAF plus the centroiding loader; preserve a
-  concise provenance note rather than active implementation.
+- [x] Remove `python/scripts/tmp_to_rework_as_generic/ExportPytorchToONNX.py`.
+  Existing PTAF ModelHandlerONNx export and numerical validation supersede its
+  generic behavior; the user confirmed its .mat output is unnecessary.
 - [ ] Treat `python/scripts/tmp_to_rework_as_generic/TestOnnxAccuracy.py` and its
   NeuralCOB-specific `.mat` result as model-owner material; relocate them to a clearly
   named archive under `ml-based-centroiding` only after the current parity workflow
@@ -1069,9 +1069,9 @@ the 2026-09-12 deployment consolidation; they describe the earlier candidate.
   It passes a suffix-less output path while expecting a sibling .onnx file; the
   current main PTAF checkout treats that argument as a directory. Do not execute
   this script or replace its workflow during deployment consolidation.
-- [x] Keep Stage 5 relocation pending until an owner-approved replacement covers
-  the useful comparison and MATLAB-output behavior. Neither this legacy script
-  nor completion of the export project is required by the image-only demo.
+- [x] Initially defer the script pending comparison/output review. This decision
+  is superseded by the authorized retirement below: existing PTAF already
+  implements numerical comparison and the user does not require .mat output.
 - [ ] Complete the owner review and validation before accepting Stage 1 or starting
   its dependent model-export stages. This deployment batch grants no authority to
   edit, stage, or commit in the owner repository.
@@ -1111,3 +1111,17 @@ TensorRT build, benchmark, remote PR refresh, or Python test suite was run.
 The two deployment plan files already staged when this work began are preserved in
 the index. This log addition is deliberately unstaged so it does not alter that
 existing documentation review batch. No commit, push, or later batch was prepared.
+
+### 2026-09-12 — Retire the redundant export script
+
+- [x] Verify committed PTAF ModelHandlerONNx.onnx_validate uses assert_allclose
+  against a supplied reference output (rtol=1e-3, atol=1e-6). This capability
+  predates the pending generic export CLI; retirement does not depend on that CLI.
+- [x] Receive user authorization to remove the script, including its pending path
+  edits, after confirming that its .mat output is unnecessary. Preserve a recovery
+  copy and patch in `/tmp/ptaf-retire-export-vceqr0sk`.
+- [x] Remove the script and update the MATLAB test documentation that referenced it.
+  Leave TestOnnxAccuracy.py and other legacy material unchanged.
+- [ ] Review and stage the removal with its documentation; commit only with
+  separate authorization. Validate references and diff formatting without running
+  exports, benchmarks, or the later centroiding validation phase.
