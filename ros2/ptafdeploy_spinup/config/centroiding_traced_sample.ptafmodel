@@ -1,0 +1,12 @@
+# ptafdeploy model config v1
+# Installed ROS 2 fixture for end-to-end lifecycle inference tests.
+schema_version = 1
+artifact_path = ../models/tracedSampleModel.onnx
+role = centroiding
+preprocessing = caller_supplied_tensors
+postprocessing = centroid_xy_float32
+backend = onnxruntime
+artifact = onnx
+execution_target_priority = cpu
+allow_fallback = false
+device_id = 0

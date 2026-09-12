@@ -1,0 +1,39 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "docs",
+      "displayName": "PTAFDeploy Doxygen documentation",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build_docs",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "ENABLE_TESTS": "OFF",
+        "ENABLE_CUDA": "OFF",
+        "ENABLE_TENSORRT": "OFF",
+        "ENABLE_OPENGL": "OFF",
+        "BUILD_DOC_HTML": "ON",
+        "BUILD_DOC_XML": "ON",
+        "BUILD_DOC_LATEX": "OFF",
+        "DOC_WARN_AS_ERROR": "OFF",
+        "autoforge_deploy_BUILD_PROGRAMS": "OFF",
+        "autoforge_deploy_BUILD_EXAMPLES": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "docs",
+      "displayName": "Build PTAFDeploy Doxygen documentation",
+      "configurePreset": "docs",
+      "targets": [
+        "doc"
+      ]
+    }
+  ]
+}

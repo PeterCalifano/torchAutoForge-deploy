@@ -1,0 +1,131 @@
+name: build_docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: Deploy the main-branch documentation to GitHub Pages
+        required: true
+        default: false
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/build_docs.yml'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'README.md'
+      - 'cmake/**'
+      - 'doc/**'
+      - 'src/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '.github/scripts/**'
+      - '.github/workflows/build_docs.yml'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'README.md'
+      - 'cmake/**'
+      - 'doc/**'
+      - 'src/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ptafdeploy-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_DIR: build-ci-docs
+  ORT_VERSION: '1.23.0'
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install documentation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates \
+            cmake \
+            curl \
+            doxygen \
+            g++ \
+            git \
+            graphviz \
+            libeigen3-dev \
+            ninja-build \
+            tar
+
+      - name: Restore ONNX Runtime cache
+        uses: actions/cache@v4
+        with:
+          path: .ci_deps/onnxruntime
+          key: ort-${{ runner.os }}-x86_64-${{ env.ORT_VERSION }}
+
+      - name: Setup ONNX Runtime
+        run: |
+          ort_root="$("${GITHUB_WORKSPACE}/.github/scripts/install_onnxruntime.sh" x86_64 "${GITHUB_WORKSPACE}/.ci_deps/onnxruntime")"
+          {
+            echo "ONNXRUNTIME_ROOT=${ort_root}"
+            echo "onnxruntime_DIR=${ort_root}/lib/cmake/onnxruntime"
+          } >> "${GITHUB_ENV}"
+
+      - name: Configure documentation
+        run: |
+          cmake -S . -B "${BUILD_DIR}" -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}" \
+            -Donnxruntime_DIR="${onnxruntime_DIR}" \
+            -DCPU_ENABLE_NATIVE_TUNING=OFF \
+            -DENABLE_TESTS=OFF \
+            -Dautoforge_deploy_ENABLE_CUDA=OFF \
+            -Dautoforge_deploy_ENABLE_TENSORRT=OFF \
+            -DBUILD_DOC_HTML=ON \
+            -DBUILD_DOC_XML=ON \
+            -DBUILD_DOC_LATEX=OFF \
+            -DDOC_WARN_AS_ERROR=OFF \
+            -Dautoforge_deploy_BUILD_PROGRAMS=OFF \
+            -Dautoforge_deploy_BUILD_EXAMPLES=OFF
+
+      - name: Build documentation
+        run: cmake --build "${BUILD_DIR}" --target doc --parallel 2
+
+      - name: Verify documentation artifact
+        run: |
+          test -f "${BUILD_DIR}/doc/html/index.html"
+          test -d "${BUILD_DIR}/doc/xml"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.BUILD_DIR }}/doc/html
+
+  deploy:
+    needs: build-docs
+    if: ${{ false }}
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

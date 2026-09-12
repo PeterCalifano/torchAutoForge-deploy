@@ -1,0 +1,11 @@
+# ptafdeploy model config v1
+schema_version = 1
+artifact_path = ../../matlab/testSamples/tracedSampleModel.onnx
+role = object_detection
+preprocessing = caller_supplied_tensors
+postprocessing = raw_detection_tensor
+backend = onnxruntime
+artifact = onnx
+execution_target_priority = cpu
+allow_fallback = false
+device_id = 0

@@ -9,8 +9,16 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
+VERSION
 
-.model_checkpoints
+log/
+build/
+install/
+
+# Keep local/generated model artifacts out of source control while allowing the
+# repository-owned layout contract to remain visible.
+models/*
+!models/README.md
 
 **/slprj*
 *.asv
@@ -18,8 +26,13 @@ CMakeUserPresets.json
 **/build*/
 **/debug*/
 **/install*/
+/ros2/log/
 .idea
 *.pyc
+python/autoforge_deploy/_wrapper_build.py
+python/pyproject.toml
+python/setup.py
+python/*.egg-info/
 *.DS_Store
 *.swp
 /examples/Data/dubrovnik-3-7-pre-rewritten.txt
@@ -43,4 +56,12 @@ xcode/
 +*/
 *.mat
 *.json
+!/CMakePresets.json
+!/.devcontainer/devcontainer.json
 *.slxc
+
+# Local evaluation inputs, manifests, and generated results.
+/data/
+
+# Local VS Code workspace configuration.
+/torchAutoForge-deploy.code-workspace

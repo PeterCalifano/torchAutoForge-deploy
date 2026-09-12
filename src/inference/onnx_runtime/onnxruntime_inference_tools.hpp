@@ -1,184 +1,89 @@
+/**
+ * @file onnxruntime_inference_tools.hpp
+ * @brief ONNX Runtime backend for the generic inference contracts.
+ */
+
 #pragma once
 
-// ORT
+#include <filesystem>
+#include <inference/inference_common.h>
 #include <onnxruntime_cxx_api.h>
-// STL
-#include <algorithm>
-#include <fstream>
-#include <iostream>
+
 #include <memory>
-#include <numeric>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
-// Autoforge deploy
-#include <auxiliary/common_defs.h>
-#include <auxiliary/common_ops.h>
-
-// MACROS
-#define DEBUG false
-#define ORT_LOGGING_LEVEL ORT_LOGGING_LEVEL_ERROR
-
-#define printd(s)                   \
-    do                              \
-    {                               \
-        if (DEBUG || !NDEBUG)       \
-        {                           \
-            std::cout << s << "\n"; \
-        }                           \
-    } while (0)
-#define get_array_size(v) sizeof(v) / sizeof(v[0])
-#define print_info(string)                       \
-    do                                           \
-    {                                            \
-        std::cout << "INFO: " << string << "\n"; \
-    } while (0)
-
-namespace deploy_ort
+namespace ptafdeploy::inference::onnxruntime
 {
-    // DOUBT Can this be determined at compile time?
-    // Mapping: ONNXTensorElementDataType → sizeof(type)
-    constexpr size_t GetONNXTypeSize(ONNXTensorElementDataType dtype)
-    {
-        switch (dtype)
-        {
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-            return sizeof(bool);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
-            return sizeof(uint8_t);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
-            return sizeof(int8_t);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
-            return sizeof(uint16_t);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
-            return sizeof(int16_t);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
-            return sizeof(int32_t);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
-            return sizeof(int64_t);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-            return sizeof(float);
-        case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
-            return sizeof(double);
-        default:
-            throw std::runtime_error("Unsupported ONNX data type in output.");
-        }
-    };
+    namespace fs = std::filesystem;
 
     /**
-     * @brief A class to manage ONNX Runtime environment setup and inference.
-     * @author Peter C.
+     * @brief ONNX Runtime backend implementation.
      *
+     * Owns ORT environment/session state, extracts backend-neutral metadata,
+     * validates host tensor views, and returns owned dense output buffers.
+     * Provider selection is driven by `SInferenceOptions::execution_target_priority`.
      */
     class CInferenceManager_ORT
     {
       public:
-        // CONSTRUCTORS
+        /** @brief Construct an unloaded ONNX Runtime backend. */
         CInferenceManager_ORT() = default;
-        CInferenceManager_ORT(const std::string session_config_path); // TODO implement parser
-        CInferenceManager_ORT(const bool inplace_init,
-                              const std::string &model_path,
-                              const Ort::SessionOptions session_options = Ort::SessionOptions());
+        /**
+         * @brief Construct the backend and load an ONNX model.
+         * @param model_path Existing `.onnx` artifact.
+         * @param options Threading, provider-priority, device, and fallback settings.
+         * @throws std::exception When the file, options, provider selection, or
+         *         ORT session creation is invalid.
+         */
+        explicit CInferenceManager_ORT(
+            const fs::path& model_path,
+            const ptafdeploy::inference::SInferenceOptions& options = {});
 
-        // DESTRUCTOR
-        ~CInferenceManager_ORT() = default;
+        /**
+         * @brief Load an ONNX model and extract its tensor metadata.
+         * @param model_path Existing `.onnx` artifact.
+         * @param options Threading, provider-priority, device, and fallback settings.
+         * @throws std::exception When validation or ORT session creation fails.
+         */
+        void LoadModel(const fs::path& model_path,
+                       const ptafdeploy::inference::SInferenceOptions& options = {});
 
-      public:
-        // GETTERS
-        static std::vector<std::string> GetAvailableProviders();
+        /** @brief Return metadata extracted during the latest successful load. */
+        [[nodiscard]] const ptafdeploy::inference::SModelMetadata&
+        GetModelMetadata() const noexcept;
 
-        // SETTERS
+        /**
+         * @brief Run inference with caller-owned host input memory.
+         *
+         * Input buffers are not copied before ORT execution. Output tensors are
+         * copied into `STensorBuffer` because ORT owns returned tensor storage.
+         * @param inputs Host tensor views, named or ordered to match the model.
+         * @return Owned dense output tensors in model output order.
+         * @throws std::exception When no session is loaded, inputs violate the
+         *         model contract, or ORT execution fails.
+         */
+        [[nodiscard]] std::vector<ptafdeploy::inference::STensorBuffer>
+        Infer(const std::vector<ptafdeploy::inference::STensorView>& inputs) const;
 
-        // METHODS
-        template <typename infer_type>
-        void initialize();
+        /** @brief Return provider names available in the linked ORT build. */
+        [[nodiscard]] static std::vector<std::string> GetAvailableProviders();
 
-        template <typename infer_type>
-        void infer();
-
+        /**
+         * @brief Check whether the linked ORT build exposes a requested target.
+         * @param target Backend-neutral execution target.
+         * @return True when an equivalent ORT provider is available.
+         */
+        [[nodiscard]] static bool
+        IsExecutionTargetAvailable(ptafdeploy::inference::EExecutionTarget target);
 
       protected:
-        // DATA MEMBERS
         fs::path model_path_{};
-        // ORT environment and session
         Ort::Env exec_env_{};
         Ort::SessionOptions session_options_{};
         std::unique_ptr<Ort::Session> session_ptr_{nullptr};
-        // Memory management
         Ort::AllocatorWithDefaultOptions allocator_{};
-        Ort::MemoryInfo memory_info_{Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)};
-
-        // Tensor allocation
-        Ort::Value input_tensor_{nullptr};
-        Ort::Value output_tensor_{nullptr};
-
-        // Input/Output specifications
-        std::shared_ptr<deploy_common_defs::SInputOutputSpecs<int64_t, int64_t>> input_output_specs_{};
+        ptafdeploy::inference::SInferenceOptions options_{};
+        ptafdeploy::inference::SModelMetadata model_metadata_{};
     };
-
-    // Template method definitions
-    /**
-     * @brief Initializes the ONNX Runtime environment and session.
-     *
-     */
-    template <typename infer_type>
-    void CInferenceManager_ORT::initialize()
-    {
-        // Initialize ORT environment
-        exec_env_ = Ort::Env(ORT_LOGGING_LEVEL, "ONNXModel");
-
-        // Define ort session
-        if (session_ptr_ == nullptr)
-        {
-            print_info("Creating Ort::Session with model path: " + model_path_.string());
-            session_ptr_ = std::make_unique<Ort::Session>(exec_env_,
-                                                          static_cast<const char *>(model_path_.string().c_str()),
-                                                          session_options_);
-
-            // Define input/output specifications
-            print_info("Defining input/output specifications for the model...");
-            input_output_specs_ = std::make_shared<deploy_common_defs::SInputOutputSpecs<int64_t, int64_t>>(); // TODO
-
-            // Define memory info
-            memory_info_ = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemType::OrtMemTypeDefault); // TODO
-
-            // Allocate input and output tensors
-            // FIXME
-            input_tensor_ = Ort::Value::CreateTensor<infer_type>(allocator_,
-                                                                 input_output_specs_->input_shapes.data(),
-                                                                 input_output_specs_->num_elements_linear_input_array);
-
-            output_tensor_ = Ort::Value::CreateTensor<infer_type>(allocator_,
-                                                                  input_output_specs_->output_shapes.data(),
-                                                                  input_output_specs_->num_elements_linear_output_array);
-        }
-        else
-        {
-            print_info("Ort::Session already initialized.");
-        }
-    };
-
-    template <typename infer_type>
-    void CInferenceManager_ORT::infer()
-    {
-#if (VERBOSE)
-        // Placeholder for inference logic
-        print_info("Running inference with model: " + model_path_.string());
-#endif
-
-        // Run session inference
-        Ort::RunOptions run_options;
-        run_options.SetRunLogVerbosityLevel(ORT_LOGGING_LEVEL);
-        run_options.SetRunTag("InferenceRun");
-
-        // Run the session
-        session_ptr_->Run(run_options,
-                          input_output_specs_->input_names.data(),   // Input names
-                          &input_tensor_,                            // Input tensor
-                          input_output_specs_->input_names.size(),   // Number of inputs
-                          input_output_specs_->output_names.data(),  // Output names
-                          &output_tensor_,                           // Output tensor
-                          input_output_specs_->output_names.size()); // Number of outputs
-    }
-};
+} // namespace ptafdeploy::inference::onnxruntime

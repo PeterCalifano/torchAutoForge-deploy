@@ -1,0 +1,58 @@
+@PACKAGE_INIT@
+
+if(POLICY CMP0144)
+  cmake_policy(SET CMP0144 NEW)
+endif()
+include(CMakeFindDependencyMacro)
+
+# Resolve ordinary dependencies with the outer package lookup's REQUIRED and
+# QUIET semantics instead of unconditionally escalating them.
+set(_DEPENDENCIES @EXPORT_TARGET_DEPS@)
+foreach(dep ${_DEPENDENCIES})
+  find_dependency(${dep})
+endforeach()
+
+# Resolve the optional installed TensorRT dependency without changing the
+# consumer's module search policy. A QUIET outer lookup reports the package as
+# unavailable; REQUIRED escalation remains the caller's responsibility.
+if(@ENABLE_TENSORRT@)
+  set(_autoforge_deploy_saved_module_path "${CMAKE_MODULE_PATH}")
+  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/modules")
+  find_package(TensorRT QUIET MODULE)
+  set(CMAKE_MODULE_PATH "${_autoforge_deploy_saved_module_path}")
+  unset(_autoforge_deploy_saved_module_path)
+
+  if(NOT TARGET TensorRT::nvinfer OR NOT TARGET TensorRT::nvinfer_plugin)
+    set(${CMAKE_FIND_PACKAGE_NAME}_FOUND FALSE)
+    string(CONCAT _autoforge_deploy_tensorrt_not_found_message
+           "The installed @PROJECT_NAME@ package was built with TensorRT, but "
+           "the TensorRT SDK was not found. Set TensorRT_ROOT or TENSORRT_ROOT.")
+    set(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE
+        "${_autoforge_deploy_tensorrt_not_found_message}")
+    unset(_autoforge_deploy_tensorrt_not_found_message)
+    return()
+  endif()
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Target.cmake")
+
+# Discover optional dependencies only for explicitly requested components.
+foreach(_component IN LISTS autoforge_deploy_FIND_COMPONENTS)
+  set(autoforge_deploy_${_component}_FOUND FALSE)
+  if(_component STREQUAL "images" AND @autoforge_deploy_ENABLE_IMAGE_SUPPORT@)
+    find_package(OpenCV QUIET COMPONENTS core imgproc imgcodecs)
+    if(OpenCV_FOUND)
+      include("${CMAKE_CURRENT_LIST_DIR}/autoforge_deploy_imagesTargets.cmake")
+      set(autoforge_deploy_images_FOUND TRUE)
+    else()
+      set(autoforge_deploy_NOT_FOUND_MESSAGE "The images component requires OpenCV core, imgproc, and imgcodecs")
+    endif()
+  elseif(_component STREQUAL "inference_output" AND @autoforge_deploy_ENABLE_INFERENCE_OUTPUT@)
+    include("${CMAKE_CURRENT_LIST_DIR}/autoforge_deploy_inference_outputTargets.cmake")
+    set(autoforge_deploy_inference_output_FOUND TRUE)
+  else()
+    set(autoforge_deploy_NOT_FOUND_MESSAGE "Unavailable autoforge_deploy component: ${_component}")
+  endif()
+endforeach()
+unset(_component)
+check_required_components(autoforge_deploy)

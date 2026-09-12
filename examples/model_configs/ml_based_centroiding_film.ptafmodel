@@ -1,0 +1,18 @@
+# ptafdeploy model config v1
+# Example manifest for the FiLM centroiding ONNX exported by ml-based-centroiding.
+# Keep this file backend-neutral; place the exported ONNX in the canonical model tree
+# or edit artifact_path to an absolute external location.
+schema_version = 1
+artifact_path = ../../models/onnx/best_model_film_20260305_155227_0.onnx
+role = centroiding
+preprocessing = external_grayscale_nchw_1536x2048_with_film_prior
+postprocessing = normalized_centroid_xy_and_cob
+backend = onnxruntime
+artifact = onnx
+execution_target_priority = cpu
+allow_fallback = false
+device_id = 0
+intra_op_num_threads = 1
+inter_op_num_threads = 1
+enable_profiling = false
+log_id = ptafdeploy_centroiding_film
