@@ -417,3 +417,5 @@ Jetson notes:
 
 Optional [image and inference-output utilities](doc/image_and_inference_output.md)
 provide native annotation and JSON serialization without changing the inference facades.
+[Native evaluation tools](doc/native_evaluation.md) prepare reproducible image selections
+and summarize timing reports or source-matched point errors.

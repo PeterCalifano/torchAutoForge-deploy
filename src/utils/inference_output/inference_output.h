@@ -2,7 +2,9 @@
  * @file inference_output.h
  * @brief Owned JSON values, tensor serialization, and incremental inference reports.
  */
+
 #pragma once
+
 #include <filesystem>
 #include <inference/inference_common.h>
 #include <map>
@@ -38,6 +40,7 @@ namespace ptafdeploy::utils::inference_output
         SJsonValue(Object v) : value(std::move(v)) {}
         /** @} */
     };
+
     /** @brief Run metadata; fields cannot replace schema_version, status, frames, or error. */
     struct SRunMetadata
     {
@@ -46,6 +49,7 @@ namespace ptafdeploy::utils::inference_output
         /** @brief Owned application fields; reserved names are rejected. */
         SJsonValue::Object fields;
     };
+
     /** @brief One completed frame; additional fields cannot replace its identity or timing. */
     struct SFrameRecord
     {
@@ -58,28 +62,59 @@ namespace ptafdeploy::utils::inference_output
         /** @brief Owned application fields; reserved names are rejected. */
         SJsonValue::Object fields;
     };
+
+    /** @brief Decoded version-one report; incomplete results remain explicitly distinguishable. */
+    struct SInferenceReport
+    {
+        SRunMetadata metadata;
+        bool complete{};
+        std::vector<SFrameRecord> frames;
+        SJsonValue error;
+    };
+
+    /** @brief Read a UTF-8 JSON file without exposing parser dependencies.
+     * @param path Input JSON file.
+     * @return Owned value tree.
+     * @throws std::exception For IO, malformed JSON, duplicate keys, or invalid encoding.
+     */
+    [[nodiscard]] SJsonValue ReadJsonFile(const std::filesystem::path& path);
+
+    /** @brief Read and validate a version-one inference report, retaining incomplete status.
+     * @param path Report file.
+     * @return Metadata and ordered frame records; no images are loaded.
+     * @throws std::exception For unsupported versions, malformed records, or input errors.
+     * @note Memory scales with the report's metadata and tensor values.
+     */
+    [[nodiscard]] SInferenceReport ReadInferenceReport(const std::filesystem::path& path);
+
     /** @brief Serialize a borrowed value.
      * @param value Owned JSON tree borrowed for this call.
      * @return Compact UTF-8 JSON text.
      * @throws std::invalid_argument For non-finite numbers or invalid UTF-8.
      */
     [[nodiscard]] std::string Serialize(const SJsonValue& value);
+
     /** @brief Copy a validated host tensor into JSON values; no model execution occurs.
      * @param tensor Borrowed host storage, valid for this call.
      * @return Name, dtype, shape, and values. float16/bfloat16 are unsupported.
      * @throws std::invalid_argument For malformed storage, unsupported types or non-finite values.
      */
     [[nodiscard]] SJsonValue TensorValue(const inference::STensorView& tensor);
+
     /** @brief Convert an owned float tensor through the same validated host-tensor conversion.
-     * @param tensor Borrowed float tensor. @return Owned name/dtype/shape/values object.
+     * @param tensor Borrowed float tensor.
+     * @return Owned name/dtype/shape/values object.
      * @throws std::invalid_argument For invalid shape/cardinality or non-finite values.
      */
     [[nodiscard]] SJsonValue TensorValue(const inference::SFloatTensor& tensor);
+
     /** @brief Convert one completed frame into a JSON object.
-     * @param frame Borrowed frame metadata and application fields. @return Owned JSON object.
+     * @param frame Borrowed frame metadata and application fields.
+     * @return Owned JSON object.
      * @throws std::invalid_argument For invalid duration or reserved-field collisions.
      */
     [[nodiscard]] SJsonValue FrameValue(const SFrameRecord& frame);
+
     /** @brief Create a new/empty output directory, rejecting input ancestors and collisions.
      * @param output Directory to reserve for exclusive use by this run.
      * @param input Input location; an output descendant is allowed for fixed nonrecursive input.
@@ -87,6 +122,7 @@ namespace ptafdeploy::utils::inference_output
      * @note Callers must exclude concurrent writers; this is not an interprocess lock.
      */
     void PrepareOutput(const std::filesystem::path& output, const std::filesystem::path& input);
+
     /** @brief Sole owner of a disk spool and atomically replaced predictions.json.
      * @details Only successfully closed records are committed. Memory scales with one record.
      * Abrupt termination and power-loss recovery are outside the contract.

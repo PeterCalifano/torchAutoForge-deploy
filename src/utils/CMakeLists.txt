@@ -11,6 +11,7 @@ list(FILTER srcLibFiles_local EXCLUDE REGEX "\\.ptx\\.cu$")
 
 add_subdirectory(logging)
 add_subdirectory(parsing)
+add_subdirectory(metrics)
 
 set(srcLibFiles
     ${srcLibFiles} ${srcLibFiles_local}

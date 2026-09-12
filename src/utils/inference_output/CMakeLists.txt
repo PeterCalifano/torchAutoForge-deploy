@@ -1,5 +1,5 @@
 # Export this optional component independently from the core target set.
-add_library(autoforge_deploy_inference_output inference_output.cpp)
+add_library(autoforge_deploy_inference_output inference_output.cpp report_reader.cpp)
 add_library(autoforge_deploy::inference_output ALIAS autoforge_deploy_inference_output)
 set_target_properties(autoforge_deploy_inference_output PROPERTIES
   EXPORT_NAME inference_output POSITION_INDEPENDENT_CODE ON)

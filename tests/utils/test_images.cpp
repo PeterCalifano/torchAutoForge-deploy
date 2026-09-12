@@ -1,7 +1,9 @@
 /** @file test_images.cpp
  * @brief Image utility behavior independent of learned models.
  */
+
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
 #include <limits>
 #include <opencv2/imgproc.hpp>
 #include <stdexcept>
@@ -34,4 +36,39 @@ TEST_CASE("Image operations use explicit interpolation and natural ordering", "[
     REQUIRE(images::NaturalLess("frame2.png", "frame10.png"));
     REQUIRE(images::NaturalLess("frame02.png", "frame2.png"));
     REQUIRE(images::NaturalLess("f99999999999999999999", "f100000000000000000000"));
+}
+
+TEST_CASE("PNG round trips preserve supported sample depths and channels", "[utils][images]")
+{
+    namespace filesystem = std::filesystem;
+    const auto test_directory =
+        filesystem::temp_directory_path() /
+        ("ptaf-formats-" +
+         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    REQUIRE(filesystem::create_directory(test_directory));
+    struct CTemporaryDirectoryCleanup
+    {
+        filesystem::path path;
+
+        ~CTemporaryDirectoryCleanup()
+        {
+            std::error_code ignored;
+            filesystem::remove_all(path, ignored);
+        }
+    } directory_cleanup{test_directory};
+
+    REQUIRE_THROWS_AS(images::SavePng(test_directory / "float.png", cv::Mat(2, 2, CV_32FC1)),
+                      std::invalid_argument);
+
+    // Annotation IO must retain both alpha and values beyond the eight-bit range.
+    for (int type : {CV_8UC1, CV_8UC3, CV_8UC4, CV_16UC1, CV_16UC3, CV_16UC4})
+    {
+        const cv::Mat original(13, 17, type, cv::Scalar(123, 234, 345, 456));
+        const auto path = test_directory / (std::to_string(type) + ".png");
+        images::SavePng(path, original);
+        const auto decoded = images::DecodeForOverlay(path);
+        REQUIRE(decoded.type() == original.type());
+        REQUIRE(decoded.size() == original.size());
+        REQUIRE(cv::norm(decoded, original, cv::NORM_INF) == 0);
+    }
 }

@@ -1247,7 +1247,7 @@ if requested later, belongs in pyTorchAutoForge. Source datasets remain immutabl
 - [x] Stage batch 2: FiLM contract test and its validation documentation.
 - [x] Fold the small demo validation-status correction into batch 2; keep
   reader-dependent utility tests with the native evaluation batch.
-- [ ] On subsequent next, stage batch 4: native evaluation tools and evidence.
+- [x] Stage the final native evaluation batch after the FiLM consolidation.
 - [ ] Add the forthcoming user input folder when provided; it does not block the
   available datasets. Larger accuracy and GPU comparison campaigns remain separate.
 
@@ -1351,3 +1351,80 @@ This check establishes successful CPU/CUDA contract execution, not learned accur
 The source artifact remains unchanged in its owning output workspace. At the user's
 request, a checksum-matching copy is also available at the gitignored local path
 `models/onnx/best_model_film_20260305_155227_0.onnx`, alongside the plain model.
+
+
+### Final native utility consolidation
+
+The FiLM consolidation is committed as `3fca6e4`; the index was empty before this
+batch. The final implementation supersedes earlier proposals for separate
+annotation input directories and persistent per-pass output folders.
+
+- [x] Reuse the existing float-based `SPoint2D` with standard source-key pairs;
+  remove the proposed `SIdentifiedPoint` record. Accumulate metrics in higher precision.
+- [x] Replace the image-specific `sequence.h` proposal with general utilities:
+  `utils/sampling.h::SelectEvenlySpacedIndices` and
+  `utils/filesystem.h::CopyOrLinkFiles`, with explicit copy/symlink modes.
+- [x] Keep JSON parsing in the optional inference-output component with private
+  RapidJSON headers. Preserve inference facade and image-only demo contracts.
+- [x] Provide native selection and evaluation programs, source-matched point errors,
+  strict versioned report reading, and a sequential shell runner. Add no Python
+  evaluation modules or package changes.
+- [x] Keep one input selection and one results directory per dataset. Successful
+  driver runs retain only predictions.json, summary.json, and overlays/. Delete
+  temporary timing reports after success; preserve incomplete reports on failure.
+- [x] Review source ownership, API documentation, numeric boundaries, naming,
+  dependency isolation, collision behavior, recovery, and unnecessary abstractions.
+- [x] Build Release shared/static libraries and fresh installed consumers. Exercise
+  sampling, file copying, and SPoint2D metrics with OpenCV discovery disabled.
+- [x] Pass all 56 core/utility tests, including real FiLM CPU and CUDA execution.
+  Pass the known-answer CLI checks, ShellCheck, and shell syntax checks.
+- [x] Reuse unchanged demo/annotation evidence; do not rerun performance campaigns
+  merely for consolidation. Dataset labels and isolated latency remain unqualified.
+- [x] Stage the reviewed final batch through an explicit path allowlist and verify
+  the complete index and staged whitespace. Stop without committing or pushing.
+
+Evidence: `/tmp/ptaf-evaluation-9mtake_3/consolidation-*.log`,
+`/tmp/ptaf-evaluation-9mtake_3/final-consumer/`, and the
+[native evaluation documentation](../native_evaluation.md). The last document
+records earlier real-image runs, retained output locations, metric conventions,
+and the minimal-output driver's success, collision, cleanup, and failure checks.
+Older run diagnostics are archived outside the repository at
+`/tmp/ptaf-previous-results-mr73w5o0`; sources and model artifacts remain unchanged.
+
+Final batch paths:
+
+- `README.md`, `doc/native_evaluation.md`, and this development tracker
+- `scripts/run_image_evaluation.sh`
+- `src/programs/CMakeLists.txt`, `evaluate_inference.cpp`, and `prepare_image_sequence.cpp`
+- `src/utils/CMakeLists.txt`, `filesystem.h/.cpp`, and `sampling.h/.cpp`
+- `src/utils/metrics/CMakeLists.txt` and `metrics.h/.cpp`
+- `src/utils/inference_output/CMakeLists.txt`, `inference_output.h`, and `report_reader.cpp`
+- `tests/inference/testMetrics.cpp`
+- `tests/utils/CMakeLists.txt`, `test_filesystem.cpp`, `test_images.cpp`, and `test_inference_output.cpp`
+
+The additional user input folder and any accuracy campaign with verified label
+semantics remain future work. No implementation changes are deferred from this batch.
+
+Proposed final message:
+
+```text
+Add reusable native utilities for inference evaluation
+
+- Reuse task point values and separate sampling and file operations from image IO
+
+- Read versioned reports and compute latency and source-matched point metrics
+
+- Prepare image selections and retain compact results from sequential native runs
+
+- Validate shared/static consumers, error handling, and documented dataset runs
+```
+
+
+Final naming review: replace abbreviated aliases and vague helper names throughout
+this staged batch. Use SJsonValue directly, ReadJsonFile/ReadInferenceReport for
+file input, and explicit names for numeric conversion, source matching, CLI options,
+and temporary paths. Preserve established interfaces outside the batch.
+All 56 tests, known-answer evaluation checks, and the real-model shell runner's
+minimal-output, cleanup, collision, and incomplete-report checks pass. JSON keys,
+CLI option spellings, and diagnostic string literals are unchanged. Evidence:
+`/tmp/ptaf-names-review-y7aq6_ap` and `/tmp/ptaf-naming-runner-nk8_bu0h`.
