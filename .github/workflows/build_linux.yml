@@ -235,11 +235,3 @@ jobs:
               [float(value) for value in range(1, 12)], [1, 11])
           assert len(outputs) == 2, outputs
           PY
-
-      - name: Upload wheel
-        uses: actions/upload-artifact@v4
-        with:
-          name: autoforge-deploy-python-wheel
-          path: build-ci-python/wheelhouse/*.whl
-          if-no-files-found: error
-          retention-days: 7

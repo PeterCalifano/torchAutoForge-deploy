@@ -2,12 +2,6 @@ name: build_docs
 
 on:
   workflow_dispatch:
-    inputs:
-      deploy_pages:
-        description: Deploy the main-branch documentation to GitHub Pages
-        required: true
-        default: false
-        type: boolean
   push:
     branches: [main]
     paths:
@@ -102,30 +96,7 @@ jobs:
       - name: Build documentation
         run: cmake --build "${BUILD_DIR}" --target doc --parallel 2
 
-      - name: Verify documentation artifact
+      - name: Verify generated documentation
         run: |
           test -f "${BUILD_DIR}/doc/html/index.html"
           test -d "${BUILD_DIR}/doc/xml"
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ${{ env.BUILD_DIR }}/doc/html
-
-  deploy:
-    needs: build-docs
-    if: ${{ false }}
-    runs-on: ubuntu-22.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Deploy Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
