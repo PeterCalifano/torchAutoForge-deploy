@@ -1,6 +1,6 @@
 /**
- * @file plain_centroiding_support.h
- * @brief Example-side image and output policy for plain centroiding models.
+ * @file centroiding_support.h
+ * @brief Example-side image and output policy for image-only centroiding models.
  *
  * These helpers deliberately remain outside the installed inference library.
  * They compose generic tensor adapters with the selected integration's
@@ -14,27 +14,37 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <vector>
 
-namespace ptafdeploy::examples::plain_centroiding
+namespace ptafdeploy::examples::centroiding_models
 {
     namespace infer = ptafdeploy::inference;
+
+    /** @brief Double-precision coordinates avoid overflow when mapping finite float outputs. */
+    struct SCoordinate
+    {
+        /** @brief Horizontal coordinate in the enclosing field's units. */
+        double x{};
+        /** @brief Vertical coordinate in the enclosing field's units. */
+        double y{};
+    };
 
     /** @brief One normalized centroid mapped into model and source-image pixels. */
     struct SCentroidResult
     {
         /** @brief Model output in normalized `[x / width, y / height]` coordinates. */
-        infer::SPoint2D normalized{};
+        SCoordinate normalized{};
 
         /** @brief Centroid mapped into the resized model-input image. */
-        infer::SPoint2D model_input_pixels{};
+        SCoordinate model_input_pixels{};
 
         /** @brief Centroid mapped into the original decoded image. */
-        infer::SPoint2D original_image_pixels{};
+        SCoordinate original_image_pixels{};
     };
 
     /**
@@ -57,14 +67,14 @@ namespace ptafdeploy::examples::plain_centroiding
         if (grayscale_image.empty() || grayscale_image.type() != CV_8UC1)
         {
             throw std::invalid_argument(
-                "Plain centroiding requires a non-empty unsigned 8-bit grayscale image.");
+                "Centroiding requires a non-empty unsigned 8-bit grayscale image.");
         }
 
         if (input_info.name.empty() || input_info.dtype != "float32" ||
             input_info.shape.size() != 4U)
         {
             throw std::invalid_argument(
-                "Plain centroiding expects one named float32 input with shape [N,1,H,W].");
+                "Centroiding expects one named float32 input with shape [N,1,H,W].");
         }
 
         const bool supported_batch = input_info.shape[0] == -1 || input_info.shape[0] == 1;
@@ -75,7 +85,7 @@ namespace ptafdeploy::examples::plain_centroiding
         if (!supported_batch || !supported_spatial_shape)
         {
             throw std::invalid_argument(
-                "Plain centroiding expects one named float32 input with shape [N,1,H,W].");
+                "Centroiding expects one named float32 input with shape [N,1,H,W].");
         }
 
         const int height = static_cast<int>(input_info.shape[2]);
@@ -100,13 +110,8 @@ namespace ptafdeploy::examples::plain_centroiding
 
         const auto* pixels = resized_image.ptr<uint8_t>(0);
         return infer::MakeNchwFloatTensorFromHwcAccessor(
-            input_info.name,
-            static_cast<size_t>(height),
-            static_cast<size_t>(width),
-            1U,
-            1.0F / 255.0F,
-            false,
-            [pixels](const size_t index) { return pixels[index]; });
+            input_info.name, static_cast<size_t>(height), static_cast<size_t>(width), 1U,
+            1.0F / 255.0F, false, [pixels](const size_t index) { return pixels[index]; });
     }
 
     /**
@@ -117,14 +122,14 @@ namespace ptafdeploy::examples::plain_centroiding
      * @return Normalized, model-input-pixel, and original-image-pixel coordinates.
      * @throws std::invalid_argument If shape, values, or image extents are invalid.
      */
-    [[nodiscard]] inline SCentroidResult
-    DecodeCentroid(const infer::SFloatTensor& output, const cv::Size model_input_size,
-                   const cv::Size original_image_size)
+    [[nodiscard]] inline SCentroidResult DecodeCentroid(const infer::SFloatTensor& output,
+                                                        const cv::Size model_input_size,
+                                                        const cv::Size original_image_size)
     {
         if (output.shape != std::vector<int64_t>{1, 2})
         {
             throw std::invalid_argument(
-                "Plain centroiding expects one output with concrete shape [1,2].");
+                "Centroiding expects one output with concrete shape [1,2].");
         }
         if (model_input_size.width <= 0 || model_input_size.height <= 0 ||
             original_image_size.width <= 0 || original_image_size.height <= 0)
@@ -137,23 +142,19 @@ namespace ptafdeploy::examples::plain_centroiding
         const std::vector<infer::SFeature2D> features = infer::DecodeFeatureRows(output, schema);
         if (features.size() != 1U)
         {
-            throw std::invalid_argument("Plain centroiding must produce exactly one feature.");
+            throw std::invalid_argument("Centroiding must produce exactly one feature.");
         }
 
         const infer::SPoint2D normalized = features.front().position;
-        if (normalized.x < 0.0F || normalized.x > 1.0F || normalized.y < 0.0F ||
-            normalized.y > 1.0F)
-        {
-            throw std::invalid_argument(
-                "Plain centroiding normalized coordinates must remain within [0,1].");
-        }
+        if (!std::isfinite(normalized.x) || !std::isfinite(normalized.y))
+            throw std::invalid_argument("Centroid coordinates must be finite.");
 
         return {
-            normalized,
-            {normalized.x * static_cast<float>(model_input_size.width),
-             normalized.y * static_cast<float>(model_input_size.height)},
-            {normalized.x * static_cast<float>(original_image_size.width),
-             normalized.y * static_cast<float>(original_image_size.height)},
+            {normalized.x, normalized.y},
+            {normalized.x * static_cast<double>(model_input_size.width),
+             normalized.y * static_cast<double>(model_input_size.height)},
+            {normalized.x * static_cast<double>(original_image_size.width),
+             normalized.y * static_cast<double>(original_image_size.height)},
         };
     }
-} // namespace ptafdeploy::examples::plain_centroiding
+} // namespace ptafdeploy::examples::centroiding_models

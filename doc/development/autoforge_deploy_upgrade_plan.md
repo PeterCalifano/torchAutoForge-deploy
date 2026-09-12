@@ -724,8 +724,8 @@ Review inventory on 2026-09-11. These are static findings; runtime validation re
 ### Stage 18.1: Record the plan and rename the integration
 
 - [x] Record the approved checklist here and cross-link it from TODO.
-- [ ] Rename `examples/plain_centroiding/` to `examples/centroiding_models/`.
-- [ ] Rename `run_plain_centroiding.cpp/.py` to `run_centroiding.cpp/.py`,
+- [x] Rename `examples/plain_centroiding/` to `examples/centroiding_models/`.
+- [x] Rename `run_plain_centroiding.cpp/.py` to `run_centroiding.cpp/.py`,
   `RunPlainCentroidingFacadeDemo.m` to `RunCentroidingFacadeDemo.m`, and
   `plain_centroiding_support.h` to `centroiding_support.h`.
 - [ ] Update namespaces, CMake targets, tests, identifiers, and active documentation.
@@ -1010,3 +1010,72 @@ Workspace additions and the untracked FiLM test remain separate. The shared
 workspace's ml-based-centroiding entry is relevant to the next plan; the two
 machine-local worktree entries belong in a personal workspace. Their contents are
 preserved pending that separate cleanup. Centroiding demo rework has not started.
+
+### Centroiding implementation handoff, 2026-09-12
+
+The user authorized continuing beyond the workspace-only consolidation pause.
+The records below describe implementation before staged review. No build, test,
+benchmark, or runtime validation has been run for this candidate; implementation checkboxes
+record source changes only. Stage 18.6 remains gated by user authorization.
+
+- [x] Rename the integration, native/Python executables, MATLAB entry point, support
+  header, namespace, and native test target. Preserve actual plain-model identifiers.
+- [x] Implement deterministic non-recursive sequence selection, one model load,
+  independent batch-one frames, and inference-only timing in the three demos.
+- [x] Embed RapidJSON headers and matching license, recording donor provenance.
+  Add native JSON reporting without any Python/MATLAB runtime dependency.
+- [x] Implement versioned reports, optional overlays, collision protection, finite
+  out-of-image coordinates, and incomplete-report publication with retained records.
+- [x] Add Python/MATLAB reports using their native JSON facilities. Preserve existing
+  facade and preprocessing ownership. The wrappers do not expose runtime target
+  priority: their report field is null; native reports include the effective vector.
+- [x] Write native/Python/MATLAB test sources for selection, coordinate mapping,
+  report/overlay behavior, and failures. Remove the learned-model assertion that
+  required a synthetic ellipse's geometric centre.
+- [x] Document commands, schema, coordinate and failure conventions, and the
+  Itokawa, ml-based-centroiding, OPERATIVE, and forthcoming-folder validation inputs.
+- [x] Stop after implementation and before the requested validation/benchmark phase.
+- [ ] After authorization, configure/build, run the focused tests, review cross-language
+  report behavior and filesystem error paths, then run the selected real-image cases.
+- [ ] Review the resulting complete diff and stage a tested coherent extension batch.
+  No commit or push is authorized by this handoff.
+
+The existing workspace change and untracked FiLM regression remain outside the
+extension. PNG overlays support uint8/uint16 image samples; unsupported sample
+types fail explicitly. The native and Python report spools bound record memory;
+MATLAB retains compact frame structs for its return value as planned.
+
+### Centroiding source review and staged candidate, 2026-09-12
+
+- [x] Review the complete candidate locally against the agreed image-only contract,
+  sequence policy, report schema, memory ownership, failure handling, and source
+  documentation. Preserve the workspace edit and untracked FiLM test outside it.
+- [x] Correct incomplete-report publication to read only successfully closed frame
+  records; failed append tails cannot enter native/Python reports. Add regression
+  test sources for this case. Consolidate MATLAB JSON write/close checks.
+- [x] Correct final-publication error attribution, record the requested model path
+  before loading, preserve marker opacity in MATLAB alpha images, and retain
+  Pillow palette transparency. Match native JPEG overlay orientation to inference
+  decoding and reject mismatched overlay extents.
+- [x] Remove redundant test mocks and metadata copies. Complete public helper
+  documentation and input/output arguments blocks; format the first-party sources.
+- [x] Run Python static syntax/name/import checks (Ruff E9/F): no findings. Compare
+  all 38 RapidJSON headers and the license against the donor: unchanged. Confirm
+  the renamed PNG fixture retains its original bytes. These checks are not runtime
+  qualification of the demos.
+- [x] Inspect and prepare the exact staged extension index against the explicit path
+  allowlist. Verify staged files match the reviewed worktree and excluded files retain
+  their hashes. First-party whitespace checks pass. The full cached check reports
+  263 inherited whitespace findings in unmodified RapidJSON headers; preserve the
+  verified donor distribution without reformatting it.
+- [ ] Run builds, native/Python/MATLAB tests, real-model validation, and benchmarks
+  only after the separate validation pause is released. Current test sources have
+  not been executed. No commit or push is authorized in this review.
+
+Remaining qualification limits: the existing wrapper cannot expose runtime target
+priority, so that field is null in wrapper reports; native reports include it.
+Cross-language image decoding and file-publication behavior still require the
+planned validation. The staged candidate is for source review, not a claim that
+Stage 18.6 has passed.
+
+Proposed subject: `Extend centroiding demos with sequences and native JSON output`.
