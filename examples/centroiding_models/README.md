@@ -146,10 +146,11 @@ the supported recovery contract.
 
 ## Validation
 
-Implementation has not yet been runtime-qualified. Do not infer numerical accuracy
-from successful plumbing tests or an arbitrary synthetic blob's geometric centre.
+Native and wrapper sequence checks have passed on Linux; the development tracker
+records their scope and evidence. Successful plumbing tests do not establish model
+accuracy on arbitrary synthetic blobs or unverified dataset labels.
 
-After authorization, run the native CTest suite, Python sequence tests, MATLAB
+To repeat the checks, run the native CTest suite, Python sequence tests, MATLAB
 sequence checks, and the available real ONNX model. Native tests can use
 `PTAFDEPLOY_PLAIN_CENTROIDING_ONNX` for the external plain checkpoint.
 
@@ -157,6 +158,21 @@ sequence checks, and the available real ONNX model. Native tests can use
 ctest --test-dir build-centroiding --output-on-failure
 python -m pytest examples/centroiding_models/test/test_centroiding_sequence.py
 ```
+
+The separate `testFilmCentroidingOnnx.cpp` regression test exercises an external
+FiLM artifact with `image` and `prior_vector` inputs and `prediction` and
+`centre_of_brightness` outputs. It does not extend the image-only demo contract.
+Set `PTAFDEPLOY_FILM_CENTROIDING_ONNX` to the compatible ONNX artifact and run:
+
+```bash
+export PTAFDEPLOY_FILM_CENTROIDING_ONNX="$PWD/models/onnx/best_model_film_20260305_155227_0.onnx"
+ctest --test-dir build -R '^film_centroiding_onnx_' --output-on-failure
+```
+
+An unset artifact path skips the external-model test; an explicitly invalid path
+fails. The CUDA test skips when the provider is unavailable. Model loading or
+inference errors are test failures. Synthetic illumination checks tensor contracts
+and finite outputs; it does not establish learned centroid accuracy.
 
 In MATLAB, add the demo directory to the path and run
 `runtests("examples/centroiding_models/test/TestCentroidingSequence.m")`.

@@ -1244,8 +1244,9 @@ if requested later, belongs in pyTorchAutoForge. Source datasets remain immutabl
   ten overlays per dataset. Compute accuracy only for verified reference semantics.
 - [x] Review the full implementation and evidence locally without subagents.
 - [x] Stage batch 1 only: tracker/workspace reconciliation and /data/ ignore rule.
-- [ ] On subsequent next, with index clear, stage batch 2: FiLM test and corrections.
-- [ ] On subsequent next, stage batch 3: functional/delivery validation corrections.
+- [x] Stage batch 2: FiLM contract test and its validation documentation.
+- [x] Fold the small demo validation-status correction into batch 2; keep
+  reader-dependent utility tests with the native evaluation batch.
 - [ ] On subsequent next, stage batch 4: native evaluation tools and evidence.
 - [ ] Add the forthcoming user input folder when provided; it does not block the
   available datasets. Larger accuracy and GPU comparison campaigns remain separate.
@@ -1296,3 +1297,57 @@ Reconcile centroiding stages and reserve local evaluation data
 
 - Keep the workspace file local and ignore evaluation inputs and results
 ```
+
+
+### FiLM test consolidation review
+
+The previous housekeeping batch was committed as `953165f`; the index was empty
+before this review. Batch 2 contains `tests/inference/testFilmCentroidingOnnx.cpp`,
+the centroiding README validation section, and this tracker. The test was previously
+untracked under its old name, so Git records this as a new file rather than a rename.
+Native evaluation utilities and their dependent tests remain unstaged.
+
+- [x] Review explicit image-plus-prior contracts, finite outputs, temporary manifest
+  cleanup, relative artifact resolution, provider availability, and test documentation.
+- [x] Build the candidate test against a clean archive of `953165f`, excluding all
+  unstaged evaluation code. Run 46 discovered tests: 44 pass and two FiLM tests skip
+  because no compatible external artifact was configured for that run.
+- [x] Supply a nonexistent artifact and then an incompatible existing ONNX model;
+  confirm the CPU test fails in both cases instead of converting failures to skips.
+- [x] Include the small demo validation-status correction with test documentation,
+  avoiding a separate documentation-only consolidation batch.
+
+Evidence: `/tmp/ptaf-film-stage-mq2yasr4` contains the isolated source snapshot,
+configure/build logs, CTest results, and expected-failure logs. The real-artifact
+validation below supersedes the earlier unavailable-artifact qualification.
+The image-only demo and public inference facades are unchanged.
+
+Proposed batch 2 message:
+
+```text
+Add explicit FiLM ONNX contract regression tests
+
+- Check image-plus-prior inputs and finite outputs without assuming synthetic accuracy
+
+- Fail on invalid models and skip only unavailable external prerequisites
+
+- Document test invocation and reconcile the recorded demo validation status
+```
+
+
+FiLM artifact located through the paths recorded in ml-based-centroiding:
+
+- [x] Locate `$WS_ML_CEN/onnx_checkpoints/best_model_film_20260305_155227/`
+  `best_model_film_20260305_155227_0.onnx`
+- [x] Run both staged FiLM tests against the existing isolated build: CPU and CUDA
+  pass, with no skips. Both paths validate the requested execution provider,
+  image-plus-prior inputs, output shapes, and finite decoded values
+
+`WS_ML_CEN=/media/peterc/SCRATCH/ml-outputs/ml-based-centroiding`. Model SHA-256:
+`42071582f8123a9734215e1c81688ec31dd9c3daa7fffb12cae583708fad45ce`.
+Evidence: `/tmp/ptaf-film-stage-mq2yasr4/real-film.log`. The earlier claim that CUDA
+was unavailable was incorrect: the missing model configuration caused the skip.
+This check establishes successful CPU/CUDA contract execution, not learned accuracy.
+The source artifact remains unchanged in its owning output workspace. At the user's
+request, a checksum-matching copy is also available at the gitignored local path
+`models/onnx/best_model_film_20260305_155227_0.onnx`, alongside the plain model.
