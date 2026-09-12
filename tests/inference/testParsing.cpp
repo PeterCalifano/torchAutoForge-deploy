@@ -4,7 +4,7 @@
  */
 
 #include <inference/inference_tensor_parsing.h>
-#include <utils/value_parsing.h>
+#include <utils/parsing/value_parsing.h>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -19,7 +19,7 @@
 namespace
 {
     namespace infer = ptafdeploy::inference;
-    namespace parsing = ptafdeploy::parsing;
+    namespace parsing = ptafdeploy::utils::parsing;
 } // namespace
 
 TEST_CASE("value_parsing_splits_optional_names", "[parsing][value]")

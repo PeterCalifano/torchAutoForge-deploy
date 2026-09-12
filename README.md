@@ -316,16 +316,16 @@ src/
     task_adapters.*         - schema-driven tensor conversion and row decoding
     onnx_runtime/           - CInferenceManager_ORT backend
     tensorrt/               - optional standalone TensorRT engine backend
-  auxiliary/
-    common_defs.h           - legacy compatibility tensor/image specs
-    common_ops.h            - file checks and small utilities
-    images_prepro.h         - legacy placeholder image preprocessing namespace
   programs/
     get_available_providers - lists ORT providers
     run_ort_inference       - one-shot prepared-tensor ONNX inference
     benchmark_model         - generic facade benchmark path
-  utils/logging/
-    CLogger.*                - dependency-free project logger
+  utils/
+    filesystem.h            - file-path validation
+    parsing/value_parsing.* - strict reusable textual-value parsing
+    logging/CLogger.*       - dependency-free project logger
+    images/                 - optional OpenCV image operations
+    inference_output/       - optional native tensor JSON and report publication
   wrap_interface.i          - gtwrap top-level interface
   inference/inference.i     - gtwrap inference facade/value interface
 examples/model_configs/
@@ -414,3 +414,6 @@ Jetson notes:
 - Build engines on the target Jetson or a compatible target GPU/SM; TensorRT
   engines are not portable across arbitrary GPU architectures.
 - Use `--device 0` for typical Jetson boards unless multiple accelerators are exposed.
+
+Optional [image and inference-output utilities](doc/image_and_inference_output.md)
+provide native annotation and JSON serialization without changing the inference facades.

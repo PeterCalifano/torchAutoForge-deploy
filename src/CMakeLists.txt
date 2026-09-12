@@ -20,9 +20,6 @@ add_subdirectory(utils)
 message(STATUS "Adding module: inference")
 add_subdirectory(inference)
 
-message(STATUS "Adding module: auxiliary")
-add_subdirectory(auxiliary)
-
 message(STATUS "Adding module: template_src_kernels")
 add_subdirectory(template_src_kernels)
 

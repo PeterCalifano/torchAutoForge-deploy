@@ -2,15 +2,16 @@
  * @file run_centroiding.cpp
  * @brief Run independent image frames through a centroiding model with optional JSON output.
  *
- * The executable owns command-line collection, OpenCV image decoding, and
+ * The executable owns command-line collection, sequence orchestration, and
  * stable textual output. Model execution remains behind `CModelFacade`, while
  * example-side helpers own the selected model's grayscale and coordinate
  * semantics.
  */
 
-#include "centroiding_io.h"
+#include "centroiding_adapter.h"
 #include <chrono>
 #include <memory>
+#include <utils/images/images.h>
 
 #include <inference/inference_config_parsing.h>
 #include <inference/model_facade.h>
@@ -33,6 +34,7 @@ namespace
     namespace demo = ptafdeploy::examples::centroiding_models;
     namespace fs = std::filesystem;
     namespace infer = ptafdeploy::inference;
+    namespace out = ptafdeploy::utils::inference_output;
     namespace logging = ptafdeploy::logging;
 
     /** @brief Return the process-wide logger configured from the environment once. */
@@ -227,14 +229,14 @@ int main(const int argc, char** argv)
     try
     {
         const SArguments arguments = ParseArguments(argc, argv);
-        const auto frames = demo::SelectFrames(arguments.image_path);
-        std::unique_ptr<demo::CReport> report;
+        const auto frames = ptafdeploy::utils::images::SelectFrames(arguments.image_path);
+        std::unique_ptr<out::CReport> report;
         if (!arguments.output_path.empty())
         {
-            demo::PrepareOutput(arguments.output_path, arguments.image_path);
-            report = std::make_unique<demo::CReport>(
-                arguments.output_path, demo::MetadataJson(arguments.image_path, frames.size(),
-                                                          nullptr, arguments.model_path));
+            out::PrepareOutput(arguments.output_path, arguments.image_path);
+            report = std::make_unique<out::CReport>(
+                arguments.output_path, demo::RunMetadata(arguments.image_path, frames.size(),
+                                                         nullptr, arguments.model_path));
         }
         size_t index = frames.size();
         std::string stage = "model_load";
@@ -246,15 +248,16 @@ int main(const int argc, char** argv)
                 model.GetNumOutputs() != 1U)
                 throw std::invalid_argument("Centroiding requires one image input and one output");
             if (report)
-                report->metadata = demo::MetadataJson(arguments.image_path, frames.size(), &model,
-                                                      arguments.model_path);
+                report->metadata = demo::RunMetadata(arguments.image_path, frames.size(), &model,
+                                                     arguments.model_path);
             if (arguments.overlays)
                 fs::create_directory(arguments.output_path / "overlays");
             for (index = 0; index < frames.size(); ++index)
             {
                 stage = "decode";
                 const auto& source = frames[index];
-                const cv::Mat image = cv::imread(source.string(), cv::IMREAD_GRAYSCALE);
+                const cv::Mat image =
+                    ptafdeploy::utils::images::Decode(source, cv::IMREAD_GRAYSCALE);
                 if (image.empty())
                     throw std::runtime_error("Cannot decode image: " + source.string());
                 stage = "preprocessing";
@@ -287,8 +290,8 @@ int main(const int argc, char** argv)
                 }
                 stage = "report";
                 if (report)
-                    report->Append(demo::FrameJson(index, source.filename(), image.size(), output,
-                                                   result, duration, overlay));
+                    report->Append(demo::FrameRecord(index, source.filename(), image.size(), output,
+                                                     result, duration, overlay));
             }
             if (report)
                 report->Publish(true);
@@ -297,26 +300,16 @@ int main(const int argc, char** argv)
         {
             if (report)
             {
-                rapidjson::StringBuffer buffer;
-                demo::JsonWriter w(buffer);
-                w.StartObject();
-                demo::String(w, "stage", stage);
                 const bool frame_failed = stage != "model_load" && index < frames.size();
-                w.Key("frame_index");
-                if (frame_failed)
-                    w.Uint64(index);
-                else
-                    w.Null();
-                w.Key("source");
-                if (frame_failed)
-                    w.String(frames[index].filename().string().c_str());
-                else
-                    w.Null();
-                demo::String(w, "message", error.what());
-                w.EndObject();
+                const out::SJsonValue failure = out::SJsonValue::Object{
+                    {"stage", stage},
+                    {"message", error.what()},
+                    {"frame_index", frame_failed ? out::SJsonValue(index) : out::SJsonValue{}},
+                    {"source", frame_failed ? out::SJsonValue(frames[index].filename().string())
+                                            : out::SJsonValue{}}};
                 try
                 {
-                    report->Publish(false, buffer.GetString());
+                    report->Publish(false, failure);
                 }
                 catch (const std::exception& publication)
                 {

@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-namespace ptafdeploy::parsing
+namespace ptafdeploy::utils::parsing
 {
     /**
      * @brief A textual value with an optional caller-supplied name.
@@ -90,4 +90,4 @@ namespace ptafdeploy::parsing
      * characters, overflows, or represents a non-finite value.
      */
     [[nodiscard]] float ParseFiniteFloat(std::string_view value, std::string_view context);
-} // namespace ptafdeploy::parsing
+} // namespace ptafdeploy::utils::parsing

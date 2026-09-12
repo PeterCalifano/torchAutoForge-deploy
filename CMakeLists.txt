@@ -188,6 +188,9 @@ if(BUILD_AS_MAIN_PROJECT)
 endif()
 
 # OPTIONS
+option(autoforge_deploy_ENABLE_IMAGE_SUPPORT "Build optional OpenCV image utilities" OFF)
+option(autoforge_deploy_ENABLE_INFERENCE_OUTPUT "Build optional inference JSON output utilities" OFF)
+
 option(ENABLE_TESTS              "Build and run tests" ON)
 option(ENABLE_PYTHON_TESTS
        "Discover and register Python pytest tests through CTest" ON)

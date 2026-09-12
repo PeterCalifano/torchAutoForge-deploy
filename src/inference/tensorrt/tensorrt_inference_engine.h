@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <auxiliary/common_ops.h>
+#include <filesystem>
 #include <inference/inference_common.h>
 
 #include <memory>
@@ -15,6 +15,7 @@
 
 namespace ptafdeploy::inference::tensorrt
 {
+    namespace fs = std::filesystem;
     struct STensorRtState;
 
     /**

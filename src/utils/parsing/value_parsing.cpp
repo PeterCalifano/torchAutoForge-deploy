@@ -6,7 +6,7 @@
  * strings are created only for public results and actionable error messages.
  */
 
-#include <utils/value_parsing.h>
+#include <utils/parsing/value_parsing.h>
 
 #include <algorithm>
 #include <charconv>
@@ -65,7 +65,7 @@ namespace
     }
 } // namespace
 
-namespace ptafdeploy::parsing
+namespace ptafdeploy::utils::parsing
 {
     SNamedValue ParseNamedValue(const std::string_view specification,
                                 const std::string_view context)
@@ -198,4 +198,4 @@ namespace ptafdeploy::parsing
         }
         return parsed_value;
     }
-} // namespace ptafdeploy::parsing
+} // namespace ptafdeploy::utils::parsing

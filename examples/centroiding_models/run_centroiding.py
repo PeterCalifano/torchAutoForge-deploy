@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-import centroiding_io as cio
+import image_sequence as images
+import inference_output as reports
+from centroiding_metadata import metadata
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -277,13 +279,13 @@ def run_demo(options: DemoOptions) -> None:
         FileNotFoundError: If the model or image does not exist.
     """
 
-    frames = cio.select_frames(options.image_path)
+    frames = images.select_frames(options.image_path)
     report = None
     if options.output_path is not None:
-        cio.prepare_output(options.output_path, options.image_path)
-        report = cio.Report(
+        reports.prepare_output(options.output_path, options.image_path)
+        report = reports.Report(
             options.output_path,
-            cio.metadata(options.image_path, len(frames), requested_model=options.model_path),
+            metadata(options.image_path, len(frames), requested_model=options.model_path),
         )
     index = None
     source = None
@@ -292,9 +294,7 @@ def run_demo(options: DemoOptions) -> None:
     try:
         model = load_model(options)
         if report is not None:
-            report.metadata = cio.metadata(
-                options.image_path, len(frames), model, options.model_path
-            )
+            report.metadata = metadata(options.image_path, len(frames), model, options.model_path)
         if options.overlays:
             if options.output_path is None:
                 raise ValueError("--overlays requires --output")
@@ -315,7 +315,7 @@ def run_demo(options: DemoOptions) -> None:
             if options.overlays and options.output_path is not None:
                 stage = "overlay"
                 overlay = f"overlays/{index:06d}_{source.stem}.png"
-                cio.save_overlay(
+                images.save_overlay(
                     source,
                     options.output_path / overlay,
                     result.original_x_px,

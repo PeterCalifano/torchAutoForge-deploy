@@ -12,6 +12,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <utils/logging/CLogger.h>
+#include <utils/filesystem.h>
 
 namespace ptafdeploy::inference::onnxruntime
 {
@@ -367,7 +368,7 @@ namespace ptafdeploy::inference::onnxruntime
     void CInferenceManager_ORT::LoadModel(const fs::path& model_path,
                                           const ptafdeploy::inference::SInferenceOptions& options)
     {
-        deploy_aux::CheckFileExistsWithExt(model_path, "onnx", true);
+        ptafdeploy::utils::CheckFileExistsWithExt(model_path, "onnx", true);
 
         model_path_ = model_path;
         options_ = options;

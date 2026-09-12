@@ -15,6 +15,7 @@
 namespace
 {
     namespace infer = ptafdeploy::inference;
+    namespace fs = std::filesystem;
     using Catch::Matchers::ContainsSubstring;
 
     fs::path GetOrtFixturePath()

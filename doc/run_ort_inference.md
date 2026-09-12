@@ -132,21 +132,21 @@ target_link_libraries(my_application PRIVATE autoforge_deploy::autoforge_deploy)
 
 ```cpp
 #include <inference/inference_tensor_parsing.h>
-#include <utils/value_parsing.h>
+#include <utils/parsing/value_parsing.h>
 
 const auto shape =
     ptafdeploy::inference::ParseTensorShape("1,3,640,640", "input shape");
 const float fill =
-    ptafdeploy::parsing::ParseFiniteFloat("0.25", "--fill");
+    ptafdeploy::utils::parsing::ParseFiniteFloat("0.25", "--fill");
 ```
 
 The installed surfaces have separate ownership:
 
-- `ptafdeploy::parsing::ParseNamedValue` parses `[name=]value`, splitting only
+- `ptafdeploy::utils::parsing::ParseNamedValue` parses `[name=]value`, splitting only
   the first equals sign and preserving the remaining value text.
-- `ptafdeploy::parsing::ParseIntegerList` converts a strict delimiter-separated
+- `ptafdeploy::utils::parsing::ParseIntegerList` converts a strict delimiter-separated
   signed-integer list with checked range and complete-token consumption.
-- `ptafdeploy::parsing::ParseFiniteFloat` accepts finite decimal, scientific,
+- `ptafdeploy::utils::parsing::ParseFiniteFloat` accepts finite decimal, scientific,
   and `0x`-prefixed hexadecimal notation.
 - `ptafdeploy::inference::ParseTensorShape` adds the requirement that every
   parsed dimension is concrete and positive.

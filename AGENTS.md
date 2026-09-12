@@ -119,6 +119,8 @@ exception.
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `autoforge_deploy_ENABLE_IMAGE_SUPPORT` | OFF | Optional OpenCV image utilities |
+| `autoforge_deploy_ENABLE_INFERENCE_OUTPUT` | OFF | Optional native tensor JSON and reports |
 | `autoforge_deploy_METADATA_ONLY` | OFF | Configure project identity/version without dependencies |
 | `autoforge_deploy_ENABLE_CUDA` | OFF | CUDA build plus ordinary/embedded-PTX examples |
 | `CUDA_PTX_USE_FAST_MATH` | ON | Fast math for dedicated PTX compilation |
@@ -233,6 +235,17 @@ automation and nested consumers must use the project-qualified options.
   and runtime keys parsed into enum-backed config values.
 - `src/programs/benchmark_model.cpp` is the generic CPU/GPU/Jetson timing path;
   keep it routed through `CModelFacade`, not backend-specific shortcuts.
+
+### Utility Components
+
+- `src/utils/filesystem.h` owns file-path checks; `src/utils/parsing` owns
+  textual-value parsing. Auxiliary paths and the old parsing namespace are retired.
+- `src/utils/images` and `src/utils/inference_output` are independent optional
+  compiled components. Never aggregate their sources into the core inference target.
+- OpenCV belongs to the images component; embedded RapidJSON is private to
+  inference-output implementation. Core-only package consumers must not discover OpenCV.
+- Model-specific preprocessing and decoded fields belong in adapters. Generic
+  image and JSON utilities must not load models or interpret centroid coordinates.
 
 ### ONNX Runtime Backend
 

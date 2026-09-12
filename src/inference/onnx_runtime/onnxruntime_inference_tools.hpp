@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <auxiliary/common_ops.h>
+#include <filesystem>
 #include <inference/inference_common.h>
 #include <onnxruntime_cxx_api.h>
 
@@ -15,6 +15,8 @@
 
 namespace ptafdeploy::inference::onnxruntime
 {
+    namespace fs = std::filesystem;
+
     /**
      * @brief ONNX Runtime backend implementation.
      *

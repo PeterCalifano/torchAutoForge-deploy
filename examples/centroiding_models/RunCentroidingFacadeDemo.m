@@ -324,6 +324,7 @@ end
 stPoint = struct("x", vPosition(1), "y", vPosition(2));
 end
 
+% Image selection policy: no model or report ownership.
 function cFrames = SelectFrames_(strInput)
 % Fix the supported input sequence before any output is created.
 arguments (Input)
@@ -448,6 +449,7 @@ else
 end
 end
 
+% Output publication: filesystem ownership and JSON errors.
 function PrepareOutput_(strOutput, strInput)
 % Canonical paths prevent symlink aliases from bypassing collision protection.
 arguments (Input)
@@ -495,6 +497,7 @@ vOptions(2) = java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 java.nio.file.Files.move(oSource, oDestination, vOptions);
 end
 
+% Adapter metadata: describes the selected model and preprocessing contract.
 function stModel = ModelMetadata_(oModel)
 % Serialize wrapper-visible effective runtime and tensor metadata.
 arguments (Input)
@@ -526,6 +529,7 @@ stModel = struct("artifact_path", string(stContract.artifact_path), ...
         "shape", {num2cell(ptafdeploy.inference.GetModelOutputShapeVector(oModel, 0).')})}});
 end
 
+% Image annotation: the caller supplies decoded original-image coordinates.
 function SaveOverlay_(strSource, strDestination, vPoint)
 % Draw into the current image only; leave pixels outside the strokes unchanged.
 arguments (Input)

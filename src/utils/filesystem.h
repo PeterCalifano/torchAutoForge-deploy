@@ -1,5 +1,5 @@
 /**
- * @file common_ops.h
+ * @file filesystem.h
  * @author PeterC (petercalifano.gs@gmail.com)
  * @brief File-path validation helpers used by inference callers.
  * @version 0.1
@@ -13,10 +13,9 @@
 #include <string>
 #include <type_traits>
 
-namespace fs = std::filesystem;
-
-namespace deploy_aux
+namespace ptafdeploy::utils
 {
+    namespace fs = std::filesystem;
     /** @brief Accept types implicitly convertible to a filesystem path. */
     template <typename T>
     concept IsValidPathType = std::is_convertible_v<T, fs::path>;
@@ -31,10 +30,8 @@ namespace deploy_aux
      * @throws fs::filesystem_error If the filesystem query fails.
      */
     template <IsValidPathType T>
-    bool CheckFileExists(const T &path,
-                         const bool throw_if_not_exists = false)
+    bool CheckFileExists(const T& path, const bool throw_if_not_exists = false)
     {
-        // Define path object from string
         fs::path p(path);
         if (fs::exists(p))
         {
@@ -44,13 +41,14 @@ namespace deploy_aux
             }
 
 #if (VERBOSE)
-                if (fs::is_regular_file(p))
+            if (fs::is_regular_file(p))
             {
                 std::cout << "File path " << p << " exists and is a regular file.\n";
             }
             else
             {
-                std::cout << "File path " << p << " exists but is neither a regular file nor a directory.\n";
+                std::cout << "File path " << p
+                          << " exists but is neither a regular file nor a directory.\n";
             }
 #endif
             return true;
@@ -59,8 +57,8 @@ namespace deploy_aux
         {
 
 #if (VERBOSE)
-    if (!throw_if_not_exists)
-        std::cout << "File path " << p << " does not exist\n";
+            if (!throw_if_not_exists)
+                std::cout << "File path " << p << " does not exist\n";
 #endif
             if (throw_if_not_exists)
             {
@@ -81,25 +79,25 @@ namespace deploy_aux
      * @throws fs::filesystem_error If the filesystem query fails.
      */
     template <IsValidPathType T>
-    bool CheckFileExistsWithExt(const T &path,
-                                const std::string &ext,
+    bool CheckFileExistsWithExt(const T& path, const std::string& ext,
                                 const bool throw_if_not_exists = false)
     {
-        // Check if the file exists and has the specified extension
         fs::path p(path);
         bool file_exists = CheckFileExists(path, throw_if_not_exists);
         if (file_exists)
         {
             if (p.extension() != ("." + ext) && throw_if_not_exists)
             {
-                throw std::invalid_argument("File does not have the expected extension: " + p.string());
+                throw std::invalid_argument("File does not have the expected extension: " +
+                                            p.string());
             }
             else if (p.extension() != ("." + ext))
             {
-                std::cerr << "File exists but does not have the expected extension: " << p.string() << "\n";
+                std::cerr << "File exists but does not have the expected extension: " << p.string()
+                          << "\n";
                 return false;
             }
         }
         return file_exists;
     }
-};
+}; // namespace ptafdeploy::utils

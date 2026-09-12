@@ -13,17 +13,12 @@ function oTests = TestCentroidingSequence
 %   2026-09-12 Add sequence smoke and empty-input checks.
 % DEPENDENCIES
 %   MATLAB test framework, generated wrapper, Image Processing Toolbox.
-arguments (Output)
-    oTests (1, :) matlab.unittest.Test
-end
+% functiontests rejects arguments blocks in test entry points and local tests.
 oTests = functiontests(localfunctions);
 end
 
 function TestSequence_(oTest)
 % Check natural ordering, JSON arrays, and original-resolution overlays.
-arguments (Input)
-    oTest (1, 1) matlab.unittest.TestCase
-end
 strModel = string(getenv('PTAFDEPLOY_PLAIN_CENTROIDING_ONNX'));
 oTest.assumeTrue(isfile(strModel));
 strRoot = string(tempname); mkdir(strRoot);
@@ -47,9 +42,6 @@ end
 
 function TestEmptyInput_(oTest)
 % Reject a directory with no selected frames before any model is loaded.
-arguments (Input)
-    oTest (1, 1) matlab.unittest.TestCase
-end
 strRoot = string(tempname); mkdir(strRoot);
 oCleanup = onCleanup(@() rmdir(strRoot, 's')); %#ok<NASGU>
 oTest.verifyError(@() RunCentroidingFacadeDemo("absent.onnx", strRoot), ...

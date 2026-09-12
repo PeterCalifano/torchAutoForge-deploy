@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <auxiliary/common_ops.h>
+#include <filesystem>
 #include <inference/inference_common.h>
 #include <inference/onnx_runtime/onnxruntime_inference_tools.hpp>
 #include <inference/tensorrt/tensorrt_inference_engine.h>
@@ -16,6 +16,8 @@
 
 namespace ptafdeploy::inference
 {
+    namespace fs = std::filesystem;
+
     /**
      * @brief Backend-dispatching inference manager.
      *

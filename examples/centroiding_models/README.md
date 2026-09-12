@@ -8,8 +8,11 @@ The word `plain` remains in architecture and checkpoint identifiers.
 
 ## Native application
 
-Install torchAutoForge-deploy first. Configure this standalone application with
-OpenCV (core, imgproc, imgcodecs) and the installed inference package available:
+Install torchAutoForge-deploy with `autoforge_deploy_ENABLE_IMAGE_SUPPORT=ON` and
+`autoforge_deploy_ENABLE_INFERENCE_OUTPUT=ON`; see the
+[utility build instructions](../../doc/image_and_inference_output.md).
+Configure this standalone application with OpenCV and Catch2 v3 available
+(or disable native tests with `-DBUILD_TESTING=OFF`):
 
 ```bash
 cmake -S examples/centroiding_models -B build-centroiding \
@@ -37,8 +40,10 @@ values depend on the model; the fixture does not define an accuracy expectation.
 Raw `.onnx` artifacts are also accepted. Runtime overrides remain `--targets`,
 `--device`, `--intra-op-threads`, `--inter-op-threads`, and `--no-fallback`.
 The native executable writes JSON directly using the embedded RapidJSON headers;
-Python and MATLAB are not needed. OpenCV, RapidJSON, and TCLAP remain private
-application dependencies.
+Python and MATLAB are not needed. Image operations belong to the optional
+`autoforge_deploy::images` component; RapidJSON is private to
+`autoforge_deploy::inference_output`. TCLAP remains an application dependency.
+The compiled `centroiding_adapter` owns preprocessing and coordinate interpretation.
 
 ## Python and MATLAB
 
@@ -139,7 +144,7 @@ incomplete report and diagnostic files remain in the output directory.
 Abrupt termination and concurrent writers to the same output directory are outside
 the supported recovery contract.
 
-## Validation phase (pending authorization)
+## Validation
 
 Implementation has not yet been runtime-qualified. Do not infer numerical accuracy
 from successful plumbing tests or an arbitrary synthetic blob's geometric centre.
@@ -164,3 +169,8 @@ folder later. Keep datasets unchanged and generated reports outside source contr
 Record model/runtime/image provenance and first-frame versus aggregate timing.
 Report coordinate errors only when the label definition and coordinate convention
 have been verified.
+
+The utility-refactor validation ran the native, Python, and MATLAB sequence tests
+and six real images per language. The development tracker records checkpoint and
+input provenance, installation checks, observed cross-language differences, and
+remaining campaign limits. These checks do not establish centroiding accuracy.

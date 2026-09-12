@@ -2,7 +2,7 @@
  * @file inference_tensor_parsing.cpp
  * @brief Implementation of inference tensor specification parsing.
  *
- * Generic token conversion remains in `ptafdeploy::parsing`; this file applies
+ * Generic token conversion remains in `ptafdeploy::utils::parsing`; this file applies
  * model-input identity, ordering, and concrete-shape policy.
  */
 
@@ -34,7 +34,7 @@ namespace ptafdeploy::inference
     std::vector<int64_t> ParseTensorShape(const std::string_view value,
                                           const std::string_view context)
     {
-        std::vector<int64_t> shape = ptafdeploy::parsing::ParseIntegerList(value, ',', context);
+        std::vector<int64_t> shape = ptafdeploy::utils::parsing::ParseIntegerList(value, ',', context);
 
         // Generic integer parsing permits signed values, whereas runtime tensor
         // descriptors require every dimension to be concrete and positive.
@@ -46,7 +46,7 @@ namespace ptafdeploy::inference
         return shape;
     }
 
-    std::vector<ptafdeploy::parsing::SNamedValue> ResolveNamedTensorValues(
+    std::vector<ptafdeploy::utils::parsing::SNamedValue> ResolveNamedTensorValues(
         const std::span<const std::string> specifications,
         const std::span<const STensorInfo> model_inputs, const std::string_view context)
     {
@@ -75,8 +75,8 @@ namespace ptafdeploy::inference
         std::vector<std::optional<std::string>> values(model_inputs.size());
         for (const std::string& specification : specifications)
         {
-            ptafdeploy::parsing::SNamedValue parsed =
-                ptafdeploy::parsing::ParseNamedValue(specification, context);
+            ptafdeploy::utils::parsing::SNamedValue parsed =
+                ptafdeploy::utils::parsing::ParseNamedValue(specification, context);
 
             size_t input_index = 0U;
             if (parsed.name.empty())
@@ -109,7 +109,7 @@ namespace ptafdeploy::inference
 
         // Materialize only specified values, iterating model metadata to make
         // the result order deterministic regardless of argument order.
-        std::vector<ptafdeploy::parsing::SNamedValue> resolved;
+        std::vector<ptafdeploy::utils::parsing::SNamedValue> resolved;
         resolved.reserve(specifications.size());
         for (size_t index = 0U; index < model_inputs.size(); ++index)
         {

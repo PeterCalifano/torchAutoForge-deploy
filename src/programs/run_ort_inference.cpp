@@ -8,12 +8,11 @@
  * parsing APIs.
  */
 
-#include <auxiliary/common_ops.h>
 #include <inference/inference_config_parsing.h>
 #include <inference/inference_manager.h>
 #include <inference/inference_tensor_parsing.h>
 #include <utils/logging/CLogger.h>
-#include <utils/value_parsing.h>
+#include <utils/parsing/value_parsing.h>
 
 #include <tclap/CmdLine.h>
 #include <tclap/MultiArg.h>
@@ -41,7 +40,7 @@ namespace
     namespace fs = std::filesystem;
     namespace infer = ptafdeploy::inference;
     namespace logging = ptafdeploy::logging;
-    namespace parsing = ptafdeploy::parsing;
+    namespace parsing = ptafdeploy::utils::parsing;
 
     using TNamedValues = std::vector<parsing::SNamedValue>;
 

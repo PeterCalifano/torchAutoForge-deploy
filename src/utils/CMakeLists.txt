@@ -10,6 +10,7 @@ file(GLOB srcCudaFilesToPTX_local "*.ptx.cu")
 list(FILTER srcLibFiles_local EXCLUDE REGEX "\\.ptx\\.cu$")
 
 add_subdirectory(logging)
+add_subdirectory(parsing)
 
 set(srcLibFiles
     ${srcLibFiles} ${srcLibFiles_local}
@@ -22,3 +23,11 @@ install(
   FILES ${installable_headers}
   DESTINATION
     ${CMAKE_INSTALL_INCLUDEDIR}/${project_name}/${relative_path_without_src})
+
+# Optional utilities own separate targets; never append their sources to srcLibFiles.
+if(autoforge_deploy_ENABLE_IMAGE_SUPPORT)
+  add_subdirectory(images)
+endif()
+if(autoforge_deploy_ENABLE_INFERENCE_OUTPUT)
+  add_subdirectory(inference_output)
+endif()

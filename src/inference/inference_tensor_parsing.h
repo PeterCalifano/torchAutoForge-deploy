@@ -10,7 +10,7 @@
 #pragma once
 
 #include <inference/inference_common.h>
-#include <utils/value_parsing.h>
+#include <utils/parsing/value_parsing.h>
 
 #include <span>
 #include <string>
@@ -53,7 +53,7 @@ namespace ptafdeploy::inference
      * is malformed, unqualified input is ambiguous, a name is unknown, or one
      * input is specified more than once.
      */
-    [[nodiscard]] std::vector<ptafdeploy::parsing::SNamedValue> ResolveNamedTensorValues(
+    [[nodiscard]] std::vector<ptafdeploy::utils::parsing::SNamedValue> ResolveNamedTensorValues(
         std::span<const std::string> specifications, std::span<const STensorInfo> model_inputs,
         std::string_view context);
 } // namespace ptafdeploy::inference

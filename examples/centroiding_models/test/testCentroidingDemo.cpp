@@ -3,9 +3,11 @@
  * @brief Target-owned tests for the image-only centroiding integration.
  */
 
-#include "centroiding_io.h"
+#include "centroiding_adapter.h"
+#include <algorithm>
 #include <fstream>
 #include <rapidjson/document.h>
+#include <utils/images/images.h>
 
 #include <inference/model_facade.h>
 
@@ -27,6 +29,8 @@ namespace
     namespace demo = ptafdeploy::examples::centroiding_models;
     namespace fs = std::filesystem;
     namespace infer = ptafdeploy::inference;
+    namespace out = ptafdeploy::utils::inference_output;
+    namespace images = ptafdeploy::utils::images;
 
     /** @brief Return the optional external plain ONNX path without taking ownership. */
     [[nodiscard]] fs::path GetOptionalModelPath()
@@ -141,10 +145,10 @@ TEST_CASE("centroiding_runs_external_onnx_on_bright_ellipse",
 TEST_CASE("centroiding_orders_natural_filenames_with_lexical_ties", "[example][centroiding]")
 {
     std::vector<std::string> names{"frame10.png", "frame2.png", "frame02.png", "Frame2.png"};
-    std::sort(names.begin(), names.end(), demo::NaturalLess);
+    std::sort(names.begin(), names.end(), images::NaturalLess);
     REQUIRE(names ==
             std::vector<std::string>{"Frame2.png", "frame02.png", "frame2.png", "frame10.png"});
-    REQUIRE(demo::NaturalLess("f999999999999999999999", "f1000000000000000000000"));
+    REQUIRE(images::NaturalLess("f999999999999999999999", "f1000000000000000000000"));
 }
 
 TEST_CASE("centroiding_preserves_outside_predictions_in_json", "[example][centroiding]")
@@ -155,8 +159,9 @@ TEST_CASE("centroiding_preserves_outside_predictions_in_json", "[example][centro
     REQUIRE(result.original_image_pixels.x == 400.0);
     REQUIRE(result.original_image_pixels.y == -120.0);
     rapidjson::Document frame;
-    frame.Parse(
-        demo::FrameJson(0, "frame2.png", cv::Size{320, 240}, output, result, 12.0, "").c_str());
+    frame.Parse(out::Serialize(out::FrameValue(demo::FrameRecord(
+                                   0, "frame2.png", cv::Size{320, 240}, output, result, 12.0, "")))
+                    .c_str());
     REQUIRE_FALSE(frame.HasParseError());
     REQUIRE(frame["overlay"].IsNull());
     REQUIRE(frame["centroid"]["image_pixels"]["x"].GetDouble() == 400.0);
@@ -178,28 +183,30 @@ TEST_CASE("centroiding_selects_frames_and_preserves_incomplete_reports", "[examp
             fs::remove_all(path, ignored);
         }
     } cleanup{root};
-    REQUIRE_THROWS_AS(demo::SelectFrames(root), std::invalid_argument);
+    REQUIRE_THROWS_AS(images::SelectFrames(root), std::invalid_argument);
     for (const auto* name : {"frame10.png", "frame2.PNG", "frame02.png"})
         REQUIRE(cv::imwrite((root / name).string(), cv::Mat(32, 32, CV_8UC1, cv::Scalar(80))));
     fs::create_directory(root / "nested");
     REQUIRE(
         cv::imwrite((root / "nested/frame1.png").string(), cv::Mat(2, 2, CV_8UC1, cv::Scalar(0))));
-    const auto frames = demo::SelectFrames(root);
+    const auto frames = images::SelectFrames(root);
     REQUIRE(frames.size() == 3);
-    REQUIRE(frames[0].filename() == "frame02.png");
-    REQUIRE(frames[1].filename() == "frame2.PNG");
+    // Extension case participates in the natural key before the spelling tie-breaker.
+    REQUIRE(frames[0].filename() == "frame2.PNG");
+    REQUIRE(frames[1].filename() == "frame02.png");
     const auto destination = root / "results";
-    demo::PrepareOutput(destination, root);
-    demo::CReport report(destination, demo::MetadataJson(root, frames.size()));
+    out::PrepareOutput(destination, root);
+    out::CReport report(destination, demo::RunMetadata(root, frames.size()));
     const infer::SFloatTensor output{"prediction", {1, 2}, {0.5F, 0.5F}};
     const auto result = demo::DecodeCentroid(output, cv::Size{32, 32}, cv::Size{32, 32});
     report.Append(
-        demo::FrameJson(0, frames[0].filename(), cv::Size{32, 32}, output, result, 1.0, ""));
+        demo::FrameRecord(0, frames[0].filename(), cv::Size{32, 32}, output, result, 1.0, ""));
     {
         std::ofstream partial(destination / "frames.jsonl", std::ios::app);
         partial << "{uncommitted partial write";
     }
-    report.Publish(false, R"({"stage":"decode","frame_index":1,"message":"unreadable"})");
+    report.Publish(false, out::SJsonValue::Object{
+                              {"stage", "decode"}, {"frame_index", 1}, {"message", "unreadable"}});
     std::ifstream input(destination / "predictions.json");
     const std::string text((std::istreambuf_iterator<char>(input)),
                            std::istreambuf_iterator<char>());
@@ -208,9 +215,9 @@ TEST_CASE("centroiding_selects_frames_and_preserves_incomplete_reports", "[examp
     REQUIRE_FALSE(document.HasParseError());
     REQUIRE(std::string(document["status"].GetString()) == "incomplete");
     REQUIRE(document["frames"].Size() == 1);
-    REQUIRE_THROWS_AS(demo::PrepareOutput(destination, root), std::invalid_argument);
-    REQUIRE_THROWS_AS(demo::PrepareOutput(root, root), std::invalid_argument);
-    REQUIRE(demo::SelectFrames(root).size() == 3);
+    REQUIRE_THROWS_AS(out::PrepareOutput(destination, root), std::invalid_argument);
+    REQUIRE_THROWS_AS(out::PrepareOutput(root, root), std::invalid_argument);
+    REQUIRE(images::SelectFrames(root).size() == 3);
     demo::SaveOverlay(frames[0], destination / "overlay.png", result);
     const auto overlay = cv::imread((destination / "overlay.png").string());
     REQUIRE(overlay.size() == cv::Size(32, 32));

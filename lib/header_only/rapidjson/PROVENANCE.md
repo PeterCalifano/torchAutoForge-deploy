@@ -9,7 +9,7 @@ The header files match the local
 distribution byte for byte. The recorded raytracer import revision is
 `b50e068e81d32e7f79bb89089305200b2ec892d1`.
 Only headers and the matching license are included. This dependency is private
-to the centroiding demo; it is not part of the public inference interface.
+to the optional inference_output implementation; it is not part of any public header.
 
 The local future-onboard-sw donor also uses RapidJSON in its navigation-filter
 configuration tests (`codegen/nav_filter/tests`). No code from those tests or

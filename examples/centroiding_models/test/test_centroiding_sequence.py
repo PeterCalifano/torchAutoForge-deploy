@@ -11,7 +11,9 @@ import pytest
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import centroiding_io as cio
+import image_sequence as images
+import inference_output as reports
+from centroiding_metadata import metadata
 import run_centroiding as demo
 
 
@@ -23,23 +25,23 @@ def test_selection_and_collision(tmp_path: Path) -> None:
         Image.new("L", (8, 6)).save(source / name)
     (source / "nested").mkdir()
     Image.new("L", (8, 6)).save(source / "nested" / "frame1.png")
-    assert [p.name for p in cio.select_frames(source)] == [
+    assert [p.name for p in images.select_frames(source)] == [
         "frame02.png",
         "frame2.png",
         "frame10.PNG",
     ]
     output = source / "results"
-    cio.prepare_output(output, source)
+    reports.prepare_output(output, source)
     (output / "existing.txt").write_text("keep")
     with pytest.raises(ValueError):
-        cio.prepare_output(output, source)
+        reports.prepare_output(output, source)
     with pytest.raises(ValueError):
-        cio.prepare_output(source, source)
+        reports.prepare_output(source, source)
 
 
 def test_partial_report(tmp_path: Path) -> None:
     """A failed run keeps completed records and an explicit incomplete status."""
-    report = cio.Report(tmp_path, cio.metadata(tmp_path, 2))
+    report = reports.Report(tmp_path, metadata(tmp_path, 2))
     report.append({"index": 0, "source": "frame1.png"})
     with (tmp_path / "frames.jsonl").open("a") as spool:
         spool.write("{uncommitted partial write")
@@ -56,7 +58,7 @@ def test_overlay_preserves_surrounding_pixels(tmp_path: Path) -> None:
     pixels = np.full((64, 64), 12345, dtype=np.uint16)
     source, destination = tmp_path / "source.png", tmp_path / "overlay.png"
     Image.fromarray(pixels).save(source)
-    cio.save_overlay(source, destination, 32.0, 32.0)
+    images.save_overlay(source, destination, 32.0, 32.0)
     with Image.open(destination) as image:
         actual = np.asarray(image)
     assert actual.shape == pixels.shape
@@ -92,9 +94,9 @@ def test_single_load_and_partial_decode_failure(
     monkeypatch.setattr(demo, "load_model", load_model)
     monkeypatch.setattr(demo, "prepare_image", prepare)
     monkeypatch.setattr(demo, "print_result", lambda *args: None)
-    original_metadata = cio.metadata
+    original_metadata = metadata
     monkeypatch.setattr(
-        cio,
+        demo,
         "metadata",
         lambda path, count, model=None, requested_model=None: original_metadata(path, count),
     )

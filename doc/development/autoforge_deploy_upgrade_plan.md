@@ -1079,3 +1079,141 @@ planned validation. The staged candidate is for source review, not a claim that
 Stage 18.6 has passed.
 
 Proposed subject: `Extend centroiding demos with sequences and native JSON output`.
+
+### Utility extraction and centroiding migration, 2026-09-12
+
+This approved plan supersedes the demo-owned `_io`/`_support` design above.
+Breaking auxiliary and parsing include paths and namespaces are authorized.
+The previous centroiding candidate was committed as `8304ce1`. The subsequent
+`next` instruction advanced this refactor to validation and staged review.
+
+- [x] Stage 0: inspect and preserve the index, worktree, and excluded files.
+- [x] Stage 1: move filesystem helpers into utils and value parsing into
+  utils/parsing; update namespaces, consumers, installation, and documentation.
+- [x] Stage 2: add independent optional images and inference_output compiled
+  targets, component exports, and dependency discovery; keep core consumers light.
+- [x] Stage 3: extract image operations and sequence selection, typed JSON values,
+  raw tensor serialization, and bounded complete/incomplete report publication.
+- [x] Stage 4: replace demo helper headers with a compiled centroiding adapter,
+  migrate applications and test sources, and document reusable native examples.
+- [x] Review implementation locally, then pause before builds/tests/benchmarks.
+- [x] Stage 5, after authorization: execute focused tests, installed component
+  acceptance checks, and real-image validation with COSMICA Itokawa,
+  ml-based-centroiding, OPERATIVE, and the forthcoming input folder.
+- [x] Stage 6: review and stage one explicit coherent allowlist; report evidence,
+  limitations, exclusions, and a proposed commit message. Do not commit or push.
+
+Implementation evidence: filesystem helpers now reside in `utils/filesystem.h`;
+value parsing resides in `utils/parsing` with namespace
+`ptafdeploy::utils::parsing`. Optional `images` and `inference_output` components
+have independent targets and exports. Core-only package discovery retains the
+existing dependency list and does not discover OpenCV. The image component replays
+its OpenCV dependency only when requested. RapidJSON appears only in the output
+implementation and relevant test code, not in installed public headers.
+
+The compiled centroiding adapter preserves preprocessing and coordinate mapping.
+Native frame/run records use typed JSON values; Python helpers are separated into
+image selection/annotation, output publication, and centroiding metadata. MATLAB
+retains local functions with explicit responsibility boundaries. Public utility
+examples and breaking include/namespace migrations are documented in
+`doc/image_and_inference_output.md`.
+
+Source review corrected hidden global filesystem-alias dependencies, a Python
+module/path naming collision, clipping of thick markers at image borders, and
+report append lifecycle handling. New test sources cover filesystem behavior,
+image operations, tensor cardinality/type/finiteness, invalid UTF-8, reserved
+fields, partial tails, and append failure. Existing centroiding tests use the
+compiled components. These tests have not been run.
+
+Checks performed: Ruff E9/F for the Python application, helper modules, and test
+source passed. Tracked-diff and new-authored-file whitespace checks passed. All
+38 RapidJSON headers and the license remain byte-identical to the donor. The PNG
+fixture, workspace edit, and unrelated FiLM test retain their prior bytes.
+
+At the initial implementation handoff, execution checks were paused and the prior
+index was unchanged. The validation results below supersede that qualification
+status. No commit or push of this refactor has been performed.
+
+### Utility validation and consolidation, 2026-09-12
+
+- [x] Configure and build fresh Debug shared libraries with both optional components.
+- [x] Run core/utility CTest: 48 passed; two optional checks from the unrelated
+  untracked FiLM test skipped. That source remains excluded from consolidation.
+- [x] Install into a fresh prefix; build and run the native centroiding suite:
+  10 passed, including the available image-only ONNX checkpoint.
+- [x] Run Python sequence tests: 4 passed. Run MATLAB R2024b sequence tests:
+  2 passed. Reuse existing generated wrappers with the newly built core runtime;
+  no wrapper API change or wrapper regeneration was required.
+- [x] Build Release static libraries and compile/run core-only, output-only, and
+  combined installed consumers against both shared and static installations.
+  Core/output-only consumers disable OpenCV discovery. Check missing required,
+  missing optional, and disabled image components. Configure core with OpenCV
+  discovery disabled. Build and run the documented native image/output example.
+- [x] Process six real images through each of C++, Python, and MATLAB. Verify ordered
+  frame identities, raw tensor shapes/finite values, coordinate mappings, inside
+  flags, overlay extents, and unchanged pixels outside the crosshair region.
+- [x] Verify partial-run failures retain one completed record and an incomplete
+  report in all languages. Verify native/Python empty-input rejection and output
+  collision preservation. JSON-only runs create no overlay directory.
+- [ ] Validate the additional user-supplied input folder when it becomes available;
+  larger accuracy/performance campaigns remain separate from this bounded smoke.
+
+Execution exposed two remaining consumers of the retired global filesystem alias;
+ORT and model-facade tests now declare their own alias. The natural-order test now
+accounts for case-sensitive extension comparison before the spelling tie-breaker.
+MATLAB test entry points omit arguments blocks because `functiontests` explicitly
+rejects them; application functions retain argument validation.
+
+The six-frame native-versus-Python/MATLAB maximum coordinate difference was
+0.699459 pixels. These paths retain different resizing implementations; the smoke
+checks schema and mapping consistency rather than requiring identical predictions
+or measuring geometric-centre accuracy. Timing samples are recorded in each JSON
+report; overlapping validation processes preclude comparative performance claims.
+The wrapper execution-target-priority field remains null. Installed shared runtime
+consumers require ONNX Runtime on the loader path, as specified by the existing
+external dependency contract.
+
+Evidence directory: `/tmp/ptaf-utils-validation-qnfz4s88`. It contains configure,
+build, CTest, wrapper, consumer, and failure logs; runnable acceptance scripts;
+`input-provenance.json`; and all three real-image reports and overlays.
+
+Checkpoint: `models/onnx/best_model_plain_traveling-goat-68_22b61bbd4ddd.onnx`; SHA-256
+`8ba4f46355b0f6b542ec848b4c1130760bea194f9bf3b16e7b36bad9f380af4b`.
+
+Selected source files (symlinked into the temporary input directory):
+
+- `/home/peterc/devDir/projects-DART/cosmica-simulator/output_images/images/000000.png`
+  SHA-256 `530a9d019af8d1eefab7b37c50d9864f35e0f762cc6ed90f4fbd5d7e17647d69`
+- `/home/peterc/devDir/projects-DART/cosmica-simulator/output_images/images/003952.png`
+  SHA-256 `2156745bd2c4c5acbcb590e415f698c28003c1cf2a1451429b935a918ff3cd27`
+- `/media/peterc/DatasetsArchive/datasets/UniformlyScatteredPointCloudsDatasets/Itokawa/Dataset_UniformPointCloud_Itokawa_SPECTRAL_OPTIX_RT_1000_WFOV_Farinella_evaluation_ID99/images/000000.png`
+  SHA-256 `2ddb0fa63a0f6bde7c182c9548328f6ff4ff5a6cb90b10506adc2512df9993e6`
+- `/media/peterc/DatasetsArchive/datasets/UniformlyScatteredPointCloudsDatasets/Itokawa/Dataset_UniformPointCloud_Itokawa_SPECTRAL_OPTIX_RT_1000_WFOV_Farinella_evaluation_ID99/images/000500.png`
+  SHA-256 `839b399f1ce27fe2a3db1ed77bd7827172f6cf36059b70ac7481d13fa6977fa7`
+- `/media/peterc/DatasetsArchive/datasets/TrajectoriesDatasets/Moon/OPERATIVE_trajectory_test/images/000001.png`
+  SHA-256 `2ce224179f42b1ab10c69c6240fe81d9dfd0e89e2f08a3d3fbd77b63c5176656`
+- `/media/peterc/DatasetsArchive/datasets/TrajectoriesDatasets/Moon/OPERATIVE_trajectory_test/images/013554.png`
+  SHA-256 `e78f9a99b6587e4ad0e9a6e23d950585a69828554bc25d0600f4a031416534e6`
+
+Consolidation result: the reviewed refactor is staged through an explicit 55-path
+allowlist (52 diff entries after rename detection). Cached whitespace checks pass;
+staged source bytes match the tested worktree. The workspace edit and untracked
+FiLM test remain unchanged and excluded. No commit or push was performed.
+
+Proposed commit message:
+
+```text
+Consolidate utilities and extract image and inference output
+
+- Move filesystem and parsing helpers into responsibility-specific utils paths
+  and update consumers without compatibility aliases
+
+- Add optional image and inference-output components with independent exports
+  and private JSON implementation dependencies
+
+- Route centroiding through a compiled adapter while preserving its model
+  contract and report schema
+
+- Validate shared/static consumers, native utilities, wrapper sequences, and
+  bounded real-image runs; document compatibility changes and remaining limits
+```
