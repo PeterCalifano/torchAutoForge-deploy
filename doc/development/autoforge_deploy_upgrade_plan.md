@@ -728,9 +728,9 @@ Review inventory on 2026-09-11. These are static findings; runtime validation re
 - [x] Rename `run_plain_centroiding.cpp/.py` to `run_centroiding.cpp/.py`,
   `RunPlainCentroidingFacadeDemo.m` to `RunCentroidingFacadeDemo.m`, and
   `plain_centroiding_support.h` to `centroiding_support.h`.
-- [ ] Update namespaces, CMake targets, tests, identifiers, and active documentation.
+- [x] Update namespaces, CMake targets, tests, identifiers, and active documentation.
   Retain `plain` for architecture/checkpoint identifiers and historical evidence.
-- [ ] Preserve manifest/raw-ONNX loading, runtime options, preprocessing, generic
+- [x] Preserve manifest/raw-ONNX loading, runtime options, preprocessing, generic
   adapters, and CModelFacade ownership; verify the renamed single-image invocation.
 
 Contract: one image tensor input, independent batch-one execution, and one `[1,2]`
@@ -739,78 +739,78 @@ are excluded. Pause for design review if this boundary must change.
 
 ### Stage 18.2: Deterministic sequence execution
 
-- [ ] Accept positional `input_path` as one image or a directory. Preserve
+- [x] Accept positional `input_path` as one image or a directory. Preserve
   decoder-supported explicit single-file inputs.
-- [ ] Enumerate directories once before creating output, non-recursively, selecting
+- [x] Enumerate directories once before creating output, non-recursively, selecting
   regular files with case-insensitive `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tif`, and
   `.tiff` extensions; reject empty selected sequences.
-- [ ] Match natural filename ordering across languages: compare ASCII digit runs
+- [x] Match natural filename ordering across languages: compare ASCII digit runs
   numerically without integer overflow, other text case-sensitively by Unicode
   code point, and equivalent natural keys by the complete original filename lexically.
-- [ ] Load/validate the model once and process each frame independently at batch
+- [x] Load/validate the model once and process each frame independently at batch
   size one; fail clearly on an unreadable selected image.
-- [ ] Preserve existing grayscale conversion, direct bilinear resize, and unit
+- [x] Preserve existing grayscale conversion, direct bilinear resize, and unit
   scaling. Retain only current-frame image/tensor buffers, never image arrays.
-- [ ] Preserve console prediction fields and add frame identity for sequences.
-- [ ] Time only InferSingleFloatTensor with monotonic elapsed time, including its
+- [x] Preserve console prediction fields and add frame identity for sequences.
+- [x] Time only InferSingleFloatTensor with monotonic elapsed time, including its
   existing facade/wrapper overhead but excluding loading, preprocessing, and output IO.
 
 ### Stage 18.3: Embedded RapidJSON and native reports
 
-- [ ] Embed the RapidJSON header distribution and license under
+- [x] Embed the RapidJSON header distribution and license under
   `lib/header_only/rapidjson`, with donor paths and provenance recorded alongside it.
-- [ ] Reconfirm the inspected raytracer headers match local RapidJSON revision
+- [x] Reconfirm the inspected raytracer headers match local RapidJSON revision
   `24b5e7a8b27f42fa16b96fc70aade9106cf7102f`; record raytracer import commit
   `b50e068e81d32e7f79bb89089305200b2ec892d1`. Use the matching checkout's license.
-- [ ] Keep RapidJSON private to the native application and its tests; import no donor
+- [x] Keep RapidJSON private to the native application and its tests; import no donor
   build machinery or JSON-library conformance tests.
-- [ ] Add `--output PATH`, writing `PATH/predictions.json` directly from C++ without
+- [x] Add `--output PATH`, writing `PATH/predictions.json` directly from C++ without
   Python or MATLAB and without overlays by default.
-- [ ] Use schema_version 1 with status, model, input, preprocessing, and ordered
+- [x] Use schema_version 1 with status, model, input, preprocessing, and ordered
   frames fields, plus error details for failed runs.
-- [ ] Record model/config paths, role, effective runtime configuration, backend
+- [x] Record model/config paths, role, effective runtime configuration, backend
   detail, and tensor metadata from GetContract(). Record each demo's preprocessing
   and image-library identity separately from declarative manifest pipeline labels.
-- [ ] Record supplied input path, input kind, selected frame count, and ordering.
-- [ ] Record each frame's zero-based index, relative source path, original
+- [x] Record supplied input path, input kind, selected frame count, and ordering.
+- [x] Record each frame's zero-based index, relative source path, original
   dimensions, raw output name/shape/values, normalized coordinates, coordinates
   in model and image pixels, inside_image, inference_ms, and relative overlay path or null.
-- [ ] Stream native frame records to disk instead of accumulating report records
+- [x] Stream native frame records to disk instead of accumulating report records
   in memory; the filename inventory may remain in memory for sorting.
 
 ### Stage 18.4: Opt-in overlays and failure handling
 
-- [ ] Add `--overlays`, requiring `--output`.
-- [ ] Accept a new output directory or an existing empty directory; reject
+- [x] Add `--overlays`, requiring `--output`.
+- [x] Accept a new output directory or an existing empty directory; reject
   nonempty destinations and output paths equal to or containing the input location.
   Permit an output child directory because enumeration is fixed and non-recursive.
-- [ ] Save original-resolution PNG overlays as `overlays/000000_<source-stem>.png`.
+- [x] Save original-resolution PNG overlays as `overlays/000000_<source-stem>.png`.
   Preserve source appearance outside contrasting crosshair strokes; extra overlay
   decoding must not change inference preprocessing.
-- [ ] Draw at the true predicted coordinate and clip strokes naturally; fully
+- [x] Draw at the true predicted coordinate and clip strokes naturally; fully
   off-image crosshairs remain invisible. Never clamp recorded predictions.
-- [ ] Accept finite out-of-range coordinates while retaining invalid-shape and
+- [x] Accept finite out-of-range coordinates while retaining invalid-shape and
   non-finite-value rejection. Document upper-left origin, x rightward, y downward,
   coordinates multiplied by width/height, and inside bounds `0 <= x < width`,
   `0 <= y < height`; normalized 1 is outside the corresponding upper boundary.
-- [ ] Create an initial valid incomplete report. Spool frame records and atomically
+- [x] Create an initial valid incomplete report. Spool frame records and atomically
   publish an assembled report on success or caught failure.
-- [ ] Stop at the first decoding, inference, validation, or output error; record
+- [x] Stop at the first decoding, inference, validation, or output error; record
   its stage, frame index, source, and actionable message. Preserve completed-frame
   records and mark complete only after all frames and requested overlays succeed.
-- [ ] On report-publication failure, retain the prior incomplete report and spool,
+- [x] On report-publication failure, retain the prior incomplete report and spool,
   identify their locations, and return failure. Abrupt-termination recovery is excluded.
 
 ### Stage 18.5: Matching Python and MATLAB behavior
 
-- [ ] Match input selection, sorting, model reuse, JSON-only default, opt-in
+- [x] Match input selection, sorting, model reuse, JSON-only default, opt-in
   overlays, and failure semantics using native Python/MATLAB JSON facilities.
-- [ ] Preserve language-specific preprocessing conventions and document expected
+- [x] Preserve language-specific preprocessing conventions and document expected
   small numerical differences.
-- [ ] Add MATLAB options `strOutputPath=""` and `bOverlays=false`; return one run
+- [x] Add MATLAB options `strOutputPath=""` and `bOverlays=false`; return one run
   struct matching the report schema for both input modes, including frames.
   Retain compact metadata for that return value, never image arrays.
-- [ ] Verify matching singleton/empty arrays, numeric arrays, booleans, and null overlays.
+- [x] Verify matching singleton/empty arrays, numeric arrays, booleans, and null overlays.
 
 ### Stage 18.6: Validation and documentation
 
@@ -848,7 +848,7 @@ are excluded. Pause for design review if this boundary must change.
 - [ ] Document runnable native/Python/MATLAB examples and expected output,
   dependencies, ordering, coordinates, collision policy, and failure guarantees.
 
-Planned native/Python argument forms (not implemented yet):
+Implemented native/Python argument forms:
 
 ```bash
 run_centroiding model.ptafmodel image.png
@@ -1216,4 +1216,83 @@ Consolidate utilities and extract image and inference output
 
 - Validate shared/static consumers, native utilities, wrapper sequences, and
   bounded real-image runs; document compatibility changes and remaining limits
+```
+
+### Remaining validation and native evaluation, 2026-09-12
+
+Current baseline: commits `8304ce1` and `b6dfeeb` contain the sequence demos and
+optional utilities. Earlier implementation-pause and staged-only statements above
+are historical. The user has authorized the remaining implementation and validation.
+The next review stages only housekeeping; native changes remain unstaged until
+the subsequent review batches.
+
+Implement and review the entire change set before staging only batch 1. No Python
+evaluation utilities or package changes belong in this repository; Python work,
+if requested later, belongs in pyTorchAutoForge. Source datasets remain immutable.
+
+- [x] Stage 1: reconcile recorded status, keep the VS Code workspace locally but
+  remove it from tracking, and reserve gitignored data/inputs and data/results
+  for linked/copied inputs.
+- [x] Stage 2: rename and validate the FiLM test, remove unsupported synthetic
+  accuracy assumptions, and distinguish missing CUDA capability from inference errors.
+- [x] Stage 3: close selection, contract, JSON, failure, image-format, and delivery
+  coverage gaps; reuse passing evidence and rerun checks affected by repairs.
+- [x] Stage 4: implement reusable native statistics/point metrics, versioned report
+  reading, input preparation, evaluation CLI, shell orchestration, and focused tests.
+- [x] Stage 5: select up to 100 frames per available dataset, run three sequential
+  CPU passes, exclude the first five frames from steady summaries, and inspect
+  ten overlays per dataset. Compute accuracy only for verified reference semantics.
+- [x] Review the full implementation and evidence locally without subagents.
+- [x] Stage batch 1 only: tracker/workspace reconciliation and /data/ ignore rule.
+- [ ] On subsequent next, with index clear, stage batch 2: FiLM test and corrections.
+- [ ] On subsequent next, stage batch 3: functional/delivery validation corrections.
+- [ ] On subsequent next, stage batch 4: native evaluation tools and evidence.
+- [ ] Add the forthcoming user input folder when provided; it does not block the
+  available datasets. Larger accuracy and GPU comparison campaigns remain separate.
+
+Implementation and review evidence:
+
+- [x] Implement generic finite statistics and source-matched point errors in core
+  `utils/metrics`; add strict report reading to the optional native output component.
+- [x] Add native selection/evaluation programs and a sequential shell run driver.
+  Do not add Python evaluation modules, packaging changes, or facade changes.
+- [x] Rename the external FiLM test and remove geometric-centre accuracy assertions.
+  Reject an explicitly invalid artifact path; skip unavailable external prerequisites.
+- [x] Build Release shared and static libraries; run installed core/output/combined
+  consumers for both. Build output-only programs with OpenCV discovery disabled.
+- [x] Pass 54 core/utility tests with two FiLM prerequisites skipped, and all ten
+  standalone centroiding tests with the real plain model enabled. Pass known-answer
+  evaluation CLI checks and shell syntax/ShellCheck checks. Verify 8/16-bit PNG
+  grayscale, RGB, and RGBA round trips and report-publication recovery.
+- [x] Reuse the recorded native/Python/MATLAB sequence and failure evidence for the
+  unchanged demo paths; do not present those earlier runs as new benchmarks.
+- [x] Run three sequential 100-frame CPU passes per dataset and a separate ten-frame
+  overlay pass per dataset. Verify all thirty overlays and coordinate mappings.
+  Record selections and hashes under ignored data/inputs and data/results.
+- [x] Review new sources and the complete candidate diff for ownership, source
+  documentation, collision behavior, finite values, repeated loading, and scope.
+
+Evidence: `/tmp/ptaf-evaluation-9mtake_3`; the unstaged native evaluation document
+records commands, sources, per-pass statistics, and reference-label limitations.
+Other MATLAB workloads were active. The measured latencies are not isolated
+performance benchmarks. COSMICA target identity follows the user-selected folder;
+its exact run configuration remains unverified. Itokawa and OPERATIVE coordinate
+labels were inspected but not adopted as ground truth. No learned accuracy claim
+is made. The compatible FiLM ONNX model, CUDA provider, and forthcoming input folder
+remain unavailable.
+
+The full implementation remains in the worktree. Batch 1 contains only `.gitignore`,
+`torchAutoForge-deploy.code-workspace`, and this tracker. Batch 2 owns the FiLM test;
+batch 3 owns the demo validation-status correction; batch 4 owns native evaluation,
+its dependent tests, utility coverage, and documentation. This allocation keeps
+reader-dependent tests with the reader implementation rather than staging them early.
+
+Proposed batch 1 message:
+
+```text
+Reconcile centroiding stages and reserve local evaluation data
+
+- Update completed stages and record native evaluation evidence and limitations
+
+- Keep the workspace file local and ignore evaluation inputs and results
 ```
