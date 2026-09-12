@@ -16,7 +16,8 @@ Authoritative staged plan: `doc/development/autoforge_deploy_upgrade_plan.md`.
 - [x] Finish initial wrapper interfaces for Python and MATLAB.
 - [x] Add MATLAB wrapper smoke test path for loading and running an ONNX model.
 - [x] Replace hardcoded model path in `run_ort_inference`.
-- [x] Deprecate legacy tensor/image specs in favor of `ptafdeploy::inference` descriptors/views/buffers.
+- [ ] Complete review of the Stage 18 legacy tensor/image-spec retirement; use
+  `ptafdeploy::inference` descriptors/views/buffers for current consumers.
 - [x] Add focused ORT validation regressions and numeric output reference checks.
 - [x] Add generic model-role facade and contract for raw tensor, centroiding, object detection, and reserved learned-module roles.
 - [x] Expose model-role facade through Python and MATLAB wrappers.

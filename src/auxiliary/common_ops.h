@@ -1,64 +1,35 @@
 /**
  * @file common_ops.h
  * @author PeterC (petercalifano.gs@gmail.com)
- * @brief 
+ * @brief File-path validation helpers used by inference callers.
  * @version 0.1
  * @date 2025-07-20
  */
 #pragma once
 
-#include <exception>
-#include <execution>  // Optional, for parallel policies
-#include <filesystem> // C++17, for filesystem operations
+#include <filesystem>
 #include <iostream>
-#include <numeric> // for std::reduce
-#include <vector>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
 
 namespace fs = std::filesystem;
 
 namespace deploy_aux
 {
-#if (PARALLELEXEC)
-    /**
-     * @brief Computes the product of elements in a vector in parallel.
-     *
-     * @tparam T The type of elements in the vector.
-     * @param v The input vector.
-     * @return T The product of the elements.
-     */
-    template <typename T>
-    T AccumProduct(const std::vector<T> &v)
-    {
-
-        return std::reduce(
-            std::execution::par,
-            v.begin(), v.end(),
-            static_cast<T>(1),
-            std::multiplies<T>());
-    }
-#else
-
-    /**
-     * @brief Computes the product of elements in a vector serially.
-     *
-     * @tparam T The type of elements in the vector.
-     * @param v The input vector.
-     * @return T The product of the elements.
-     */
-    template <typename T>
-    T AccumProduct(const std::vector<T> &v)
-    {
-        // serial:
-        return std::reduce(
-            v.begin(), v.end(),
-            static_cast<T>(1),
-            std::multiplies<T>());
-    }
-#endif
-
+    /** @brief Accept types implicitly convertible to a filesystem path. */
     template <typename T>
     concept IsValidPathType = std::is_convertible_v<T, fs::path>;
 
+    /**
+     * @brief Check that a path exists and is not a directory.
+     * @tparam T Path-convertible input type.
+     * @param path Path to inspect.
+     * @param throw_if_not_exists Throw instead of returning false for an absent path.
+     * @return Whether the non-directory path exists.
+     * @throws std::invalid_argument For a directory or a required missing path.
+     * @throws fs::filesystem_error If the filesystem query fails.
+     */
     template <IsValidPathType T>
     bool CheckFileExists(const T &path,
                          const bool throw_if_not_exists = false)
@@ -99,6 +70,16 @@ namespace deploy_aux
         }
     }
 
+    /**
+     * @brief Check existence and a case-sensitive filename extension.
+     * @tparam T Path-convertible input type.
+     * @param path Path to inspect.
+     * @param ext Expected extension without its leading dot.
+     * @param throw_if_not_exists Throw for an absent path or extension mismatch.
+     * @return Whether the non-directory path exists with the expected extension.
+     * @throws std::invalid_argument For a directory or a requested strict-check failure.
+     * @throws fs::filesystem_error If the filesystem query fails.
+     */
     template <IsValidPathType T>
     bool CheckFileExistsWithExt(const T &path,
                                 const std::string &ext,

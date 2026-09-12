@@ -55,7 +55,9 @@ tracked in
 ## Stage 4: Implementation Review And Cleanup
 
 - [x] Review `ptafdeploy::inference` tensor types against legacy `SInputOutputSpecs` and `SImagesInputOutputSpecs`.
-- [x] Remove or deprecate redundant legacy specs where covered by generic descriptors/views/buffers.
+- [ ] Remove or deprecate redundant legacy specs where covered by generic descriptors/views/buffers.
+  The headers remain installed at `2abdb68`; the Stage 18 pre-stage retirement
+  candidate below corrects this earlier completion claim.
 - [x] Audit ORT backend helper functions for readability, reuse, and error clarity.
 - [x] Remove useless one-off local helpers that only hide simple operations.
 - [x] Add tests for named input mapping, mixed named/unnamed rejection, dtype mismatch, shape mismatch, byte-count mismatch, null data, and unloaded-session error.
@@ -672,6 +674,14 @@ native, Python, and MATLAB image-only demos. Native C++ writes JSON directly
 through embedded RapidJSON; overlays are disabled by default. Review locally
 without subagents. Do not commit or push without separate authorization.
 
+Execution gates confirmed on 2026-09-12:
+
+- [ ] Finish consolidation and stop before starting Stage 18.1 demo changes.
+- [ ] After later implementation in Stages 18.1–18.5, stop before running
+  Stage 18.6 benchmarks or validation. Consolidation checks remain part of
+  pre-stage review.
+- [ ] Resume each gated phase only after the user authorizes that phase.
+
 ### Pre-stage: Consolidate existing changes
 
 - [x] Inspect the complete worktree and index; the starting index is empty at
@@ -682,8 +692,8 @@ without subagents. Do not commit or push without separate authorization.
   authoritative AGENTS.md; record this approved plan and cross-link it from TODO.
 - [ ] Reconcile the separate export tracker against its owning repository before
   accepting its completion claims; preserve its current dirty contents meanwhile.
-- [ ] Review auxiliary-header ownership, copy/move, and computation changes and
-  run focused validation before accepting a functional batch.
+- [x] Assess auxiliary interfaces against current consumers and approved next
+  plans; prepare retirement of unused interfaces for review, as recorded below.
 - [x] Review the wrapper gitlink change and validate affected wrapper behavior;
   record the tests and existing-binary limitation below. Preserve the checkout.
 - [ ] Assess the legacy export-script changes against the approved Python
@@ -815,6 +825,23 @@ are excluded. Pause for design review if this boundary must change.
   mapping. Replace the learned-model geometric-center assertion with
   contract/output checks; do not
   require arbitrary geometric centers as learned-model ground truth.
+- [ ] Confirm user authorization to start validation after the implementation pause.
+- [ ] Use COSMICA Itokawa output images as the primary real-image sequence.
+  Inspect `cosmica-simulator/output_images/images` and `output_images_ID0` to
+  establish the intended run and record source provenance before selecting frames.
+- [ ] Select supplementary evaluation cases from datasets referenced by
+  ml-based-centroiding and OPERATIVE datasets under `$DATASETS`. The current root
+  is `/media/peterc/DatasetsArchive/datasets`; discovered candidates include
+  `UniformlyScatteredPointCloudsDatasets/Itokawa`,
+  `UniformlyScatteredSequencesDatasets/Itokawa`, and
+  `TrajectoriesDatasets/Moon/OPERATIVE_trajectory_test`.
+- [ ] Record source paths, selection rules, dimensions, image depth, model artifact,
+  runtime configuration, and label provenance. Leave source datasets unchanged.
+- [ ] Add the additional folder when the user provides it; proceed with available
+  datasets without inventing its location or treating it as a prerequisite.
+- [ ] Report per-frame durations and aggregate latency statistics, identifying
+  first-frame effects. Compute coordinate-error metrics only after verifying
+  label meaning, units, and origin; otherwise report contract and visual checks.
 - [ ] Run a fresh native standalone build, focused tests, Python/MATLAB demo tests,
   and available real-ONNX sequence smokes; report unavailable checks explicitly.
 - [ ] Document runnable native/Python/MATLAB examples and expected output,
@@ -880,8 +907,8 @@ Pre-stage wrapper review, 2026-09-11:
 - [x] Confirm the dependency checkout is clean, the old revision is an ancestor
   of the new one, and the donor diff passes `git diff --check`. No dependency
   source was edited, fetched, initialized, or committed during this review.
-- [ ] Complete user review of the wrapper gitlink and this evidence before
-  committing or advancing to another consolidation batch.
+- [x] Receive user authorization and commit the wrapper batch as `2abdb68`;
+  verify the index is clear before preparing the auxiliary-header batch.
 
 The target smoke uses existing generated MATLAB/MEX binaries in
 `build-stage17-wrappers`, with its `src` directory on LD_LIBRARY_PATH. It validates
@@ -891,3 +918,56 @@ claimed. Existing auxiliary-header, export, FiLM, mobile, and workspace changes
 remain outside this batch.
 
 Proposed wrapper subject: `Update wrapper revision for MATLAB directory discovery`.
+
+
+### Pre-stage auxiliary consolidation, 2026-09-12
+
+The earlier ownership-repair candidate was not approved. Its tests established
+that the pending allocating noexcept moves could terminate, but did not establish
+a consumer requirement for maintaining these interfaces. That candidate and the
+complete starting index/worktree patches are preserved in
+`/tmp/ptaf-consolidation-vs8f7j6k`; its historical validation remains under
+`/tmp/ptaf-legacy-review-qi1pg9ep`.
+
+- [x] Search current sources and known downstream source trees in ML-repos,
+  SLAM-repos, projects-DART, rendering-sw, nav-backend, nav-frontend,
+  nav-frontend-cpp, and nav-system. Exclude vendored, generated, installed,
+  archived, and environment directories. No consumers of the legacy specs or
+  AccumProduct were found outside their definitions and the candidate tests.
+- [x] Check the approved centroiding and export plans. Neither requires these
+  legacy types. Current tensor descriptors, views, buffers, and ComputeElementCount
+  provide the inference contracts; generic task adapters provide preprocessing.
+- [x] Keep CheckFileExists and CheckFileExistsWithExt, including their behavior
+  and namespace. ORT model loading calls the extension check. Retain direct
+  standard includes and public documentation in their owning header.
+- [x] Remove the unused SInputOutputSpecs and SImagesInputOutputSpecs headers,
+  the empty image-preprocessing placeholder, and AccumProduct from the review
+  candidate. Withdraw the newly added ownership tests with their retired subject.
+- [x] Configure and build a fresh Debug tree with WARNINGS_ARE_ERRORS=ON,
+  examples and wrapper generation disabled. CTest reports 44 passed, two external
+  FiLM tests skipped, and zero failures. The unchanged untracked FiLM test file
+  is discovered by CMake but is excluded from the candidate.
+- [x] Install into a fresh temporary prefix: only common_ops.h remains under the
+  auxiliary include directory. Compile a C++20 installed-header consumer with
+  -Wall -Wextra -Werror and verify existing-file, missing-file, directory, and
+  extension-mismatch behavior, including strict failures.
+  Evidence: `/tmp/ptaf-consolidation-vs8f7j6k` contains configure/build/install/CTest
+  logs and the installed-header probe. GPU execution and regenerated wrappers
+  were not tested.
+- [x] Review the full candidate and stage only the auxiliary retirement, this
+  tracker, and the corresponding TODO correction. Verify unrelated file contents
+  are unchanged.
+- [ ] Obtain user review before committing or proceeding to another batch.
+
+Compatibility: this candidate removes previously installed auxiliary headers and
+AccumProduct. Uninspected external consumers may require migration to the current
+inference types or a separate product-specific shape calculation. ComputeElementCount
+validates one tensor shape; it is not a drop-in replacement for multiplication
+across the old nested shapes. Existing installation prefixes may retain obsolete
+headers; validate delivery in a fresh prefix. Public inference facades and wrappers
+are unchanged. The limited local search cannot establish absence of all external users.
+
+Export-script/tracker, FiLM, mobile-design, and workspace changes remain deferred
+and unchanged. The demo rework has not started.
+
+Proposed auxiliary subject: `Retire unused legacy tensor and preprocessing helpers`.
