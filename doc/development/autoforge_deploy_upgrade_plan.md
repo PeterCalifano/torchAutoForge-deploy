@@ -1428,3 +1428,33 @@ All 56 tests, known-answer evaluation checks, and the real-model shell runner's
 minimal-output, cleanup, collision, and incomplete-report checks pass. JSON keys,
 CLI option spellings, and diagnostic string literals are unchanged. Evidence:
 `/tmp/ptaf-names-review-y7aq6_ap` and `/tmp/ptaf-naming-runner-nk8_bu0h`.
+
+
+### Linux CI Python test dependency repair
+
+PR #1 head `7db25b2` fails configuration in both native architecture jobs and the
+Python wrapper job because the selected test interpreter lacks pytest. The ROS 2
+and documentation jobs pass. Keep test registration mandatory; repair workflow
+provisioning rather than disabling tests or changing interpreter-discovery policy.
+
+- [x] Install pytest for the Python 3.12 interpreter used by the Linux jobs.
+- [x] Select that interpreter explicitly through PYTHON_TEST_EXECUTABLE.
+- [x] Reproduce the missing-dependency failure in an isolated local environment,
+  then configure/build and run native and wrapper checks with the repaired setup.
+- [x] Review and stage the workflow and this evidence record; do not commit or push.
+- [ ] After publication, require passing hosted x86_64/arm64/wrapper CI and independent
+  PR review before merge. Local checks do not establish hosted CI success.
+
+Local validation used isolated Python 3.12 with pytest 9.1.1, GCC 11, and the
+workflow's ONNX Runtime 1.23.0 CPU archive. Configuration first reproduced the
+missing-pytest failure. After dependency installation, fresh native and wrapper
+configurations and builds passed. Native CTest reported 48 passed and two skipped
+external FiLM model tests; both wrapper import/facade tests passed. CPU-provider
+detection, native installation, wheel construction, and inference from the wheel
+installed into a separate environment passed. Workflow YAML parsing and checks of
+dependency order and explicit interpreter selection passed. The wrapper build
+emitted warnings from the existing pybind11 headers; it completed successfully.
+Evidence: `/tmp/ptaf-ci-repair-33b7fsqn`.
+
+This repair changes CI provisioning only. Hosted jobs have not run with the repair;
+arm64 execution and independent PR review remain pending. No commit or push was made.

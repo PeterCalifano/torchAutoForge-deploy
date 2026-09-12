@@ -86,6 +86,14 @@ jobs:
             python3-dev \
             tar
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python test dependencies
+        run: python -m pip install pytest
+
       - name: Restore ONNX Runtime cache
         uses: actions/cache@v4
         with:
@@ -111,6 +119,7 @@ jobs:
             -Dautoforge_deploy_ENABLE_CUDA=OFF \
             -Dautoforge_deploy_ENABLE_TENSORRT=OFF \
             -DENABLE_TESTS=ON \
+            -DPYTHON_TEST_EXECUTABLE="$(command -v python)" \
             -DBUILD_DOC_HTML=OFF
 
       - name: Build
@@ -159,8 +168,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install wrapper build dependencies
-        run: python -m pip install 'pyparsing>=3.2.5' setuptools wheel
+      - name: Install wrapper build and test dependencies
+        run: python -m pip install 'pyparsing>=3.2.5' setuptools wheel pytest
 
       - name: Restore ONNX Runtime cache
         uses: actions/cache@v4
@@ -187,6 +196,7 @@ jobs:
             -Dautoforge_deploy_ENABLE_CUDA=OFF \
             -Dautoforge_deploy_ENABLE_TENSORRT=OFF \
             -DENABLE_TESTS=ON \
+            -DPYTHON_TEST_EXECUTABLE="$(command -v python)" \
             -DBUILD_DOC_HTML=OFF \
             -DPYTHON_EXECUTABLE="$(command -v python)" \
             -Dautoforge_deploy_BUILD_PYTHON_WRAPPER=ON \
