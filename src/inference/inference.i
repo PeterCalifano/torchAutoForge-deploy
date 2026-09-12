@@ -301,38 +301,42 @@ std::vector<ptafdeploy::inference::SDetection2D> DecodeDetectionRows(
     float score_threshold,
     size_t max_detections);
 
-gtsam::Vector GetInputShapeVector(ptafdeploy::inference::CInferenceManager* manager,
-                                  size_t index);
-gtsam::Vector GetOutputShapeVector(ptafdeploy::inference::CInferenceManager* manager,
-                                   size_t index);
-gtsam::Vector InferSingleFloatInputVector(ptafdeploy::inference::CInferenceManager* manager,
-                                          const gtsam::Vector& values,
-                                          const gtsam::Vector& shape);
-gtsam::Vector GetModelInputShapeVector(ptafdeploy::inference::CModelFacade* model,
-                                       size_t index);
-gtsam::Vector GetModelOutputShapeVector(ptafdeploy::inference::CModelFacade* model,
-                                        size_t index);
-gtsam::Vector InferModelSingleFloatInputVector(ptafdeploy::inference::CModelFacade* model,
-                                               const gtsam::Vector& values,
-                                               const gtsam::Vector& shape);
+ptafdeploy::inference::Vector GetInputShapeVector(
+    ptafdeploy::inference::CInferenceManager* manager, size_t index);
+ptafdeploy::inference::Vector GetOutputShapeVector(
+    ptafdeploy::inference::CInferenceManager* manager, size_t index);
+ptafdeploy::inference::Vector InferSingleFloatInputVector(
+    ptafdeploy::inference::CInferenceManager* manager,
+    const ptafdeploy::inference::Vector& values,
+    const ptafdeploy::inference::Vector& shape);
+ptafdeploy::inference::Vector GetModelInputShapeVector(
+    ptafdeploy::inference::CModelFacade* model, size_t index);
+ptafdeploy::inference::Vector GetModelOutputShapeVector(
+    ptafdeploy::inference::CModelFacade* model, size_t index);
+ptafdeploy::inference::Vector InferModelSingleFloatInputVector(
+    ptafdeploy::inference::CModelFacade* model,
+    const ptafdeploy::inference::Vector& values,
+    const ptafdeploy::inference::Vector& shape);
 ptafdeploy::inference::SFloatTensor MakeFloatTensorFromVector(
     string tensor_name,
-    const gtsam::Vector& values,
-    const gtsam::Vector& shape);
-gtsam::Vector GetFloatTensorShapeVector(const ptafdeploy::inference::SFloatTensor& tensor);
-gtsam::Vector GetFloatTensorValuesVector(const ptafdeploy::inference::SFloatTensor& tensor);
+    const ptafdeploy::inference::Vector& values,
+    const ptafdeploy::inference::Vector& shape);
+ptafdeploy::inference::Vector GetFloatTensorShapeVector(
+    const ptafdeploy::inference::SFloatTensor& tensor);
+ptafdeploy::inference::Vector GetFloatTensorValuesVector(
+    const ptafdeploy::inference::SFloatTensor& tensor);
 ptafdeploy::inference::SFloatTensor MakeNchwFloatTensorFromHwcVector(
     string tensor_name,
-    const gtsam::Vector& hwc_values,
+    const ptafdeploy::inference::Vector& hwc_values,
     size_t height,
     size_t width,
     size_t channels,
     double scale,
     bool swap_rb);
-gtsam::Matrix DecodeFeatureRowsMatrix(
+ptafdeploy::inference::Matrix DecodeFeatureRowsMatrix(
     const ptafdeploy::inference::SFloatTensor& output,
     const ptafdeploy::inference::SFeatureRowSchema& schema);
-gtsam::Matrix DecodeDetectionRowsMatrix(
+ptafdeploy::inference::Matrix DecodeDetectionRowsMatrix(
     const ptafdeploy::inference::SFloatTensor& output,
     const ptafdeploy::inference::SDetectionRowSchema& schema,
     double score_threshold,

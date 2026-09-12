@@ -9,14 +9,23 @@
 #include <inference/model_facade.h>
 #include <inference/task_adapters.h>
 
+#include <Eigen/Core>
+
 #include <cmath>
-#include <gtsam/base/Matrix.h>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 
 namespace ptafdeploy::inference
 {
+    // gtwrap recognizes these names as MATLAB numeric arrays. Keep their storage
+    // types identical to Eigen's dynamic column vector and column-major matrix.
+    /** @brief Dynamic double column vector exposed as a MATLAB numeric array. */
+    using Vector = Eigen::VectorXd;
+
+    /** @brief Dynamic double matrix exposed as a MATLAB numeric array. */
+    using Matrix = Eigen::MatrixXd;
+
     /**
      * @brief Convert a MATLAB-compatible shape vector to runtime dimensions.
      * @param shape Shape entries represented as MATLAB doubles.
@@ -24,7 +33,7 @@ namespace ptafdeploy::inference
      * @throws std::invalid_argument If an entry is non-finite, fractional,
      *         negative, or outside the int64_t range.
      */
-    [[nodiscard]] inline std::vector<int64_t> ConvertShapeVector(const gtsam::Vector& shape)
+    [[nodiscard]] inline std::vector<int64_t> ConvertShapeVector(const Eigen::VectorXd& shape)
     {
         std::vector<int64_t> converted_shape;
         converted_shape.reserve(static_cast<size_t>(shape.size()));
@@ -55,11 +64,11 @@ namespace ptafdeploy::inference
     /**
      * @brief Convert float values to a MATLAB-compatible double vector.
      * @param values Source float values.
-     * @return Values represented as a GTSAM/Eigen double vector.
+     * @return Values represented as an Eigen double vector.
      */
-    [[nodiscard]] inline gtsam::Vector MakeVector(const std::vector<float>& values)
+    [[nodiscard]] inline Eigen::VectorXd MakeVector(const std::vector<float>& values)
     {
-        gtsam::Vector vector_values(static_cast<Eigen::Index>(values.size()));
+        Eigen::VectorXd vector_values(static_cast<Eigen::Index>(values.size()));
         for (size_t i = 0; i < values.size(); ++i)
         {
             vector_values(static_cast<Eigen::Index>(i)) = static_cast<double>(values[i]);
@@ -71,12 +80,12 @@ namespace ptafdeploy::inference
     /**
      * @brief Convert signed 64-bit values to a MATLAB-compatible double vector.
      * @param values Source integer values.
-     * @return Values represented as a GTSAM/Eigen double vector.
+     * @return Values represented as an Eigen double vector.
      * @note Integers outside the exact IEEE-754 double range lose precision.
      */
-    [[nodiscard]] inline gtsam::Vector MakeVector(const std::vector<int64_t>& values)
+    [[nodiscard]] inline Eigen::VectorXd MakeVector(const std::vector<int64_t>& values)
     {
-        gtsam::Vector vector_values(static_cast<Eigen::Index>(values.size()));
+        Eigen::VectorXd vector_values(static_cast<Eigen::Index>(values.size()));
         for (size_t i = 0; i < values.size(); ++i)
         {
             vector_values(static_cast<Eigen::Index>(i)) = static_cast<double>(values[i]);
@@ -90,7 +99,7 @@ namespace ptafdeploy::inference
      * @param values Source double values.
      * @return Values converted to float without additional range policy.
      */
-    [[nodiscard]] inline std::vector<float> MakeFloatValues(const gtsam::Vector& values)
+    [[nodiscard]] inline std::vector<float> MakeFloatValues(const Eigen::VectorXd& values)
     {
         std::vector<float> float_values;
         float_values.reserve(static_cast<size_t>(values.size()));
@@ -109,8 +118,8 @@ namespace ptafdeploy::inference
      * @return Model input dimensions as MATLAB-compatible doubles.
      * @throws std::invalid_argument If `manager` is null.
      */
-    [[nodiscard]] inline gtsam::Vector GetInputShapeVector(CInferenceManager* manager,
-                                                           const size_t index)
+    [[nodiscard]] inline Eigen::VectorXd GetInputShapeVector(CInferenceManager* manager,
+                                                             const size_t index)
     {
         if (manager == nullptr)
         {
@@ -127,8 +136,8 @@ namespace ptafdeploy::inference
      * @return Model output dimensions as MATLAB-compatible doubles.
      * @throws std::invalid_argument If `manager` is null.
      */
-    [[nodiscard]] inline gtsam::Vector GetOutputShapeVector(CInferenceManager* manager,
-                                                            const size_t index)
+    [[nodiscard]] inline Eigen::VectorXd GetOutputShapeVector(CInferenceManager* manager,
+                                                              const size_t index)
     {
         if (manager == nullptr)
         {
@@ -146,9 +155,9 @@ namespace ptafdeploy::inference
      * @return Flattened sole-output values as MATLAB-compatible doubles.
      * @throws std::exception If the pointer, shape, model contract, or execution is invalid.
      */
-    [[nodiscard]] inline gtsam::Vector InferSingleFloatInputVector(CInferenceManager* manager,
-                                                                   const gtsam::Vector& values,
-                                                                   const gtsam::Vector& shape)
+    [[nodiscard]] inline Eigen::VectorXd InferSingleFloatInputVector(CInferenceManager* manager,
+                                                                     const Eigen::VectorXd& values,
+                                                                     const Eigen::VectorXd& shape)
     {
         if (manager == nullptr)
         {
@@ -166,8 +175,8 @@ namespace ptafdeploy::inference
      * @return Model input dimensions as MATLAB-compatible doubles.
      * @throws std::invalid_argument If `model` is null.
      */
-    [[nodiscard]] inline gtsam::Vector GetModelInputShapeVector(CModelFacade* model,
-                                                                const size_t index)
+    [[nodiscard]] inline Eigen::VectorXd GetModelInputShapeVector(CModelFacade* model,
+                                                                  const size_t index)
     {
         if (model == nullptr)
         {
@@ -184,8 +193,8 @@ namespace ptafdeploy::inference
      * @return Model output dimensions as MATLAB-compatible doubles.
      * @throws std::invalid_argument If `model` is null.
      */
-    [[nodiscard]] inline gtsam::Vector GetModelOutputShapeVector(CModelFacade* model,
-                                                                 const size_t index)
+    [[nodiscard]] inline Eigen::VectorXd GetModelOutputShapeVector(CModelFacade* model,
+                                                                   const size_t index)
     {
         if (model == nullptr)
         {
@@ -203,9 +212,9 @@ namespace ptafdeploy::inference
      * @return Flattened sole-output values as MATLAB-compatible doubles.
      * @throws std::exception If the pointer, shape, model contract, or execution is invalid.
      */
-    [[nodiscard]] inline gtsam::Vector InferModelSingleFloatInputVector(CModelFacade* model,
-                                                                        const gtsam::Vector& values,
-                                                                        const gtsam::Vector& shape)
+    [[nodiscard]] inline Eigen::VectorXd InferModelSingleFloatInputVector(CModelFacade* model,
+                                                                          const Eigen::VectorXd& values,
+                                                                          const Eigen::VectorXd& shape)
     {
         if (model == nullptr)
         {
@@ -224,8 +233,8 @@ namespace ptafdeploy::inference
      * @return Wrapper-safe owned float32 tensor.
      */
     [[nodiscard]] inline SFloatTensor MakeFloatTensorFromVector(const std::string& tensor_name,
-                                                                const gtsam::Vector& values,
-                                                                const gtsam::Vector& shape)
+                                                                const Eigen::VectorXd& values,
+                                                                const Eigen::VectorXd& shape)
     {
         return SFloatTensor{tensor_name, ConvertShapeVector(shape), MakeFloatValues(values)};
     }
@@ -235,7 +244,7 @@ namespace ptafdeploy::inference
      * @param tensor Source tensor.
      * @return Tensor dimensions as MATLAB-compatible doubles.
      */
-    [[nodiscard]] inline gtsam::Vector GetFloatTensorShapeVector(const SFloatTensor& tensor)
+    [[nodiscard]] inline Eigen::VectorXd GetFloatTensorShapeVector(const SFloatTensor& tensor)
     {
         return MakeVector(tensor.shape);
     }
@@ -245,7 +254,7 @@ namespace ptafdeploy::inference
      * @param tensor Source tensor.
      * @return Flattened values as MATLAB-compatible doubles.
      */
-    [[nodiscard]] inline gtsam::Vector GetFloatTensorValuesVector(const SFloatTensor& tensor)
+    [[nodiscard]] inline Eigen::VectorXd GetFloatTensorValuesVector(const SFloatTensor& tensor)
     {
         return MakeVector(tensor.values);
     }
@@ -264,7 +273,7 @@ namespace ptafdeploy::inference
      * @throws std::overflow_error If the image cardinality overflows size_t.
      */
     [[nodiscard]] inline SFloatTensor MakeNchwFloatTensorFromHwcVector(
-        const std::string& tensor_name, const gtsam::Vector& hwc_values, const size_t height,
+        const std::string& tensor_name, const Eigen::VectorXd& hwc_values, const size_t height,
         const size_t width, const size_t channels, const double scale, const bool swap_rb)
     {
         const size_t expected_values =
@@ -288,11 +297,11 @@ namespace ptafdeploy::inference
      * @return One feature per row as `[x, y, score]`.
      * @throws std::exception If the tensor, schema, or decoded values are invalid.
      */
-    [[nodiscard]] inline gtsam::Matrix DecodeFeatureRowsMatrix(
+    [[nodiscard]] inline Eigen::MatrixXd DecodeFeatureRowsMatrix(
         const SFloatTensor& output, const SFeatureRowSchema& schema)
     {
         const std::vector<SFeature2D> features = DecodeFeatureRows(output, schema);
-        gtsam::Matrix matrix(static_cast<Eigen::Index>(features.size()), 3);
+        Eigen::MatrixXd matrix(static_cast<Eigen::Index>(features.size()), 3);
         for (size_t row = 0U; row < features.size(); ++row)
         {
             const SFeature2D& feature = features[row];
@@ -315,10 +324,10 @@ namespace ptafdeploy::inference
      * @throws std::exception If the threshold, tensor, schema, values, or boxes are invalid.
      * @note Class identifiers outside the exact IEEE-754 double range lose precision.
      */
-    [[nodiscard]] inline gtsam::Matrix DecodeDetectionRowsMatrix(const SFloatTensor& output,
-                                                                 const SDetectionRowSchema& schema,
-                                                                 const double score_threshold,
-                                                                 const size_t max_detections)
+    [[nodiscard]] inline Eigen::MatrixXd DecodeDetectionRowsMatrix(const SFloatTensor& output,
+                                                                   const SDetectionRowSchema& schema,
+                                                                   const double score_threshold,
+                                                                   const size_t max_detections)
     {
         if (!std::isfinite(score_threshold) || score_threshold < 0.0 ||
             score_threshold > static_cast<double>(std::numeric_limits<float>::max()))
@@ -329,7 +338,7 @@ namespace ptafdeploy::inference
 
         const std::vector<SDetection2D> detections = DecodeDetectionRows(
             output, schema, static_cast<float>(score_threshold), max_detections);
-        gtsam::Matrix matrix(static_cast<Eigen::Index>(detections.size()), 6);
+        Eigen::MatrixXd matrix(static_cast<Eigen::Index>(detections.size()), 6);
         for (size_t row = 0U; row < detections.size(); ++row)
         {
             const SDetection2D& detection = detections[row];
@@ -351,7 +360,7 @@ namespace ptafdeploy::inference
      * @param index Input index.
      * @return Model input dimensions as MATLAB-compatible doubles.
      */
-    [[nodiscard]] inline gtsam::Vector
+    [[nodiscard]] inline Eigen::VectorXd
     GetInputShapeVector(const std::shared_ptr<CInferenceManager>& manager, const size_t index)
     {
         return GetInputShapeVector(manager.get(), index);
@@ -363,7 +372,7 @@ namespace ptafdeploy::inference
      * @param index Output index.
      * @return Model output dimensions as MATLAB-compatible doubles.
      */
-    [[nodiscard]] inline gtsam::Vector
+    [[nodiscard]] inline Eigen::VectorXd
     GetOutputShapeVector(const std::shared_ptr<CInferenceManager>& manager, const size_t index)
     {
         return GetOutputShapeVector(manager.get(), index);
@@ -376,9 +385,9 @@ namespace ptafdeploy::inference
      * @param shape Concrete input shape.
      * @return Flattened sole-output values.
      */
-    [[nodiscard]] inline gtsam::Vector
+    [[nodiscard]] inline Eigen::VectorXd
     InferSingleFloatInputVector(const std::shared_ptr<CInferenceManager>& manager,
-                                const gtsam::Vector& values, const gtsam::Vector& shape)
+                                const Eigen::VectorXd& values, const Eigen::VectorXd& shape)
     {
         return InferSingleFloatInputVector(manager.get(), values, shape);
     }
@@ -389,7 +398,7 @@ namespace ptafdeploy::inference
      * @param index Input index.
      * @return Model input dimensions as MATLAB-compatible doubles.
      */
-    [[nodiscard]] inline gtsam::Vector
+    [[nodiscard]] inline Eigen::VectorXd
     GetModelInputShapeVector(const std::shared_ptr<CModelFacade>& model, const size_t index)
     {
         return GetModelInputShapeVector(model.get(), index);
@@ -401,7 +410,7 @@ namespace ptafdeploy::inference
      * @param index Output index.
      * @return Model output dimensions as MATLAB-compatible doubles.
      */
-    [[nodiscard]] inline gtsam::Vector
+    [[nodiscard]] inline Eigen::VectorXd
     GetModelOutputShapeVector(const std::shared_ptr<CModelFacade>& model, const size_t index)
     {
         return GetModelOutputShapeVector(model.get(), index);
@@ -414,9 +423,9 @@ namespace ptafdeploy::inference
      * @param shape Concrete input shape.
      * @return Flattened sole-output values.
      */
-    [[nodiscard]] inline gtsam::Vector
+    [[nodiscard]] inline Eigen::VectorXd
     InferModelSingleFloatInputVector(const std::shared_ptr<CModelFacade>& model,
-                                     const gtsam::Vector& values, const gtsam::Vector& shape)
+                                     const Eigen::VectorXd& values, const Eigen::VectorXd& shape)
     {
         return InferModelSingleFloatInputVector(model.get(), values, shape);
     }

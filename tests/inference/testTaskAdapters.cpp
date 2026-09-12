@@ -219,7 +219,7 @@ TEST_CASE("matlab_adapters_serialize_generic_detection_rows", "[inference][task_
     schema.first_class_score_index = 5;
     schema.class_score_count = 2;
 
-    const gtsam::Matrix detections = infer::DecodeDetectionRowsMatrix(
+    const Eigen::MatrixXd detections = infer::DecodeDetectionRowsMatrix(
         infer::SFloatTensor{"detections", {1, 7}, {10.0F, 20.0F, 30.0F, 40.0F, 0.5F, 0.2F, 0.8F}},
         schema, 0.1, 0);
 
@@ -239,7 +239,7 @@ TEST_CASE("matlab_adapters_serialize_generic_feature_rows", "[inference][task_ad
     schema.attribute_axis = 1;
     schema.score_index = 2;
 
-    const gtsam::Matrix features = infer::DecodeFeatureRowsMatrix(
+    const Eigen::MatrixXd features = infer::DecodeFeatureRowsMatrix(
         infer::SFloatTensor{"features", {1, 3, 2},
                             {10.0F, 20.0F, 11.0F, 21.0F, 0.5F, 0.75F}},
         schema);
