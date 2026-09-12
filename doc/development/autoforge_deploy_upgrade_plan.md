@@ -676,7 +676,7 @@ without subagents. Do not commit or push without separate authorization.
 
 Execution gates confirmed on 2026-09-12:
 
-- [ ] Finish consolidation and stop before starting Stage 18.1 demo changes.
+- [x] Finish consolidation and stop before starting Stage 18.1 demo changes.
 - [ ] After later implementation in Stages 18.1–18.5, stop before running
   Stage 18.6 benchmarks or validation. Consolidation checks remain part of
   pre-stage review.
@@ -700,11 +700,12 @@ Execution gates confirmed on 2026-09-12:
   consolidation plan; preserve them unchanged for later owner-led replacement.
 - [x] Classify FiLM, mobile-design, and workspace changes separately; finishing
   these projects is not a prerequisite for image-only centroiding.
-- [ ] Validate and stage one coherent consolidation batch at a time using an
+- [x] Validate and stage one coherent consolidation batch at a time using an
   explicit path/hunk allowlist; report evidence and the proposed commit message.
-- [ ] Stop for review after each batch. Advance only after `next`, confirming the
-  preceding batch has left the index through explicit user action.
-- [ ] Finish the pre-stage with overlapping work settled, the index clear, and
+- [x] Follow the staged review gates for consolidation batches. On 2026-09-12,
+  the user exempted documentation-only stages from blocking review pauses;
+  commit authorization remains separate.
+- [x] Finish the pre-stage with overlapping work settled, the index clear, and
   a list of deferred changes to preserve. A clean tree is not required.
 
 Review inventory on 2026-09-11. These are static findings; runtime validation remains open:
@@ -957,7 +958,7 @@ complete starting index/worktree patches are preserved in
 - [x] Review the full candidate and stage only the auxiliary retirement, this
   tracker, and the corresponding TODO correction. Verify unrelated file contents
   are unchanged.
-- [ ] Obtain user review before committing or proceeding to another batch.
+- [x] Verify the reviewed auxiliary batch was committed as `180a5c3` before advancing.
 
 Compatibility: this candidate removes previously installed auxiliary headers and
 AccumProduct. Uninspected external consumers may require migration to the current
@@ -986,12 +987,13 @@ Proposed auxiliary subject: `Retire unused legacy tensor and preprocessing helpe
   relocation remain in the owning export plan; no exporter repair is included.
 - [x] Review and stage only the two development trackers; verify the owner index
   and all excluded deployment files are unchanged. Diff checks pass.
-- [ ] Obtain user review before committing this documentation batch.
+- [x] Verify the documentation batch was committed as `57175ee` (Update development
+  plans), with the index clear on 2026-09-12.
 
 The remaining export-script, FiLM, mobile-design, and workspace changes stay
 outside this batch. All overlapping pre-stage changes have now been assessed;
-consolidation closes after this batch is reviewed and the index is clear.
-Stop at that point before starting any centroiding demo rework. The later pause
+consolidation is complete at `57175ee`, with the index clear. This closing
+tracker update is left unstaged. Stop before starting any centroiding demo rework. The later pause
 before benchmarks and validation remains in force.
 
 Proposed subject: `Reconcile export status and defer legacy script migration`.

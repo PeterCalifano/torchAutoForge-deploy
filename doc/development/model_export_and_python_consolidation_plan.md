@@ -1079,3 +1079,35 @@ the 2026-09-12 deployment consolidation; they describe the earlier candidate.
 Validation for this documentation batch consists of local source/path inspection,
 owner status and index inspection, and diff checks. No model export, inference,
 TensorRT build, benchmark, remote PR refresh, or Python test suite was run.
+
+### 2026-09-12 — Authorized owner permission fix and Stage 1 review
+
+- [x] Review the persistent goal after explicit user authorization to proceed with
+  fixes. Retain dependency order, one-batch review gates, unchanged public contracts,
+  and separate commit/push authority. Perform this review locally without subagents.
+- [x] Confirm the prior single-writer overwrite documentation and checkpoint provenance
+  verification are already staged in the owner export worktree.
+- [x] Fix published ONNX/report permissions: new artifacts use exclusive same-directory
+  creation with mode 0666 filtered by the OS umask. Replacement artifacts remain
+  private during writing and receive the existing destination's read/write bits before
+  publication, including read-only destinations. Do not copy executable/special bits,
+  ownership, or extended ACLs. Never change the process umask in production code.
+- [x] Clean up temporary report files when report serialization or writing fails.
+- [x] Add real export regressions for umasks 0002, 0022, and 0077 and distinct existing
+  ONNX/report permissions. Observe the permission defect before implementing the fix.
+- [x] Validate the final candidate: 123 focused export/CLI/TensorRT tests pass; the
+  Python 3.12 full suite reports 746 passed and 72 skipped. Ruff and isolated mypy on
+  the affected export code pass. These are local results, not renewed remote CI proof.
+- [x] Review the existing staged owner AGENTS.md for export ownership, naming,
+  documentation, and review-gate alignment; preserve its contents unchanged.
+- [x] Stage only the updated owner model_export.py, export test file, and runtime guide.
+  The existing twelve-path owner batch remains staged and uncommitted, with no
+  unstaged owner changes; cached whitespace checks pass.
+- [ ] Accept/consolidate the owner Stage 1 batch before advancing. PR #46 is already
+  merged; its annotation, dataset independence, active undefined-name defects, and
+  develop CI trigger corrections remain a separate follow-up batch.
+- [ ] Continue model-owner Stage 2 and deployment Stages 3–7 after their review gates.
+
+The two deployment plan files already staged when this work began are preserved in
+the index. This log addition is deliberately unstaged so it does not alter that
+existing documentation review batch. No commit, push, or later batch was prepared.
