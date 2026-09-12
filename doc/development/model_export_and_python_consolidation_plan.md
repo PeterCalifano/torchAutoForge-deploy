@@ -146,8 +146,9 @@ CMake, C++20, gtwrap Python/MATLAB bindings, Catch2, CUDA, and Jetson Linux.
 
 - [x] Stage 0A: Record the approved plan on disk without staging it.
 - [x] Stage 0B: Capture and protect the live multi-repository baseline.
-- [ ] Stage 1: Add generic trusted ONNX export and TensorRT compatibility to
-  `pyTorchAutoForge`.
+- [ ] Stage 1: Complete owner review of generic trusted ONNX export and TensorRT
+  compatibility in `pyTorchAutoForge`. Implementation is staged in the isolated
+  owner worktree; see the 2026-09-12 reconciliation below.
 - [ ] Stage 2: Add the centroiding loader adapter and export the exact ONNX model.
 - [ ] Stage 3: Consolidate the deployment Python package and add ONNX-to-TensorRT CLI.
 - [ ] Stage 4: Build and validate the desktop TensorRT artifact matrix.
@@ -206,109 +207,114 @@ leave stale runtime, demo, configuration, or documentation paths.
 Torch/TorchScript models to ONNX without embedding model-specific reconstruction in
 the framework.
 
+The checked items below record the 2026-09-06 implementation and review report.
+They do not certify the current owner index. Current acceptance remains open until
+the owner reviews and validates that exact candidate; see the dated reconciliation
+at the end of this document.
+
 ### Files
 
-- [ ] Create `pyTorchAutoForge/api/export/__init__.py`.
-- [ ] Create `pyTorchAutoForge/api/export/model_export.py` for typed export contracts,
+- [x] Create `pyTorchAutoForge/api/export/__init__.py`.
+- [x] Create `pyTorchAutoForge/api/export/model_export.py` for typed export contracts,
   loader resolution, ONNX export orchestration, validation, and reporting.
-- [ ] Create `pyTorchAutoForge/cli/__init__.py`.
-- [ ] Create `pyTorchAutoForge/cli/main.py` with the `ptaf model export-onnx` command.
-- [ ] Modify `pyproject.toml` to publish `ptaf = "pyTorchAutoForge.cli.main:main"`.
-- [ ] Modify `pyTorchAutoForge/api/tensorrt/TRTengineExporter.py` only for the agreed
+- [x] Create `pyTorchAutoForge/cli/__init__.py`.
+- [x] Create `pyTorchAutoForge/cli/main.py` with the `ptaf model export-onnx` command.
+- [x] Modify `pyproject.toml` to publish `ptaf = "pyTorchAutoForge.cli.main:main"`.
+- [x] Modify `pyTorchAutoForge/api/tensorrt/TRTengineExporter.py` only for the agreed
   builder-optimization compatibility fix.
-- [ ] Modify the known downstream centroiding call site to use the canonical
-  `workspace_pool_size_bytes` spelling only in Stage 2, not this batch.
-- [ ] Create `tests/api/export/test_model_export.py`.
-- [ ] Create `tests/cli/test_ptaf_cli.py`.
-- [ ] Extend `tests/api/tensorrt/test_TRTengineExporter.py`.
-- [ ] Create `doc/developments/ptaf_model_bundle_design.md` as a design-only artifact.
-- [ ] Update the nearest user-facing PTAF documentation with the new command and a
+- [x] Keep the known downstream centroiding call-site update to the canonical
+  `workspace_pool_size_bytes` spelling in Stage 2, outside this batch.
+- [x] Create `tests/api/export/test_model_export.py`.
+- [x] Create `tests/cli/test_ptaf_cli.py`.
+- [x] Extend `tests/api/tensorrt/test_TRTengineExporter.py`.
+- [x] Create `doc/developments/ptaf_model_bundle_design.md` as a design-only artifact.
+- [x] Update the nearest user-facing PTAF documentation with the new command and a
   runnable example.
 
 ### Public export contracts
 
-- [ ] Add immutable `ModelInputSpec` with `name: str`, `dtype: str`, and
+- [x] Add immutable `ModelInputSpec` with `name: str`, `dtype: str`, and
   `shape: tuple[int, ...]`.
-- [ ] Add immutable `ModelExportRequest` with checkpoint path, input specs, selected
+- [x] Add immutable `ModelExportRequest` with checkpoint path, input specs, selected
   `torch.device`, opset, and validation settings.
-- [ ] Add immutable `ModelExportBundle` with reconstructed `torch.nn.Module`, sample
+- [x] Add immutable `ModelExportBundle` with reconstructed `torch.nn.Module`, sample
   input tensors, input/output names, and dynamic-axis mapping.
-- [ ] Define a typed loader callable accepting `ModelExportRequest` and returning
+- [x] Define a typed loader callable accepting `ModelExportRequest` and returning
   `ModelExportBundle`.
-- [ ] Keep framework naming aligned with PTAF conventions: public functions begin
+- [x] Keep framework naming aligned with PTAF conventions: public functions begin
   with a capital letter and use snake case; internal helpers begin with `_`.
-- [ ] Validate input names, supported dtype names, positive static dimensions,
+- [x] Validate input names, supported dtype names, positive static dimensions,
   non-empty outputs, opset, source extension, destination extension, and overwrite
   policy before invoking PyTorch.
-- [ ] Parse CLI inputs as `name:dtype:dim,dim,...`, including the concrete form
+- [x] Parse CLI inputs as `name:dtype:dim,dim,...`, including the concrete form
   `image:float32:1,1,1536,2048`.
-- [ ] Support direct `.pt` TorchScript loading without a model-specific plugin.
-- [ ] Require `--loader module:function` for `.pth` state dictionaries.
-- [ ] Import the loader only after explicit user selection, verify it is callable,
+- [x] Support direct `.pt` TorchScript loading without a model-specific plugin.
+- [x] Require `--loader module:function` for `.pth` state dictionaries.
+- [x] Import the loader only after explicit user selection, verify it is callable,
   and present import/signature failures as actionable errors.
-- [ ] Do not call a generic `LoadModel(model=None)`, execute checkpoint-embedded code,
+- [x] Do not call a generic `LoadModel(model=None)`, execute checkpoint-embedded code,
   infer an architecture from parameter names, or accept arbitrary code stored in a
   checkpoint.
-- [ ] Set the reconstructed model to evaluation mode, move it and inputs to the
+- [x] Set the reconstructed model to evaluation mode, move it and inputs to the
   selected device, and export under inference/no-grad semantics.
-- [ ] Run ONNX checker validation and an ONNX Runtime smoke inference when requested.
-- [ ] Write a JSON export report containing source/output hashes, loader identifier,
+- [x] Run ONNX checker validation and an ONNX Runtime smoke inference when requested.
+- [x] Write a JSON export report containing source/output hashes, loader identifier,
   input/output contract, opset, tool versions, device, timestamp, and validation
   results.
-- [ ] Return exit code `0` on success, `2` for invalid user input/configuration, and
+- [x] Return exit code `0` on success, `2` for invalid user input/configuration, and
   `1` for runtime/export failure.
 
 ### TensorRT compatibility fix
 
-- [ ] Preserve `workspace_pool_size_bytes` as the sole public spelling and retain
+- [x] Preserve `workspace_pool_size_bytes` as the sole public spelling and retain
   rejection of the removed `workspace_size_bytes` alias.
-- [ ] Add `builder_optimization_level: int | None` to `TRTengineExporterConfig` and
+- [x] Add `builder_optimization_level: int | None` to `TRTengineExporterConfig` and
   the constructor, validating the inclusive range `0..5`.
-- [ ] In Python TensorRT mode, assign
+- [x] In Python TensorRT mode, assign
   `IBuilderConfig.builder_optimization_level` only when the runtime exposes it;
   otherwise issue a clear warning and continue without changing other settings.
-- [ ] In `trtexec` mode, probe `trtexec --help` once per exporter instance and emit
+- [x] In `trtexec` mode, probe `trtexec --help` once per exporter instance and emit
   `--builderOptimizationLevel=<N>` only when advertised.
-- [ ] Preserve existing compatibility for `--memPoolSize` versus `--workspace` and
+- [x] Preserve existing compatibility for `--memPoolSize` versus `--workspace` and
   `set_memory_pool_limit` versus `max_workspace_size`.
-- [ ] Do not change the established public exporter class/mode/precision/profile API
+- [x] Do not change the established public exporter class/mode/precision/profile API
   or make Jetson depend on x86-only discovery.
 
 ### PTAF bundle design draft
 
-- [ ] Specify `.ptafbundle` so it cannot be confused with deployment `.ptafmodel`
+- [x] Specify `.ptafbundle` so it cannot be confused with deployment `.ptafmodel`
   manifests.
-- [ ] Define a versioned JSON manifest with a registered PTAF architecture ID,
+- [x] Define a versioned JSON manifest with a registered PTAF architecture ID,
   factory configuration, input/output contracts, hash/provenance data, and safe
   non-pickle weight storage.
-- [ ] Forbid arbitrary import strings and embedded executable code in the bundle.
-- [ ] Record migration/versioning/security questions and acceptance criteria without
+- [x] Forbid arbitrary import strings and embedded executable code in the bundle.
+- [x] Record migration/versioning/security questions and acceptance criteria without
   implementing bundle loading in this plan.
 
 ### Stage 1 tests
 
-- [ ] Write failing focused tests first for input-spec parsing, `.pth` loader
+- [x] Write failing focused tests first for input-spec parsing, `.pth` loader
   requirement, bad loader identifiers, typed loader result validation, overwrite
   protection, and documented exit codes.
-- [ ] Export a tiny traced fixture to a pytest temporary directory; validate its graph
+- [x] Export a tiny traced fixture to a pytest temporary directory; validate its graph
   and execute one ONNX Runtime inference.
-- [ ] Export a tiny state-dict fixture through a test-only trusted loader plugin.
-- [ ] Test builder optimization levels `0`, `5`, `-1`, and `6`.
-- [ ] Test Python TensorRT behavior with and without the optimization-level property.
-- [ ] Test `trtexec` command construction with and without the advertised flag.
-- [ ] Run the focused export, CLI, and TensorRT tests, then the PTAF default pytest
+- [x] Export a tiny state-dict fixture through a test-only trusted loader plugin.
+- [x] Test builder optimization levels `0`, `5`, `-1`, and `6`.
+- [x] Test Python TensorRT behavior with and without the optimization-level property.
+- [x] Test `trtexec` command construction with and without the advertised flag.
+- [x] Run the focused export, CLI, and TensorRT tests, then the PTAF default pytest
   suite according to its `AGENTS.md` marker policy.
-- [ ] Run static typing/lint checks configured by the repository for all new public
+- [x] Run static typing/lint checks configured by the repository for all new public
   code and verify `ptaf --help` and `ptaf model export-onnx --help` in a clean venv.
 
 ### Stage 1 review gate
 
-- [ ] Review new modules as a public API reader, checking type annotations, Google-
+- [x] Review new modules as a public API reader, checking type annotations, Google-
   style docstrings, lazy imports, examples, error messages, and absence of redundant
   abstractions.
-- [ ] Stage only the reviewed PTAF source, tests, documentation, and packaging paths.
-- [ ] Inspect the complete cached diff and run `git diff --cached --check`.
-- [ ] Report exact tests, excluded dirty paths, and proposed commit message, then stop.
+- [x] Stage only the reviewed PTAF source, tests, documentation, and packaging paths.
+- [x] Inspect the complete cached diff and run `git diff --cached --check`.
+- [x] Report exact tests, excluded dirty paths, and proposed commit message, then stop.
 
 **Proposed subject:** `Add generic model export CLI`
 
@@ -989,3 +995,87 @@ its evidence is entered here.
 - [x] Identified existing Python caches, egg metadata, example/Python/ROS build trees,
   ROS logs, and test caches. None was deleted because Stage 0B did not receive
   destructive-cleanup authorization, and none is included in the review batch.
+
+### 2026-09-06 — Stage 1 generic export review batch
+
+Historical report preserved from the pending tracker changes. The test counts,
+wheel checks, and remote PR observations below were not rerun or refreshed during
+the 2026-09-12 deployment consolidation; they describe the earlier candidate.
+
+- [x] Created the isolated `feature/model-export-cli` worktree from PTAF revision
+  `b307d8491eb41c777401b862831776553fd9c665`, which includes the prerequisite
+  test-suite bugfix branch without modifying the original dirty PTAF checkout.
+- [x] Added immutable export request, input, and loader-bundle contracts; direct
+  TorchScript export; explicitly selected state-dictionary reconstruction; ONNX
+  checker and ONNX Runtime validation; provenance reports; and documented CLI exit
+  statuses.
+- [x] Made ONNX/report publication collision-safe when overwrite is disabled and
+  rollback-safe when overwrite is enabled. Regression tests cover a destination
+  created during export and failures at both pair-publication steps.
+- [x] Added `ptaf model export-onnx`, its installed entry point, runnable CLI/API
+  examples, and the design-only `.ptafbundle` security/versioning contract.
+- [x] Added TensorRT builder optimization levels `0..5` through the Python API and
+  capability-probed `trtexec` flag while retaining the former seven positional
+  `TRTengineExporterConfig` fields and existing workspace/profile behavior.
+- [x] Completed an independent review, fixed its three blocking findings, and passed
+  the follow-up review with no remaining critical, important, or minor findings and
+  no approved API, ownership, or package-identity change.
+- [x] Passed the focused export, CLI, and TensorRT matrix with `110 passed`; strict
+  flake8 reported `0`, Ruff reported no findings, isolated mypy reported no issues,
+  the new source stayed within the 100-column soft limit, and configured complexity
+  checks reported no findings.
+- [x] Passed the complete default suite in `autoforgeV2` with `733 passed, 72 skipped`
+  and in the older `autoforge` environment with `731 passed, 74 skipped`; the latter
+  has two expected Torch-version skips for unavailable dynamo export.
+- [x] Built `pytorchautoforge-0.6.1.dev20-py3-none-any.whl`, installed it without
+  dependencies in a fresh environment, confirmed both help commands, inspected the
+  wheel for the export/CLI packages and entry-point metadata, and passed the public
+  export module doctest. The disposable evidence directory is
+  `/tmp/ptaf-stage1-final.EfxDKP`.
+- [x] Audited prerequisite PR `pyTorchAutoForge#46` at
+  `b307d8491eb41c777401b862831776553fd9c665`. Its only manual workflow run remains
+  red: four unchanged dataset tests require an unset `DATASETS` path, and the
+  repository-wide lint job reports 23 existing `F821` findings. The PR is mergeable,
+  but its workflow does not target `develop`, so no automatic PR status is attached.
+- [x] Recorded the one unresolved PR review thread separately from Stage 1:
+  `StartMLflowUI` in `examples/example_mlflow_optuna_cifar10_demo.py` needs an
+  explicit `subprocess.Popen` return annotation before the prerequisite PR merges.
+- [ ] The Sphinx site was not rebuilt because the existing `autoforgeV2` environment
+  does not include Sphinx. Runnable documentation examples were covered by doctest,
+  source tests, and the clean installed CLI checks.
+- [x] Staged exactly the eleven Stage 1 PTAF source, test, documentation, and
+  packaging paths. The deployment tracker remains an unstaged change in its owning
+  repository, and the prerequisite PR finding, model-owner Stage 2 work, generated
+  artifacts, original dirty PTAF checkout, and all unrelated deployment work remain
+  excluded.
+
+### 2026-09-12 — Deployment consolidation and owner-state reconciliation
+
+- [x] Inspect the owner worktree at
+  `/home/peterc/devDir/ML-repos/.worktrees/pyTorchAutoForge-model-export`, branch
+  `feature/model-export-cli`, HEAD `b307d8491eb41c777401b862831776553fd9c665`.
+  The export implementation is staged and uncommitted. Its index contains twelve
+  paths, including AGENTS.md alongside the eleven implementation-related paths.
+  No unstaged owner diff was present. Leave the owner worktree and index unchanged.
+- [x] Confirm the export contracts/module, CLI entry point, TensorRT optimization
+  controls, tests, and bundle-design document exist in that candidate. This is
+  source-presence evidence; it does not renew the historical behavioral or review
+  claims. Return the overall Stage 1 checkbox to pending owner acceptance.
+- [x] Assess the legacy ExportPytorchToONNX.py path migration. Its relative root
+  resolves to this repository's models directory, consistent with the approved
+  layout. Preserve the pending script unchanged and exclude it from this batch.
+- [x] Record why that script is not accepted as a supported export path: it uses a
+  hard-coded NeuralCOB import and a locally absent thoughtful-shark checkpoint.
+  It passes a suffix-less output path while expecting a sibling .onnx file; the
+  current main PTAF checkout treats that argument as a directory. Do not execute
+  this script or replace its workflow during deployment consolidation.
+- [x] Keep Stage 5 relocation pending until an owner-approved replacement covers
+  the useful comparison and MATLAB-output behavior. Neither this legacy script
+  nor completion of the export project is required by the image-only demo.
+- [ ] Complete the owner review and validation before accepting Stage 1 or starting
+  its dependent model-export stages. This deployment batch grants no authority to
+  edit, stage, or commit in the owner repository.
+
+Validation for this documentation batch consists of local source/path inspection,
+owner status and index inspection, and diff checks. No model export, inference,
+TensorRT build, benchmark, remote PR refresh, or Python test suite was run.

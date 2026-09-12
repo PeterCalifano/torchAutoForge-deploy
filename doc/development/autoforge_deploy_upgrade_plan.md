@@ -690,14 +690,14 @@ Execution gates confirmed on 2026-09-12:
   in the review inventory below.
 - [x] Reconcile README and CLAUDE guidance with current source, workflows, and
   authoritative AGENTS.md; record this approved plan and cross-link it from TODO.
-- [ ] Reconcile the separate export tracker against its owning repository before
-  accepting its completion claims; preserve its current dirty contents meanwhile.
+- [x] Reconcile the separate export tracker against its owning repository;
+  qualify historical evidence and leave current owner acceptance pending.
 - [x] Assess auxiliary interfaces against current consumers and approved next
   plans; prepare retirement of unused interfaces for review, as recorded below.
 - [x] Review the wrapper gitlink change and validate affected wrapper behavior;
   record the tests and existing-binary limitation below. Preserve the checkout.
-- [ ] Assess the legacy export-script changes against the approved Python
-  consolidation plan before retaining or relocating them.
+- [x] Assess the legacy export-script changes against the approved Python
+  consolidation plan; preserve them unchanged for later owner-led replacement.
 - [x] Classify FiLM, mobile-design, and workspace changes separately; finishing
   these projects is not a prerequisite for image-only centroiding.
 - [ ] Validate and stage one coherent consolidation batch at a time using an
@@ -971,3 +971,27 @@ Export-script/tracker, FiLM, mobile-design, and workspace changes remain deferre
 and unchanged. The demo rework has not started.
 
 Proposed auxiliary subject: `Retire unused legacy tensor and preprocessing helpers`.
+
+### Pre-stage export reconciliation, 2026-09-12
+
+- [x] Verify that the auxiliary retirement batch was committed as `180a5c3`
+  (Remove unused legacy tensor and preprocessing helpers) and that the index
+  is clear before preparing this batch.
+- [x] Reconcile the export tracker with the staged, uncommitted PTAF owner worktree.
+  Preserve the dated implementation report, distinguish historical validation from
+  current source inspection, and leave overall Stage 1 acceptance pending.
+- [x] Defer the protected legacy export script unchanged. Its path migration follows
+  the models layout, but its hard-coded checkpoint is absent locally and its
+  output-path assumption conflicts with current PTAF behavior. Replacement and
+  relocation remain in the owning export plan; no exporter repair is included.
+- [x] Review and stage only the two development trackers; verify the owner index
+  and all excluded deployment files are unchanged. Diff checks pass.
+- [ ] Obtain user review before committing this documentation batch.
+
+The remaining export-script, FiLM, mobile-design, and workspace changes stay
+outside this batch. All overlapping pre-stage changes have now been assessed;
+consolidation closes after this batch is reviewed and the index is clear.
+Stop at that point before starting any centroiding demo rework. The later pause
+before benchmarks and validation remains in force.
+
+Proposed subject: `Reconcile export status and defer legacy script migration`.
