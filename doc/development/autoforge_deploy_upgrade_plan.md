@@ -1498,3 +1498,29 @@ The first index snapshot built independently in
 no failures and the same skips. Creation-tool files and their build/test/document
 hunks remain unstaged for the second batch. The wizard now relies on creation's
 validation instead of launching a redundant second validation process.
+
+### TensorRT execution policy and reload correction batch
+
+- [x] Review target priority, replacement ownership, device scope, and logger lifetime
+- [x] Reject strict CPU-first requests and disclose skipped targets when fallback is enabled
+- [x] Preserve loaded state after rejected targets, missing/corrupt files, or invalid profiles
+- [x] Validate subsequent inference and replacement with CUDA, TensorRT, and default targets
+- [x] Review performance, naming, comments, public contracts, and exception paths
+- [x] Stage the runtime correction independently of report/version publication fixes
+
+Review moved potentially throwing diagnostics before state exchange and removed
+repeated error-string retrieval. Replacement construction adds no image or tensor
+copies to inference; existing device buffers remain reusable. Device scopes restore
+the calling thread's device. Cleanup remains nonthrowing; device loss and runtime
+shutdown are outside the usable-state guarantee. The single plugin logger is
+retained through process teardown to match the registry lifetime.
+
+Fresh full-worktree tests passed: 57 CPU-only cases (three environment-dependent
+skips) and 67 TensorRT/image/output cases (two external FiLM skips). TensorRT used
+`/tmp/ptafdeploy-current-review-01keyM/traced_fp32.engine` on device 1, an RTX 4070
+Ti SUPER. Reload failures retained metadata and byte-identical inference results;
+CUDA device restoration and subsequent replacements passed. Hosted CI remains
+pending. No commit or push was made.
+
+The isolated staged snapshot `/tmp/ptaf-runtime-index-4gqtaknx` also built and
+passed the TensorRT-tagged tests with the same device and real engine fixture.

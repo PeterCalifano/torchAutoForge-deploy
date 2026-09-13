@@ -10,10 +10,14 @@
 #include <inference/tensorrt/tensorrt_inference_engine.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
+#include <cstring>
+#include <fstream>
 #include <limits>
 
 #if defined(PTAFDEPLOY_ENABLE_TENSORRT)
+#include <cuda_runtime_api.h>
 namespace
 {
     [[nodiscard]] int GetTensorRtTestDevice()
@@ -219,5 +223,124 @@ TEST_CASE("tensorrt_backend_runs_engine_when_fixture_is_provided", "[inference][
     const std::vector<float> values(11, 0.0F);
     const std::vector<float> outputs = manager.InferSingleFloatInput(values, {1, 11});
     REQUIRE(outputs.size() == 2);
+}
+#endif
+
+#if defined(PTAFDEPLOY_ENABLE_TENSORRT)
+TEST_CASE("TensorRT target selection respects strict priority", "[inference][tensorrt]")
+{
+    using namespace ptafdeploy::inference;
+    tensorrt::CInferenceManager_TensorRT_Engine backend;
+    SInferenceOptions options;
+    options.allow_fallback = false;
+    options.execution_target_priority = {EExecutionTarget::cpu, EExecutionTarget::cuda};
+    REQUIRE_THROWS_WITH(backend.LoadModel("absent.engine", options),
+                        Catch::Matchers::ContainsSubstring("first target"));
+    options.allow_fallback = true;
+    options.execution_target_priority = {EExecutionTarget::cpu};
+    REQUIRE_THROWS_WITH(backend.LoadModel("absent.engine", options),
+                        Catch::Matchers::ContainsSubstring("CPU-only"));
+}
+
+TEST_CASE("TensorRT failed replacement preserves usable state", "[inference][tensorrt]")
+{
+    using namespace ptafdeploy::inference;
+    const char* fixture = std::getenv("PTAFDEPLOY_TENSORRT_TEST_ENGINE");
+    if (fixture == nullptr || std::string(fixture).empty())
+        SKIP("Set PTAFDEPLOY_TENSORRT_TEST_ENGINE to a compatible engine");
+
+    SInferenceOptions options;
+    options.device_id = GetTensorRtTestDevice();
+    options.allow_fallback = false;
+    options.execution_target_priority = {EExecutionTarget::cuda};
+    tensorrt::CInferenceManager_TensorRT_Engine backend;
+    int caller_device = -1;
+    REQUIRE(cudaGetDevice(&caller_device) == cudaSuccess);
+    backend.LoadModel(fixture, options);
+    int current_device = -1;
+    REQUIRE(cudaGetDevice(&current_device) == cudaSuccess);
+    REQUIRE(current_device == caller_device);
+    const auto metadata = backend.GetModelMetadata();
+    REQUIRE(metadata.inputs.size() == 1);
+    auto descriptor = metadata.inputs.front();
+    descriptor.shape = {1, 11}; // Same traced fixture contract as the existing engine smoke.
+    std::vector<float> values(11, 0.0F);
+    const std::vector<STensorView> inputs{
+        {descriptor, values.data(), values.size() * sizeof(float)}};
+    const auto reference = backend.Infer(inputs);
+
+    const auto corrupt_path =
+        std::filesystem::temp_directory_path() /
+        ("ptaf-corrupt-" +
+         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".engine");
+    struct SFileCleanup
+    {
+        std::filesystem::path path;
+        ~SFileCleanup()
+        {
+            std::error_code error;
+            std::filesystem::remove(path, error);
+        }
+    } cleanup{corrupt_path};
+    {
+        std::ofstream file;
+        file.exceptions(std::ios::badbit | std::ios::failbit);
+        file.open(corrupt_path);
+        file << "invalid engine";
+        file.close();
+    }
+
+    enum class EReloadFailure
+    {
+        missing_file,
+        corrupt_engine,
+        invalid_profile,
+        rejected_targets
+    };
+    for (const auto failure : {EReloadFailure::missing_file, EReloadFailure::corrupt_engine,
+                               EReloadFailure::invalid_profile, EReloadFailure::rejected_targets})
+    {
+        auto rejected_options = options;
+        std::filesystem::path rejected_path = fixture;
+        if (failure == EReloadFailure::missing_file)
+            rejected_path = corrupt_path.string() + ".missing";
+        if (failure == EReloadFailure::corrupt_engine)
+            rejected_path = corrupt_path;
+        if (failure == EReloadFailure::invalid_profile)
+            rejected_options.tensorrt_optimization_profile_index = 999;
+        if (failure == EReloadFailure::rejected_targets)
+            rejected_options.execution_target_priority = {EExecutionTarget::cpu,
+                                                          EExecutionTarget::cuda};
+        REQUIRE_THROWS(backend.LoadModel(rejected_path, rejected_options));
+        REQUIRE(cudaGetDevice(&current_device) == cudaSuccess);
+        REQUIRE(current_device == caller_device);
+        REQUIRE(backend.GetModelMetadata().backend_detail == metadata.backend_detail);
+        REQUIRE(backend.GetModelMetadata().inputs.front().name == metadata.inputs.front().name);
+        const auto result = backend.Infer(inputs);
+        REQUIRE(cudaGetDevice(&current_device) == cudaSuccess);
+        REQUIRE(current_device == caller_device);
+        REQUIRE(result.size() == reference.size());
+        for (size_t index = 0; index < result.size(); ++index)
+        {
+            REQUIRE(result[index].descriptor.shape == reference[index].descriptor.shape);
+            REQUIRE(result[index].bytes() == reference[index].bytes());
+            REQUIRE(std::memcmp(result[index].data(), reference[index].data(),
+                                result[index].bytes()) == 0);
+        }
+    }
+
+    options.allow_fallback = true;
+    options.execution_target_priority = {EExecutionTarget::cpu, EExecutionTarget::cuda};
+    REQUIRE_NOTHROW(backend.LoadModel(fixture, options));
+    REQUIRE_THAT(backend.GetModelMetadata().backend_detail,
+                 Catch::Matchers::ContainsSubstring("selected_target=cuda;skipped_target_count=1"));
+    REQUIRE_NOTHROW(backend.Infer(inputs));
+    options.allow_fallback = false;
+    options.execution_target_priority = {EExecutionTarget::tensorrt};
+    REQUIRE_NOTHROW(backend.LoadModel(fixture, options));
+    REQUIRE_NOTHROW(backend.Infer(inputs));
+    options.execution_target_priority.clear();
+    REQUIRE_NOTHROW(backend.LoadModel(fixture, options));
+    REQUIRE_NOTHROW(backend.Infer(inputs));
 }
 #endif

@@ -31,17 +31,64 @@ namespace ptafdeploy::inference::tensorrt
             {
                 if (severity <= Severity::kERROR && message != nullptr)
                 {
-                    last_error_ = message;
+                    try
+                    {
+                        std::lock_guard<std::mutex> lock(mutex_);
+                        last_error_ = message;
+                    }
+                    catch (...)
+                    {
+                        // TensorRT requires a nonthrowing logging callback, even on allocation
+                        // failure.
+                    }
                 }
             }
 
-            [[nodiscard]] const std::string& LastError() const noexcept
+            [[nodiscard]] std::string LastError() const
             {
+                std::lock_guard<std::mutex> lock(mutex_);
                 return last_error_;
             }
 
           private:
+            mutable std::mutex mutex_;
             std::string last_error_{};
+        };
+
+        // Plugin registration retains a logger independently of individual engine states.
+        void InitializeTensorRtPlugins()
+        {
+            // The process-global plugin registry can outlive static backend instances.
+            // Keep this single logger alive through process teardown.
+            static auto* plugin_logger = new CTensorRtLogger;
+            static const bool initialized = initLibNvInferPlugins(plugin_logger, "");
+            if (!initialized)
+                throw std::runtime_error("Failed to initialize TensorRT plugins.");
+        }
+
+        /**
+         * @brief Select a device for a scope and restore the caller's device on exit.
+         * @param device_id CUDA device owning the resources used in this scope.
+         * @throws std::runtime_error If reading or selecting the current device fails.
+         */
+        class CCudaDeviceScope final
+        {
+          public:
+            explicit CCudaDeviceScope(int device_id)
+            {
+                if (cudaGetDevice(&previous_device_) != cudaSuccess ||
+                    cudaSetDevice(device_id) != cudaSuccess)
+                    throw std::runtime_error("Cannot select CUDA device for TensorRT");
+            }
+            ~CCudaDeviceScope()
+            {
+                cudaSetDevice(previous_device_);
+            }
+            CCudaDeviceScope(const CCudaDeviceScope&) = delete;
+            CCudaDeviceScope& operator=(const CCudaDeviceScope&) = delete;
+
+          private:
+            int previous_device_{};
         };
 
         class CCudaStream final
@@ -275,37 +322,42 @@ namespace ptafdeploy::inference::tensorrt
         }
 
         [[nodiscard]] std::string
-        MakeBackendDetail(const ptafdeploy::inference::SInferenceOptions& options)
+        MakeBackendDetail(const ptafdeploy::inference::SInferenceOptions& options,
+                          size_t selected_target_index)
         {
             std::ostringstream stream;
             stream << "backend=tensorrt_engine" << ";requested_targets="
                    << ptafdeploy::inference::JoinExecutionTargets(options.execution_target_priority)
+                   << ";selected_target="
+                   << (options.execution_target_priority.empty()
+                           ? "cuda"
+                           : ptafdeploy::inference::ToString(
+                                 options.execution_target_priority[selected_target_index]))
+                   << ";skipped_target_count=" << selected_target_index
                    << ";device_id=" << options.device_id
                    << ";optimization_profile=" << options.tensorrt_optimization_profile_index
                    << ";io=host_staged" << ";tensorrt_version=" << getInferLibVersion();
             return stream.str();
         }
 
-        void ValidateExecutionTargets(const ptafdeploy::inference::SInferenceOptions& options)
+        [[nodiscard]] size_t
+        SelectExecutionTarget(const ptafdeploy::inference::SInferenceOptions& options)
         {
-            if (options.execution_target_priority.empty())
-            {
-                return;
-            }
-
             const auto& targets = options.execution_target_priority;
-            const bool has_gpu_target =
-                std::any_of(targets.begin(), targets.end(),
-                            [](const ptafdeploy::inference::EExecutionTarget target)
-                            {
-                                return target == ptafdeploy::inference::EExecutionTarget::cuda ||
-                                       target == ptafdeploy::inference::EExecutionTarget::tensorrt;
-                            });
-            if (!has_gpu_target)
+            if (targets.empty())
+                return 0; // The standalone backend defaults to CUDA.
+
+            for (size_t index = 0; index < targets.size(); ++index)
             {
-                throw std::invalid_argument(
-                    "TensorRT standalone backend requires cuda or tensorrt execution target.");
+                if (targets[index] == EExecutionTarget::cuda ||
+                    targets[index] == EExecutionTarget::tensorrt)
+                    return index;
+                if (!options.allow_fallback)
+                    break;
             }
+            throw std::invalid_argument(
+                "TensorRT requires cuda or tensorrt as the first target when fallback is disabled; "
+                "CPU-only execution is unsupported.");
         }
 
         void ApplyTensorRtRuntimeOptions(const ptafdeploy::inference::SInferenceOptions& options,
@@ -335,6 +387,25 @@ namespace ptafdeploy::inference::tensorrt
 
     struct STensorRtState
     {
+        explicit STensorRtState(int device) : device_id(device)
+        {
+        }
+
+        ~STensorRtState()
+        {
+            // Destroy device allocations and TensorRT objects on their owning device.
+            int previous_device = device_id;
+            cudaGetDevice(&previous_device);
+            cudaSetDevice(device_id);
+            output_device_buffers.clear();
+            input_device_buffers.clear();
+            context.reset();
+            engine.reset();
+            runtime.reset();
+            cudaSetDevice(previous_device);
+        }
+
+        int device_id{};
         CTensorRtLogger logger{};
         std::unique_ptr<nvinfer1::IRuntime> runtime{};
         std::unique_ptr<nvinfer1::ICudaEngine> engine{};
@@ -376,52 +447,50 @@ namespace ptafdeploy::inference::tensorrt
     void CInferenceManager_TensorRT_Engine::LoadModel(
         const fs::path& model_path, const ptafdeploy::inference::SInferenceOptions& options)
     {
-        model_path_ = model_path;
-        options_ = options;
-        metadata_ = {};
-        metadata_.backend = ptafdeploy::inference::EInferenceBackend::tensorrt_engine;
-
 #if defined(PTAFDEPLOY_ENABLE_TENSORRT)
-        if (options_.device_id < 0)
+        std::lock_guard<std::mutex> lock(inference_mutex_);
+        auto replacement_path = model_path;
+        auto replacement_options = options;
+        SModelMetadata replacement_metadata;
+        replacement_metadata.backend = EInferenceBackend::tensorrt_engine;
+        if (replacement_options.device_id < 0)
         {
             throw std::invalid_argument("TensorRT device_id must be non-negative.");
         }
-        ValidateExecutionTargets(options_);
+        const auto selected_target = SelectExecutionTarget(replacement_options);
 
-        CCudaStream::Check(cudaSetDevice(options_.device_id), "set CUDA device for TensorRT");
+        CCudaDeviceScope device_scope(replacement_options.device_id);
 
-        std::vector<char> engine_bytes = ReadBinaryFile(model_path_);
-        state_ = std::make_unique<STensorRtState>();
-        if (!initLibNvInferPlugins(&state_->logger, ""))
-        {
-            throw std::runtime_error("Failed to initialize TensorRT plugins.");
-        }
+        std::vector<char> engine_bytes = ReadBinaryFile(replacement_path);
+        InitializeTensorRtPlugins();
+        auto replacement_state = std::make_unique<STensorRtState>(replacement_options.device_id);
 
-        state_->runtime.reset(nvinfer1::createInferRuntime(state_->logger));
-        if (state_->runtime == nullptr)
+        replacement_state->runtime.reset(nvinfer1::createInferRuntime(replacement_state->logger));
+        if (replacement_state->runtime == nullptr)
         {
             throw std::runtime_error("Failed to create TensorRT runtime.");
         }
-        state_->engine.reset(
-            state_->runtime->deserializeCudaEngine(engine_bytes.data(), engine_bytes.size()));
-        if (state_->engine == nullptr)
+        replacement_state->engine.reset(replacement_state->runtime->deserializeCudaEngine(
+            engine_bytes.data(), engine_bytes.size()));
+        if (replacement_state->engine == nullptr)
         {
-            const std::string detail =
-                state_->logger.LastError().empty() ? "" : ": " + state_->logger.LastError();
+            const auto last_error = replacement_state->logger.LastError();
+            const std::string detail = last_error.empty() ? "" : ": " + last_error;
             throw std::runtime_error("Failed to deserialize TensorRT engine" + detail);
         }
 
-        state_->context.reset(state_->engine->createExecutionContext());
-        if (state_->context == nullptr)
+        replacement_state->context.reset(replacement_state->engine->createExecutionContext());
+        if (replacement_state->context == nullptr)
         {
             throw std::runtime_error("Failed to create TensorRT execution context.");
         }
-        ApplyTensorRtRuntimeOptions(options_, *state_->engine, *state_->context);
+        ApplyTensorRtRuntimeOptions(replacement_options, *replacement_state->engine,
+                                    *replacement_state->context);
 
-        const int32_t num_io_tensors = state_->engine->getNbIOTensors();
+        const int32_t num_io_tensors = replacement_state->engine->getNbIOTensors();
         for (int32_t i = 0; i < num_io_tensors; ++i)
         {
-            const char* tensor_name_ptr = state_->engine->getIOTensorName(i);
+            const char* tensor_name_ptr = replacement_state->engine->getIOTensorName(i);
             if (tensor_name_ptr == nullptr)
             {
                 throw std::runtime_error("TensorRT engine returned a null IO tensor name.");
@@ -429,32 +498,44 @@ namespace ptafdeploy::inference::tensorrt
 
             const std::string tensor_name{tensor_name_ptr};
             const nvinfer1::TensorIOMode io_mode =
-                state_->engine->getTensorIOMode(tensor_name.c_str());
+                replacement_state->engine->getTensorIOMode(tensor_name.c_str());
             if (io_mode == nvinfer1::TensorIOMode::kINPUT)
             {
-                metadata_.inputs.push_back(ExtractTensorDescriptor(*state_->engine, tensor_name));
+                replacement_metadata.inputs.push_back(
+                    ExtractTensorDescriptor(*replacement_state->engine, tensor_name));
             }
             else if (io_mode == nvinfer1::TensorIOMode::kOUTPUT)
             {
-                metadata_.outputs.push_back(ExtractTensorDescriptor(*state_->engine, tensor_name));
+                replacement_metadata.outputs.push_back(
+                    ExtractTensorDescriptor(*replacement_state->engine, tensor_name));
             }
         }
 
-        if (metadata_.inputs.empty() || metadata_.outputs.empty())
+        if (replacement_metadata.inputs.empty() || replacement_metadata.outputs.empty())
         {
             throw std::runtime_error(
                 "TensorRT engine must expose at least one input and one output tensor.");
         }
 
-        state_->input_device_buffers.resize(metadata_.inputs.size());
-        state_->output_device_buffers.resize(metadata_.outputs.size());
-        metadata_.backend_detail = MakeBackendDetail(options_);
-        GetLogger().info("Loaded TensorRT engine: ", model_path_.string());
-        GetLogger().debug(metadata_.backend_detail, ";inputs=", metadata_.inputs.size(),
-                          ";outputs=", metadata_.outputs.size());
+        replacement_state->input_device_buffers.resize(replacement_metadata.inputs.size());
+        replacement_state->output_device_buffers.resize(replacement_metadata.outputs.size());
+        replacement_metadata.backend_detail =
+            MakeBackendDetail(replacement_options, selected_target);
+        // Finish potentially throwing diagnostics before exchanging the loaded state.
+        GetLogger().info("Loaded TensorRT engine: ", replacement_path.string());
+        GetLogger().debug(replacement_metadata.backend_detail,
+                          ";inputs=", replacement_metadata.inputs.size(),
+                          ";outputs=", replacement_metadata.outputs.size());
+
+        // Commit only complete state. The displaced state retains its device ownership.
+        using std::swap;
+        swap(model_path_, replacement_path);
+        swap(options_, replacement_options);
+        swap(metadata_, replacement_metadata);
+        swap(state_, replacement_state);
 #else
-        metadata_.backend_detail =
-            "TensorRT standalone backend was not built. Reconfigure with ENABLE_TENSORRT=ON.";
+        (void)model_path;
+        (void)options;
         ThrowNotImplemented();
 #endif
     }
@@ -477,8 +558,7 @@ namespace ptafdeploy::inference::tensorrt
 
         GetLogger().trace("Running TensorRT inference with ", inputs.size(), " input tensor(s).");
 
-        CCudaStream::Check(cudaSetDevice(options_.device_id),
-                           "set CUDA device for TensorRT inference");
+        CCudaDeviceScope device_scope(options_.device_id);
         CCudaStream stream;
 
         const std::vector<const ptafdeploy::inference::STensorView*> ordered_inputs =

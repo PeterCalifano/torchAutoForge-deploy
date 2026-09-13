@@ -50,6 +50,12 @@ namespace ptafdeploy::inference::tensorrt
 
         /**
          * @brief Load a serialized `.engine` or `.plan` artifact.
+         * @note Failure preserves the previous model, metadata, and inference state.
+         * An empty target list uses CUDA. With fallback disabled, the first target
+         * must be CUDA or TensorRT. With fallback enabled, incompatible leading
+         * targets may be skipped; backend metadata reports the selected target.
+         * Load and inference restore the calling thread's CUDA device on exit.
+         * Load is serialized with inference; callers must synchronize metadata reads.
          * @param model_path Existing serialized TensorRT engine path.
          * @param options Device and optimization-profile selections.
          * @throws std::exception When TensorRT is not built or loading fails.
