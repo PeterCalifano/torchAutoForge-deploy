@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <filesystem>
+#include <inference/inference_config_parsing.h>
 #include <inference/model_facade.h>
 #include <vector>
 
@@ -223,4 +224,18 @@ TEST_CASE("CModelFacade_loads_role_configs", "[inference][model_facade]")
             model.LoadModelConfig(GetModelConfigPath("bad_schema_version.ptafmodel").string()),
             ContainsSubstring("Unsupported model config schema_version"));
     }
+}
+
+TEST_CASE("Model runtime policy can be read before loading", "[inference][model_facade]")
+{
+    const auto runtime = infer::ReadPtafModelRuntimeConfig(
+        GetModelConfigPath("cpu_tree_centroid.ptafmodel").string());
+    REQUIRE(runtime.execution_target_priority ==
+            std::vector<infer::EExecutionTarget>{infer::EExecutionTarget::cpu});
+    REQUIRE_FALSE(runtime.allow_fallback);
+    REQUIRE(runtime.backend == infer::EInferenceBackend::onnxruntime);
+    REQUIRE(runtime.artifact == infer::EModelArtifact::onnx);
+    REQUIRE(runtime.intra_op_num_threads == 2);
+    REQUIRE(runtime.inter_op_num_threads == 3);
+    REQUIRE(runtime.log_id == "manifest_runtime_policy");
 }

@@ -57,7 +57,7 @@ namespace
         /** @brief Timed inference iterations used for the reported mean. */
         int iterations{20};
 
-        /** @brief Whether explicit CLI values must replace manifest runtime policy. */
+        /** @brief Whether explicit CLI values modify the manifest runtime policy. */
         bool runtime_overridden{false};
     };
 
@@ -182,6 +182,13 @@ namespace
             throw std::invalid_argument("--warmup must be non-negative.");
         }
 
+        args.runtime_overridden = targets.isSet() || device.isSet() || tensor_rt_profile.isSet() ||
+                                  backend.isSet() || artifact.isSet() || no_fallback.getValue();
+        if (args.runtime_overridden && args.model_or_config_path.extension() == ".ptafmodel")
+        {
+            args.runtime = infer::ReadPtafModelRuntimeConfig(args.model_or_config_path.string());
+        }
+
         // Apply only explicit runtime overrides so manifest defaults remain authoritative.
         if (targets.isSet())
         {
@@ -208,8 +215,6 @@ namespace
         {
             args.runtime.SetAllowFallback(false);
         }
-        args.runtime_overridden = targets.isSet() || device.isSet() || tensor_rt_profile.isSet() ||
-                                  backend.isSet() || artifact.isSet() || no_fallback.getValue();
 
         if (role.isSet())
         {

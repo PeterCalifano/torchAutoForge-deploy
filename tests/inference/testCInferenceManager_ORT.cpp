@@ -5,9 +5,12 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
+#include <chrono>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <inference/inference_manager.h>
 #include <inference/onnx_runtime/onnxruntime_inference_tools.hpp>
 #include <vector>
@@ -241,4 +244,73 @@ TEST_CASE("CInferenceManager_facade_exposes_wrapper_safe_float_inference",
     REQUIRE(output_values.size() == 2);
     REQUIRE(output_values[0] == Catch::Approx(1.686690331F).margin(1.0e-5F));
     REQUIRE(output_values[1] == Catch::Approx(4.697796822F).margin(1.0e-5F));
+}
+
+TEST_CASE("CInferenceManager_ORT_preserves_state_after_failed_reload", "[inference][ort]")
+{
+    infer::SInferenceOptions options;
+    options.execution_target_priority = {infer::EExecutionTarget::cpu};
+    options.allow_fallback = false;
+    infer::onnxruntime::CInferenceManager_ORT manager(GetOrtFixturePath(), options);
+    const auto original_metadata = manager.GetModelMetadata();
+    auto input = MakeSequentialInputBuffer(original_metadata.inputs.front());
+
+    const fs::path corrupt_model = fs::temp_directory_path() /
+        ("ptaf-corrupt-reload-" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".onnx");
+    {
+        std::ofstream stream(corrupt_model);
+        stream << "This is not an ONNX model";
+        REQUIRE(stream.good());
+    }
+
+    // Exercise both direct session failure and the explicit retry path.
+    options.log_id = "failed-reload";
+    options.allow_fallback = GENERATE(false, true);
+    REQUIRE_THROWS(manager.LoadModel(corrupt_model, options));
+    fs::remove(corrupt_model);
+
+    const auto& metadata = manager.GetModelMetadata();
+    REQUIRE(metadata.backend_detail == original_metadata.backend_detail);
+    REQUIRE(metadata.inputs.size() == original_metadata.inputs.size());
+    REQUIRE(metadata.inputs.front().name == original_metadata.inputs.front().name);
+    REQUIRE(metadata.outputs.size() == original_metadata.outputs.size());
+    RequireReferenceOutput(manager.Infer({input.AsView()}).front());
+
+    // A later successful reload must still replace the preserved state normally.
+    manager.LoadModel(GetOrtFixturePath(), options);
+    RequireReferenceOutput(manager.Infer({input.AsView()}).front());
+}
+
+TEST_CASE("CInferenceManager_ORT_enforces_accelerator_only_node_placement", "[inference][ort]")
+{
+    const fs::path model_path = fs::path(__FILE__).parent_path() /
+        "test_data" / "cpu_tree_centroid.onnx";
+    infer::SInferenceOptions options;
+    options.execution_target_priority = {infer::EExecutionTarget::cpu};
+    options.allow_fallback = false;
+    infer::onnxruntime::CInferenceManager_ORT manager(model_path, options);
+    auto input = MakeSequentialInputBuffer(manager.GetModelMetadata().inputs.front());
+    REQUIRE(ReadFloatOutput(manager.Infer({input.AsView()}).front()) ==
+            std::vector<float>{0.25F, 0.75F});
+
+    if (!manager.IsExecutionTargetAvailable(infer::EExecutionTarget::cuda))
+    {
+        SKIP("CUDA provider is required to exercise implicit CPU node placement");
+    }
+
+    // The single-leaf TreeEnsembleRegressor has float IO but only a CPU kernel.
+    // Relaxed CUDA may execute it; strict CUDA must reject that implicit placement.
+    options.execution_target_priority = {infer::EExecutionTarget::cuda};
+    options.allow_fallback = true;
+    REQUIRE_NOTHROW(manager.LoadModel(model_path, options));
+    options.allow_fallback = false;
+    REQUIRE_THROWS_WITH(manager.LoadModel(model_path, options),
+                        ContainsSubstring("fallback to CPU EP has been explicitly disabled"));
+
+    // Including CPU in the requested chain is an explicit execution choice.
+    options.execution_target_priority.push_back(infer::EExecutionTarget::cpu);
+    REQUIRE_NOTHROW(manager.LoadModel(model_path, options));
+    REQUIRE(ReadFloatOutput(manager.Infer({input.AsView()}).front()) ==
+            std::vector<float>{0.25F, 0.75F});
 }

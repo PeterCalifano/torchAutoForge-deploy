@@ -1,0 +1,15 @@
+# Deterministic CPU-only tree fixture for runtime-policy regression tests.
+# ONNX IR 9, opsets 17 / ai.onnx.ml 3: flatten float32 [1,1,2,2], then
+# a single-leaf TreeEnsembleRegressor returning [0.25,0.75] for every input.
+schema_version = 1
+artifact_path = ../test_data/cpu_tree_centroid.onnx
+role = centroiding
+preprocessing = opencv_grayscale_resize_linear_nchw_unit_scale
+postprocessing = normalized_centroid_xy
+backend = onnxruntime
+artifact = onnx
+execution_target_priority = cpu
+allow_fallback = false
+intra_op_num_threads = 2
+inter_op_num_threads = 3
+log_id = manifest_runtime_policy

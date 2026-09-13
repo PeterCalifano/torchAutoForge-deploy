@@ -11,6 +11,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <utils/logging/CLogger.h>
 #include <utils/filesystem.h>
 
@@ -226,6 +227,14 @@ namespace ptafdeploy::inference::onnxruntime
             {
                 std::vector<std::string> providers =
                     ApplyOrtProviders(session_options, options, available_providers);
+
+                // CPU remains valid when explicitly present in the requested chain.
+                // Accelerator-only strict runs must also reject implicit node placement.
+                if (!options.allow_fallback &&
+                    std::find(providers.begin(), providers.end(), "cpu") == providers.end())
+                {
+                    session_options.AddConfigEntry("session.disable_cpu_ep_fallback", "1");
+                }
                 if (applied_providers != nullptr)
                 {
                     *applied_providers = std::move(providers);
@@ -370,24 +379,27 @@ namespace ptafdeploy::inference::onnxruntime
     {
         ptafdeploy::utils::CheckFileExistsWithExt(model_path, "onnx", true);
 
-        model_path_ = model_path;
-        options_ = options;
-        model_metadata_ = {};
+        // Build the complete replacement before changing the last successful load.
+        fs::path replacement_path = model_path;
+        auto replacement_options = options;
+        ptafdeploy::inference::SModelMetadata replacement_metadata;
 
         const std::vector<std::string> available_providers = GetAvailableProviders();
-        exec_env_ = Ort::Env(kOrtLoggingLevel, options_.log_id.c_str());
+        Ort::Env replacement_environment(kOrtLoggingLevel, replacement_options.log_id.c_str());
 
         std::vector<std::string> applied_providers;
-        session_options_ =
-            MakeSessionOptions(options_, available_providers, true, &applied_providers);
+        Ort::SessionOptions replacement_session_options =
+            MakeSessionOptions(replacement_options, available_providers, true, &applied_providers);
+        std::unique_ptr<Ort::Session> replacement_session;
         try
         {
-            session_ptr_ = std::make_unique<Ort::Session>(exec_env_, model_path_.string().c_str(),
-                                                          session_options_);
+            replacement_session = std::make_unique<Ort::Session>(
+                replacement_environment, replacement_path.string().c_str(),
+                replacement_session_options);
         }
         catch (const Ort::Exception& error)
         {
-            if (!options_.allow_fallback)
+            if (!replacement_options.allow_fallback)
             {
                 throw;
             }
@@ -395,31 +407,43 @@ namespace ptafdeploy::inference::onnxruntime
             GetLogger().warning("Requested ORT provider session failed; retrying on CPU: ",
                                 error.what());
             applied_providers = {"cpu_fallback"};
-            session_options_ = MakeSessionOptions(options_, available_providers, false, nullptr);
-            session_ptr_ = std::make_unique<Ort::Session>(exec_env_, model_path_.string().c_str(),
-                                                          session_options_);
+            replacement_session_options =
+                MakeSessionOptions(replacement_options, available_providers, false, nullptr);
+            replacement_session = std::make_unique<Ort::Session>(
+                replacement_environment, replacement_path.string().c_str(),
+                replacement_session_options);
         }
 
-        const size_t num_inputs = session_ptr_->GetInputCount();
-        const size_t num_outputs = session_ptr_->GetOutputCount();
+        const size_t num_inputs = replacement_session->GetInputCount();
+        const size_t num_outputs = replacement_session->GetOutputCount();
 
-        model_metadata_.inputs.reserve(num_inputs);
-        model_metadata_.outputs.reserve(num_outputs);
+        replacement_metadata.inputs.reserve(num_inputs);
+        replacement_metadata.outputs.reserve(num_outputs);
         for (size_t i = 0; i < num_inputs; ++i)
         {
-            model_metadata_.inputs.push_back(
-                ExtractTensorDescriptor(*session_ptr_, allocator_, i, true));
+            replacement_metadata.inputs.push_back(
+                ExtractTensorDescriptor(*replacement_session, allocator_, i, true));
         }
         for (size_t i = 0; i < num_outputs; ++i)
         {
-            model_metadata_.outputs.push_back(
-                ExtractTensorDescriptor(*session_ptr_, allocator_, i, false));
+            replacement_metadata.outputs.push_back(
+                ExtractTensorDescriptor(*replacement_session, allocator_, i, false));
         }
 
-        model_metadata_.backend = ptafdeploy::inference::EInferenceBackend::onnxruntime;
-        model_metadata_.backend_detail =
-            MakeBackendDetail(ResolveExecutionTargetPriority(options_), applied_providers,
-                              available_providers, options_.device_id);
+        replacement_metadata.backend = ptafdeploy::inference::EInferenceBackend::onnxruntime;
+        replacement_metadata.backend_detail =
+            MakeBackendDetail(ResolveExecutionTargetPriority(replacement_options), applied_providers,
+                              available_providers, replacement_options.device_id);
+
+        // Keep the old session alive with its environment until all state is exchanged.
+        using std::swap;
+        swap(model_path_, replacement_path);
+        swap(options_, replacement_options);
+        swap(model_metadata_, replacement_metadata);
+        swap(exec_env_, replacement_environment);
+        swap(session_options_, replacement_session_options);
+        swap(session_ptr_, replacement_session);
+
         GetLogger().info("Loaded ONNX model: ", model_path_.string());
         GetLogger().debug(model_metadata_.backend_detail, ";inputs=", model_metadata_.inputs.size(),
                           ";outputs=", model_metadata_.outputs.size());

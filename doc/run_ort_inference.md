@@ -80,10 +80,15 @@ The runtime options use the same backend-neutral policy as the library:
 ```text
 --targets cpu,cuda,tensorrt  execution-target priority
 --device N                   non-negative device index
---no-fallback                reject lower-priority fallback
+--no-fallback                reject automatic runtime fallback
 --intra-op-threads N         ORT intra-operation threads; zero uses its default
 --inter-op-threads N         ORT inter-operation threads; zero uses its default
 ```
+
+With `--no-fallback`, unavailable requested providers and session-construction
+failures are errors. Accelerator-only provider chains also reject implicit CPU
+node execution. CPU remains permitted when explicitly included in `--targets`;
+use `--targets cuda --no-fallback` to require CUDA-only execution.
 
 For a CPU-only reproducible run:
 

@@ -45,6 +45,7 @@ namespace ptafdeploy::inference::onnxruntime
          * @param model_path Existing `.onnx` artifact.
          * @param options Threading, provider-priority, device, and fallback settings.
          * @throws std::exception When validation or ORT session creation fails.
+         * @note Failure preserves the previous session, options, and metadata.
          */
         void LoadModel(const fs::path& model_path,
                        const ptafdeploy::inference::SInferenceOptions& options = {});

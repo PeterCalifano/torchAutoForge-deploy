@@ -57,6 +57,13 @@ if(BUILD_TESTING)
   set(_centroiding_fixture
     "${CMAKE_CURRENT_SOURCE_DIR}/test_data/bright_ellipse_320x240.png")
 
+  add_test(NAME centroiding_cli_preserves_manifest_targets
+    COMMAND $<TARGET_FILE:run_centroiding>
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/inference/model_configs/cpu_tree_centroid.ptafmodel"
+            "${_centroiding_fixture}" --device 0)
+  set_tests_properties(centroiding_cli_preserves_manifest_targets PROPERTIES
+    PASS_REGULAR_EXPRESSION "requested_targets=cpu")
+
   if(EXISTS "${_centroiding_model}")
     add_test(NAME centroiding_cli_cpu_inference
       COMMAND $<TARGET_FILE:run_centroiding>

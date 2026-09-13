@@ -17,6 +17,16 @@
 namespace ptafdeploy::inference
 {
     /**
+     * @brief Read a manifest's runtime policy without loading its model.
+     * @param config_path Path to a model manifest accepted by CModelFacade.
+     * @return Runtime settings including defaults for omitted fields.
+     * @throws std::exception If the manifest cannot be read or validated.
+     * @note Uses the same parser as model loading; callers may override explicit
+     *       fields before passing the resulting full policy to the facade.
+     */
+    [[nodiscard]] SRuntimeConfig ReadPtafModelRuntimeConfig(const std::string& config_path);
+
+    /**
      * @brief Trim ASCII whitespace around a manifest/CLI token.
      * @param value Source token.
      * @return Trimmed token, or an empty string for whitespace-only input.

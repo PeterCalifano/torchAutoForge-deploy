@@ -63,7 +63,7 @@ namespace
         /** @brief Backend-neutral runtime used for raw models or explicit overrides. */
         infer::SRuntimeConfig runtime{};
 
-        /** @brief Whether explicit CLI runtime values replace manifest policy. */
+        /** @brief Whether explicit CLI runtime values modify the manifest policy. */
         bool runtime_overridden{false};
     };
 
@@ -121,19 +121,42 @@ namespace
         arguments.image_path = image_path.getValue();
         arguments.output_path = output_path.getValue();
         arguments.overlays = overlays.getValue();
-        arguments.runtime.SetDeviceId(device.getValue());
-        arguments.runtime.SetThreadCounts(intra_op_threads.getValue(), inter_op_threads.getValue());
-        arguments.runtime.SetAllowFallback(!no_fallback.getValue());
-        arguments.runtime.SetLogId("run_centroiding");
+        arguments.runtime_overridden = targets.isSet() || device.isSet() ||
+                                       intra_op_threads.isSet() || inter_op_threads.isSet() ||
+                                       no_fallback.getValue();
+
+        // Start from the manifest policy, then change only explicitly supplied fields.
+        if (arguments.model_path.extension() != ".ptafmodel")
+        {
+            arguments.runtime.SetThreadCounts(1, 1);
+            arguments.runtime.SetLogId("run_centroiding");
+        }
+        else if (arguments.runtime_overridden)
+        {
+            arguments.runtime = infer::ReadPtafModelRuntimeConfig(arguments.model_path.string());
+        }
+        if (device.isSet())
+        {
+            arguments.runtime.SetDeviceId(device.getValue());
+        }
+        if (intra_op_threads.isSet() || inter_op_threads.isSet())
+        {
+            arguments.runtime.SetThreadCounts(
+                intra_op_threads.isSet() ? intra_op_threads.getValue()
+                                        : arguments.runtime.intra_op_num_threads,
+                inter_op_threads.isSet() ? inter_op_threads.getValue()
+                                        : arguments.runtime.inter_op_num_threads);
+        }
+        if (no_fallback.getValue())
+        {
+            arguments.runtime.SetAllowFallback(false);
+        }
         if (targets.isSet())
         {
             arguments.runtime.execution_target_priority =
                 infer::ParseExecutionTargetPriority(targets.getValue());
         }
 
-        arguments.runtime_overridden = targets.isSet() || device.isSet() ||
-                                       intra_op_threads.isSet() || inter_op_threads.isSet() ||
-                                       no_fallback.getValue();
         return arguments;
     }
 

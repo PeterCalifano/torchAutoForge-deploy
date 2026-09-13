@@ -242,6 +242,11 @@ namespace ptafdeploy::inference
         }
     } // namespace
 
+    SRuntimeConfig ReadPtafModelRuntimeConfig(const std::string& config_path)
+    {
+        return ReadModelConfigFile(config_path).runtime_config;
+    }
+
     SModelRoleConfig::SModelRoleConfig(const EModelRole model_role) : role(model_role) {}
 
     SModelRoleConfig::SModelRoleConfig(const EModelRole model_role,
