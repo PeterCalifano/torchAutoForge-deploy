@@ -60,6 +60,9 @@ The schema is embedded in the core library and installed under
 or optional inference-output component. `GetPtafModelSchemaJson()` returns the
 embedded schema for editors and creation tools.
 
+See [manifest creation tools](ptafmodel_tools.md) for command-line and interactive
+creation, including overwrite protection and defaults.
+
 Automatic generation during model export will be implemented in PTAF. Exporters
 must supply task and preprocessing information explicitly when it is not known;
 tensor shapes alone do not establish those semantics.

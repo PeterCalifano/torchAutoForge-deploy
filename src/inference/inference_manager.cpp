@@ -157,8 +157,7 @@ namespace ptafdeploy::inference
     void ValidateBackendArtifactCompatibility(const EInferenceBackend backend,
                                               const EModelArtifact artifact)
     {
-        const bool incompatible_onnx =
-            backend == EInferenceBackend::onnxruntime && artifact != EModelArtifact::onnx;
+        const bool incompatible_onnx = backend == EInferenceBackend::onnxruntime && artifact != EModelArtifact::onnx;
         const bool incompatible_tensorrt = backend == EInferenceBackend::tensorrt_engine &&
                                            artifact != EModelArtifact::tensorrt_engine;
         if (incompatible_onnx || incompatible_tensorrt)

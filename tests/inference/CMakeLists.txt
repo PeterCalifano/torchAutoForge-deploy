@@ -253,3 +253,8 @@ endif()
 
 # Export the discovered test targets to the parent test directory.
 set(TESTS_LIST ${TESTS_LIST} PARENT_SCOPE)
+
+if(TARGET make_ptafmodel AND TEST inference_test_ptafmodel_cli_py)
+  set_tests_properties(inference_test_ptafmodel_cli_py PROPERTIES
+    ENVIRONMENT "PTAFMODEL_EXECUTABLE=$<TARGET_FILE:make_ptafmodel>")
+endif()

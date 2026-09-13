@@ -419,3 +419,10 @@ Optional [image and inference-output utilities](doc/image_and_inference_output.m
 provide native annotation and JSON serialization without changing the inference facades.
 [Native evaluation tools](doc/native_evaluation.md) prepare reproducible image selections
 and summarize timing reports or source-matched point errors.
+
+### Create a model manifest
+
+Use `make-ptafmodel init model.onnx --task centroiding --output model.ptafmodel`, or
+run the installed `make_ptafmodel.py` wizard. Both use the same native writer
+and validator. See the [JSON manifest contract](doc/development/ptafmodel_manifest_schema.md)
+for schema, defaults, templates, and validation commands.

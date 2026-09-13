@@ -34,12 +34,22 @@ foreach(exampleFile ${srcProgramsFiles})
     target_link_libraries(${program_name} PRIVATE autoforge_deploy::images)
   endif()
 
+  if(program_name STREQUAL "make_ptafmodel")
+    target_include_directories(${program_name} SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/lib/header_only")
+  endif()
+
   target_compile_definitions(${program_name} PRIVATE
     PTAFDEPLOY_CLI_VERSION="${FULL_VERSION}")
 
-  set_target_properties(${program_name} PROPERTIES OUTPUT_NAME "${program_name}")
+  if(program_name STREQUAL "make_ptafmodel")
+    set_target_properties(${program_name} PROPERTIES OUTPUT_NAME "make-ptafmodel")
+  else()
+    set_target_properties(${program_name} PROPERTIES OUTPUT_NAME "${program_name}")
+  endif()
   list(APPEND programs_targets ${program_name})
 endforeach()
 
 # Install all discovered command-line tools together.
 install(TARGETS ${programs_targets} RUNTIME DESTINATION bin)
+
+install(PROGRAMS "${PROJECT_SOURCE_DIR}/scripts/make_ptafmodel.py" DESTINATION bin)

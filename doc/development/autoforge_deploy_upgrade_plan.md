@@ -1484,7 +1484,7 @@ a separate follow-up. No commit or push was made.
 
 - [x] Review correctness, performance, complexity, documentation, and comments
 - [x] Stage the JSON manifest contract, migrated consumers, and native regression tests
-- [ ] After review and `next`, stage native creation commands and the Python wizard
+- [x] After review, stage native creation commands and the Python wizard
 
 The parser review found that a raw NUL could hide trailing input; the parser now
 rejects it, with native regression coverage. String views avoid copying decoded
