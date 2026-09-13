@@ -78,6 +78,8 @@ TEST_CASE("Incomplete reports omit uncommitted tails and retain custom fields", 
     REQUIRE(json.find("\"status\":\"incomplete\"") != std::string::npos);
     REQUIRE(json.find("\"valid\":true") != std::string::npos);
     REQUIRE(json.find("INVALID_TAIL") == std::string::npos);
+    stream.close(); // Release the published file before testing replacement on Windows.
+
     // A directory at the spool path deterministically makes append fail, even as root.
     filesystem::rename(test_directory / "frames.jsonl", test_directory / "saved.jsonl");
     REQUIRE(filesystem::create_directory(test_directory / "frames.jsonl"));
@@ -118,12 +120,20 @@ TEST_CASE("Report reader preserves incomplete and singleton arrays and rejects m
     REQUIRE_FALSE(initial_report.complete);
     REQUIRE(initial_report.frames.empty());
 
+    // Rejected records must not append bytes or poison the next valid record.
+    REQUIRE_THROWS_AS(writer.Append({0, "", 2.0, {}}), std::invalid_argument);
+    REQUIRE_THROWS_AS(writer.Append({1, "one.png", 2.0, {}}), std::invalid_argument);
+    REQUIRE(filesystem::file_size(test_directory / "frames.jsonl") == 0);
+
     writer.Append({0,
                    "one.png",
                    2.0,
                    {{"array", inference_output::SJsonValue::Array{1}},
                     {"flag", true},
                     {"overlay", nullptr}}});
+    const auto committed_bytes = filesystem::file_size(test_directory / "frames.jsonl");
+    REQUIRE_THROWS_AS(writer.Append({0, "duplicate.png", 2.0, {}}), std::invalid_argument);
+    REQUIRE(filesystem::file_size(test_directory / "frames.jsonl") == committed_bytes);
     writer.Publish(true);
 
     const auto completed_report =

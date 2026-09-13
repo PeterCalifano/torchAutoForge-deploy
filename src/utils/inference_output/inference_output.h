@@ -111,7 +111,8 @@ namespace ptafdeploy::utils::inference_output
     /** @brief Convert one completed frame into a JSON object.
      * @param frame Borrowed frame metadata and application fields.
      * @return Owned JSON object.
-     * @throws std::invalid_argument For invalid duration or reserved-field collisions.
+     * @throws std::invalid_argument For an empty source, invalid duration, or
+     * reserved-field collisions.
      */
     [[nodiscard]] SJsonValue FrameValue(const SFrameRecord& frame);
 
@@ -153,7 +154,8 @@ namespace ptafdeploy::utils::inference_output
         /** @brief Report ownership cannot be duplicated by assignment. */
         CReport& operator=(const CReport&) = delete;
         /** @brief Flush one valid frame; failed writes do not commit it.
-         * @param frame Completed record, borrowed until its serialized bytes have been closed.
+         * @param frame Completed record with a nonempty source and the next zero-based index.
+         * @note Validation failures leave the spool unchanged and permit a corrected retry.
          * @throws std::exception If serialization or disk IO fails, or appending is no longer
          * allowed.
          */

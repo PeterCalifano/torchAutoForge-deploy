@@ -30,7 +30,9 @@ Options:
   -h, --help      Show this help.
 
 By default, ROS 2 package metadata is synchronized when the supported overlay
-helper is present.
+helper is present. An explicit --sync-ros2 request requires a git-derived or
+existing VERSION version, a readable helper, and a working Python interpreter;
+missing prerequisites fail before VERSION is written.
 EOF
 }
 
@@ -201,6 +203,17 @@ if [[ -z "$source" && -f "$VERSION_FILE" ]]; then
     else
         warn "VERSION file exists but could not be parsed"
     fi
+fi
+
+# Explicit synchronization must fail before publishing any version metadata.
+if [[ "$sync_ros2" == true ]]; then
+    [[ -n "$source" ]] || die "ROS 2 synchronization requires a git or VERSION version"
+    [[ -d "$SCRIPT_DIR/ros2" ]] || die "ROS 2 overlay is missing"
+    [[ -f "$SCRIPT_DIR/ros2/tools/sync_package_metadata.py" && \
+       -r "$SCRIPT_DIR/ros2/tools/sync_package_metadata.py" ]] \
+        || die "ROS 2 package metadata helper is missing or unreadable"
+    command -v python3 >/dev/null 2>&1 || die "python3 is required for ROS 2 synchronization"
+    python3 --version >/dev/null 2>&1 || die "python3 cannot run"
 fi
 
 # 3. Fall back to hardcoded defaults.

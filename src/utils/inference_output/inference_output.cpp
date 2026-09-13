@@ -8,6 +8,14 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <stdexcept>
+#include <system_error>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace ptafdeploy::utils::inference_output
 {
@@ -162,6 +170,8 @@ namespace ptafdeploy::utils::inference_output
     }
     SJsonValue FrameValue(const SFrameRecord& frame)
     {
+        if (frame.source.empty())
+            throw std::invalid_argument("Frame source must not be empty");
         if (!std::isfinite(frame.inference_ms) || frame.inference_ms < 0)
             throw std::invalid_argument("Inference duration must be finite and nonnegative");
         auto fields = frame.fields;
@@ -202,6 +212,8 @@ namespace ptafdeploy::utils::inference_output
     {
         if (state_ != EState::active)
             throw std::logic_error("Cannot append after a failed write or completed report");
+        if (frame.index != committed_frames_)
+            throw std::invalid_argument("Frame index must equal the next consecutive index");
         const auto record = Serialize(FrameValue(frame));
         try
         {
@@ -252,10 +264,15 @@ namespace ptafdeploy::utils::inference_output
         }
         report << "]}\n";
         report.close();
-        // TODO (PC): Use atomic replacement on Windows; rename cannot overwrite an
-        // existing report there, so subsequent publication currently fails. Preserve
-        // the previous report if replacement fails; do not remove it before renaming.
+        // Replace directly so a failed publication never deletes the previous report first.
+#if defined(_WIN32)
+        if (!MoveFileExW((root_ / "predictions.json.tmp").c_str(),
+                         (root_ / "predictions.json").c_str(), MOVEFILE_REPLACE_EXISTING))
+            throw std::system_error(static_cast<int>(GetLastError()), std::system_category(),
+                                    "Cannot replace inference report");
+#else
         fs::rename(root_ / "predictions.json.tmp", root_ / "predictions.json");
+#endif
         if (complete)
         {
             state_ = EState::complete;

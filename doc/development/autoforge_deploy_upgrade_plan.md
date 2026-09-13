@@ -1499,6 +1499,84 @@ no failures and the same skips. Creation-tool files and their build/test/documen
 hunks remain unstaged for the second batch. The wizard now relies on creation's
 validation instead of launching a redundant second validation process.
 
+### Corrections following manifest consolidation
+
+The initial source assessment confirmed five defects: standalone TensorRT ignores
+strict target priority and modifies loaded state before reload succeeds; the
+report writer accepts empty sources and nonconsecutive indices; Windows report
+replacement remains a TODO; explicit ROS synchronization can return successfully
+without synchronizing after VERSION has already been written. This assessment
+is not runtime verification. Keep the current ORT accelerator-only CPU-placement
+protection and the distinction between requested providers and automatic fallback.
+
+Implement these corrections after the two manifest batches. Keep runtime and
+publication changes in separate reviewed batches; do not add them to the staged
+manifest migration.
+
+#### Correction batch 1: execution policy and TensorRT reload safety
+
+- [x] Require a CUDA/TensorRT first target for strict standalone TensorRT requests;
+  preserve empty-list defaults and reject CPU-only requests
+- [x] With fallback enabled, select a compatible requested target and disclose
+  the selection and skipped targets in backend diagnostics
+- [x] Preserve ORT CPU-first execution, explicit CUDA/CPU mixed execution, and
+  rejection of implicit CPU placement in strict accelerator-only execution
+- [x] Build replacement TensorRT state, options, path, metadata, and buffers
+  before exchanging loaded state
+- [x] Establish CUDA-device ownership for new-state cleanup and old-state
+  destruction, and verify logger/plugin lifetime across failed replacements
+- [x] Validate load, failed reload, unchanged metadata, continued inference, and
+  subsequent successful replacement using a compatible real TensorRT engine
+- [x] Cover missing/corrupt engines, invalid profiles, and rejected target lists
+- [ ] Review ownership, diagnostics, comments, and complexity; stage only this batch
+
+#### Correction batch 2: report and version publication
+
+- [x] Reject empty sources and nonconsecutive frame indices before appending;
+  retain timing/reserved-field checks and allow retry after record rejection
+- [ ] Implement Windows report replacement without deleting the published report
+  first; verify initial and repeated publication and failure preservation
+- [x] Test writer/reader round trips and rejected-record recovery
+- [x] Reject explicit ROS synchronization without an authoritative version,
+  overlay, helper, or interpreter before publishing VERSION or package metadata
+- [x] Preserve ordinary non-sync version generation and introduce no new default
+- [x] Test tag-derived versions, existing VERSION, tagless exports, and absent
+  prerequisites in temporary directories
+- [x] Review publication failures, documentation, and comments; stage only this batch
+
+#### Validation before merge
+
+- [ ] Rerun focused checks for manifest override preservation, ORT reload safety,
+  OpenGL package replay, compiled version definitions, and ORT placement policy
+- [ ] Validate CPU-only and accelerator builds separately
+- [ ] Obtain real TensorRT inference evidence and native Windows replacement
+  evidence before treating those paths as runtime-validated
+- [ ] Run hosted CI and complete PR review before merging
+
+Correction implementation is complete in the worktree and remains excluded from
+the staged manifest tooling. TensorRT selection now reports the selected target
+and skipped count. Replacement state is built before exchange; device-scoped
+cleanup and inference restore the caller's device. Plugin registration retains a
+single process-lifetime logger because the registry can outlive backend objects.
+
+Report validation rejects invalid sources/indices before IO. Windows publication
+uses MoveFileExW with replacement enabled, without deleting the destination first.
+Explicit version synchronization checks its authoritative version and prerequisites
+before publication. Native tests cover record retry and publication failures;
+six temporary-directory Python cases cover synchronization and non-sync behavior.
+
+The TensorRT/image/output suite passed 67 tests with two external FiLM skips on
+the RTX 4070 Ti SUPER (device 1), using
+`/tmp/ptafdeploy-current-review-01keyM/traced_fp32.engine`. Device 0 is a different
+architecture and correctly rejected that engine. Failed reloads preserve metadata
+and inference results; device restoration checks passed. Core-only validation
+passed separately. Windows runtime behavior and hosted CI remain unverified.
+
+The Windows report translation unit also passed MinGW cross-compilation; this is
+compile evidence only. The implementation follows the documented replacement
+flag for [MoveFileExW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw).
+The retained plugin logger addresses the [TensorRT logger lifetime requirement](https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-861/developer-guide/index.html).
+
 ### TensorRT execution policy and reload correction batch
 
 - [x] Review target priority, replacement ownership, device scope, and logger lifetime
@@ -1524,3 +1602,25 @@ pending. No commit or push was made.
 
 The isolated staged snapshot `/tmp/ptaf-runtime-index-4gqtaknx` also built and
 passed the TensorRT-tagged tests with the same device and real engine fixture.
+
+### Report and version-publication consolidation
+
+- [x] Review record validation, publication failure paths, and synchronization prerequisites
+- [x] Verify rejected records leave the spool usable and byte count unchanged
+- [x] Verify tag/VERSION sources, absent prerequisites, and a failing interpreter
+- [x] Check shell syntax, Python lint, native report tests, and Windows cross-compilation
+- [x] Stage the publication batch separately from the committed runtime fixes
+- [ ] Validate replacement on a Windows runner and run hosted CI before merge
+
+Seven temporary-directory version tests passed. Four native report tests passed
+44 assertions, including repeated publication, rejected-record recovery, and
+preservation of the previous report after a publication failure. The Windows
+translation unit cross-compiled with MinGW; no Windows runtime test was run.
+The version tests isolate the synchronization helper to verify command dispatch
+and preflight failures; they do not replace an end-to-end ROS overlay test.
+
+Review retained the existing report spool and direct publication design; the new
+record checks add no IO or retained frame storage. Explicit synchronization now
+checks helper readability and interpreter execution before writing VERSION.
+Ordinary non-sync generation retains its previous behavior. This is prerequisite
+validation, not a multi-file transaction across VERSION and ROS package files.
