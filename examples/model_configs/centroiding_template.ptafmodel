@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "artifact_path": "model.onnx",
+  "task": "centroiding",
+  "preprocessing": "opencv_grayscale_resize_linear_nchw_unit_scale",
+  "postprocessing": "normalized_centroid_xy",
+  "execution_target_priority": [
+    "cpu"
+  ],
+  "allow_fallback": false
+}

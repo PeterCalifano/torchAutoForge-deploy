@@ -225,7 +225,7 @@ namespace
                      const infer::SFloatTensor& output, const cv::Size image_size,
                      const demo::SCentroidResult& result)
     {
-        std::cout << std::setprecision(9) << "role=" << model.GetRole() << '\n'
+        std::cout << std::setprecision(9) << "task=" << model.GetRole() << '\n'
                   << "backend=" << model.GetBackendDetail() << '\n'
                   << "input_name=" << input.name << '\n'
                   << "input_shape=" << FormatShape(input.shape) << '\n'

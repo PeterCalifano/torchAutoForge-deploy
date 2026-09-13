@@ -28,7 +28,7 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET benchmark_model)
 
   set_tests_properties(${LIB_NAMESPACE}_benchmark_model_manifest_smoke PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "role=centroiding")
+    PASS_REGULAR_EXPRESSION "task=centroiding")
 
   add_test(NAME ${LIB_NAMESPACE}_benchmark_model_preserves_manifest_targets
     COMMAND $<TARGET_FILE:benchmark_model>
@@ -40,7 +40,7 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET benchmark_model)
   add_test(NAME ${LIB_NAMESPACE}_benchmark_model_raw_onnx_smoke
     COMMAND $<TARGET_FILE:benchmark_model>
             "${_benchmark_fixture_model}"
-            --role centroiding
+            --task centroiding
             --targets cpu
             --no-fallback
             --input-shape 1,11
@@ -49,7 +49,7 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET benchmark_model)
 
   set_tests_properties(${LIB_NAMESPACE}_benchmark_model_raw_onnx_smoke PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "role=centroiding")
+    PASS_REGULAR_EXPRESSION "task=centroiding")
 
   add_test(NAME ${LIB_NAMESPACE}_benchmark_model_rejects_unknown_target
     COMMAND $<TARGET_FILE:benchmark_model>

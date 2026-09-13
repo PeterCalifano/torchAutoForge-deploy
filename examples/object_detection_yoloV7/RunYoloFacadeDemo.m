@@ -54,7 +54,7 @@ end
 oModel = LoadYoloModel_(strManifestPath, stOptions.strTarget, stOptions.ui32DeviceId);
 if ~strcmp(oModel.GetRole(), "object_detection")
     error("ptafdeploy:YoloDemo:Role", ...
-        "YOLO demo requires role=object_detection in the manifest.");
+        "YOLO demo requires task=object_detection in the manifest.");
 end
 if oModel.GetNumInputs() ~= 1 || oModel.GetNumOutputs() ~= 1
     error("ptafdeploy:YoloDemo:Cardinality", ...
@@ -180,7 +180,7 @@ arguments
     stResult (1, 1) struct
 end
 
-fprintf("role=%s\n", stResult.strRole);
+fprintf("task=%s\n", stResult.strRole);
 fprintf("backend=%s\n", stResult.strBackend);
 fprintf("input_shape=[%s]\n", strjoin(string(stResult.vInputShape.'), ","));
 fprintf("output_shape=[%s]\n", strjoin(string(stResult.vOutputShape.'), ","));

@@ -140,7 +140,7 @@ def load_model(options: DemoOptions) -> ptaf.CModelFacade:
         raise ValueError("Expected a .ptafmodel manifest or .onnx artifact")
 
     if model.GetRole() != "centroiding":
-        raise RuntimeError("Centroiding requires role=centroiding")
+        raise RuntimeError("Centroiding requires task=centroiding")
     if model.GetNumInputs() != 1 or model.GetNumOutputs() != 1:
         raise RuntimeError("Centroiding requires exactly one input and one output")
     return model
@@ -254,7 +254,7 @@ def print_result(
         result: Validated centroid coordinates.
     """
 
-    print(f"role={model.GetRole()}")
+    print(f"task={model.GetRole()}")
     print(f"backend={model.GetBackendDetail()}")
     print(f"input_name={input_tensor.name}")
     print(f"input_shape={list(input_tensor.shape)}")

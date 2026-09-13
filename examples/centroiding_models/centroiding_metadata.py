@@ -46,7 +46,7 @@ def metadata(
         result["model"] = {
             "artifact_path": c.artifact_path,
             "config_path": c.config_path,
-            "role": c.role,
+            "task": c.role,
             "backend_detail": c.backend_detail,
             "preprocessing": c.preprocessing,
             "postprocessing": c.postprocessing,

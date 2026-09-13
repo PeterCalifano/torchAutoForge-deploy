@@ -1,4 +1,6 @@
-schema_version = 1
-artifact_path = ../../matlab/testSamples/tracedSampleModel.onnx
-role = centroiding
-intra_op_num_threads = -1
+{
+  "schema_version": 1,
+  "artifact_path": "../../matlab/testSamples/tracedSampleModel.onnx",
+  "task": "centroiding",
+  "intra_op_num_threads": -1
+}

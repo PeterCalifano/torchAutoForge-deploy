@@ -1,5 +1,12 @@
 set(lib_name ${LIB_TARGET_NAME})
 
+file(READ "${PROJECT_SOURCE_DIR}/schemas/ptafmodel.schema.json" PTAFMODEL_SCHEMA_JSON)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${PROJECT_SOURCE_DIR}/schemas/ptafmodel.schema.json")
+configure_file(inference/ptafmodel_schema.h.in ptafmodel_schema.h @ONLY)
+install(FILES "${PROJECT_SOURCE_DIR}/schemas/ptafmodel.schema.json"
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/autoforge_deploy/schemas")
+
 # Add config.h file to build
 configure_file(config.h.in config.h)
 
@@ -133,6 +140,10 @@ endif()
 
 target_link_libraries(${lib_name} ${lib_link_scope}
                                   Eigen3::Eigen)
+
+# Manifest parsing uses embedded RapidJSON without exposing it to consumers.
+target_include_directories(${lib_name} SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/lib/header_only")
+target_include_directories(${lib_name} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 ### INCLUDE DIRECTORIES
 if(DEFINED onnxruntime_INCLUDE_DIRS AND NOT "${onnxruntime_INCLUDE_DIRS}" STREQUAL "")

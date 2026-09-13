@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -112,18 +113,13 @@ namespace
         std::ofstream manifest;
         manifest.exceptions(std::ios::badbit | std::ios::failbit);
         manifest.open(manifest_path);
-        manifest << "schema_version = 1\n"
-                 << "artifact_path = " << fs::absolute(onnx_path).string() << "\n"
-                 << "role = centroiding\n"
-                 << "preprocessing = external_lambertian_grayscale_nchw_with_film_prior\n"
-                 << "postprocessing = normalized_centroid_xy_and_cob\n"
-                 << "backend = onnxruntime\n"
-                 << "artifact = onnx\n"
-                 << "execution_target_priority = " << target_name << "\n"
-                 << "allow_fallback = false\n"
-                 << "device_id = 0\n"
-                 << "intra_op_num_threads = 1\n"
-                 << "inter_op_num_threads = 1\n";
+        manifest << "{\"schema_version\":1,\"artifact_path\":"
+                 << std::quoted(fs::absolute(onnx_path).generic_string())
+                 << ",\"task\":\"centroiding\",\"backend\":\"onnxruntime\","
+                 << "\"preprocessing\":\"external_lambertian_grayscale_nchw_with_film_prior\","
+                 << "\"postprocessing\":\"normalized_centroid_xy_and_cob\","
+                 << "\"artifact\":\"onnx\",\"execution_target_priority\":["
+                 << std::quoted(target_name) << "],\"allow_fallback\":false}\n";
         manifest.close();
         return manifest_path;
     }

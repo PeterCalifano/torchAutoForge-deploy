@@ -65,3 +65,6 @@ xcode/
 
 # Local VS Code workspace configuration.
 /torchAutoForge-deploy.code-workspace
+
+# Authoritative model-manifest schema.
+!/schemas/ptafmodel.schema.json

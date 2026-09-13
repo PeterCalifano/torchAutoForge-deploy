@@ -230,9 +230,10 @@ automation and nested consumers must use the project-qualified options.
   preprocessing and row decoding. Keep model-specific schemas and result
   interpretation in integrations while reusing these generic conversions;
   prefer C++20 templates/constrained helpers when they remain simpler and safer.
-- `examples/model_configs/*.ptafmodel` are simple key-value role configs with
-  repo-relative `artifact_path`, model role, preprocessing/postprocessing names,
-  and runtime keys parsed into enum-backed config values.
+- `examples/model_configs/*.ptafmodel` are strict JSON task manifests validated against
+  `schemas/ptafmodel.schema.json`, with manifest-relative `artifact_path`, `task`,
+  preprocessing/postprocessing names, and runtime keys parsed into enum-backed
+  config values.
 - `src/programs/benchmark_model.cpp` is the generic CPU/GPU/Jetson timing path;
   keep it routed through `CModelFacade`, not backend-specific shortcuts.
 
@@ -243,7 +244,8 @@ automation and nested consumers must use the project-qualified options.
 - `src/utils/images` and `src/utils/inference_output` are independent optional
   compiled components. Never aggregate their sources into the core inference target.
 - OpenCV belongs to the images component; embedded RapidJSON is private to
-  inference-output implementation. Core-only package consumers must not discover OpenCV.
+  inference-output and core manifest implementations. Core-only package consumers
+  must not discover OpenCV.
 - Model-specific preprocessing and decoded fields belong in adapters. Generic
   image and JSON utilities must not load models or interpret centroid coordinates.
 

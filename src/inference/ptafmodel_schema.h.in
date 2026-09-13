@@ -1,0 +1,8 @@
+/**
+ * @file ptafmodel_schema.h
+ * @brief Embedded manifest schema generated from the authoritative JSON document.
+ */
+#pragma once
+
+/// JSON Schema Draft 4 text shared by native validation and creation tools.
+inline constexpr const char* kPtafModelSchema = R"ptafschema(@PTAFMODEL_SCHEMA_JSON@)ptafschema";

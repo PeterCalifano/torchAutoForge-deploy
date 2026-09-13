@@ -151,8 +151,8 @@ namespace
             command);
         TCLAP::ValueArg<std::string> role(
             "",
-            "role",
-            "Model role for raw artifacts",
+            "task",
+            "Model task for raw artifacts",
             false,
             "",
             "raw_tensor|centroiding|object_detection|custom",
@@ -327,7 +327,7 @@ int main(const int argc, char** argv)
         }
 
         const infer::SModelContract contract = model.GetContract();
-        GetLogger().debug("Resolved role=", contract.role, ", inputs=", contract.inputs.size(),
+        GetLogger().debug("Resolved task=", contract.role, ", inputs=", contract.inputs.size(),
                           ", outputs=", contract.outputs.size());
         const std::vector<infer::SFloatTensor> inputs =
             MakeZeroInputs(contract, args.single_input_shape_override);
@@ -352,7 +352,7 @@ int main(const int argc, char** argv)
             1000.0 /
             static_cast<double>(args.iterations);
 
-        std::cout << "role=" << contract.role << '\n';
+        std::cout << "task=" << contract.role << '\n';
         std::cout << "backend=" << contract.backend_detail << '\n';
         std::cout << "inputs=" << contract.inputs.size() << '\n';
         std::cout << "outputs=" << contract.outputs.size() << '\n';

@@ -33,7 +33,7 @@ build-centroiding/run_centroiding \
   examples/centroiding_models/test_data/bright_ellipse_320x240.png
 ```
 
-Expected console fields include `role=centroiding`, `image_size=[320,240]`,
+Expected console fields include `task=centroiding`, `image_size=[320,240]`,
 `output_shape=[1,2]`, `inference_ms`, and the decoded coordinate fields. Coordinate
 values depend on the model; the fixture does not define an accuracy expectation.
 

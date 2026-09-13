@@ -4,6 +4,7 @@
  */
 
 #include "inference_manager.h"
+#include <inference/inference_config_parsing.h>
 
 #include <cstring>
 #include <iostream>
@@ -90,20 +91,6 @@ namespace ptafdeploy::inference
             return detected_artifact;
         }
 
-        void ValidateBackendArtifactCompatibility(const EInferenceBackend backend,
-                                                  const EModelArtifact artifact)
-        {
-            const bool incompatible_onnx =
-                backend == EInferenceBackend::onnxruntime && artifact != EModelArtifact::onnx;
-            const bool incompatible_tensorrt = backend == EInferenceBackend::tensorrt_engine &&
-                                               artifact != EModelArtifact::tensorrt_engine;
-            if (incompatible_onnx || incompatible_tensorrt)
-            {
-                throw std::invalid_argument("incompatible backend and artifact: backend=" +
-                                            ToString(backend) + ", artifact=" + ToString(artifact));
-            }
-        }
-
         [[nodiscard]] const STensorDescriptor&
         GetTensorDescriptorAt(const std::vector<STensorDescriptor>& descriptors, const size_t index,
                               const char* kind)
@@ -166,6 +153,20 @@ namespace ptafdeploy::inference
             return output;
         }
     } // namespace
+
+    void ValidateBackendArtifactCompatibility(const EInferenceBackend backend,
+                                              const EModelArtifact artifact)
+    {
+        const bool incompatible_onnx =
+            backend == EInferenceBackend::onnxruntime && artifact != EModelArtifact::onnx;
+        const bool incompatible_tensorrt = backend == EInferenceBackend::tensorrt_engine &&
+                                           artifact != EModelArtifact::tensorrt_engine;
+        if (incompatible_onnx || incompatible_tensorrt)
+        {
+            throw std::invalid_argument("incompatible backend and artifact: backend=" +
+                                        ToString(backend) + ", artifact=" + ToString(artifact));
+        }
+    }
 
     CInferenceManager::CInferenceManager(const fs::path& model_path,
                                          const SInferenceOptions& options)

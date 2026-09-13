@@ -1,2 +1,4 @@
-artifact_path = ../../matlab/testSamples/tracedSampleModel.onnx
-role = centroiding
+{
+  "artifact_path": "../../matlab/testSamples/tracedSampleModel.onnx",
+  "task": "centroiding"
+}

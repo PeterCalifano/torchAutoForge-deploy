@@ -1,4 +1,8 @@
-schema_version = 1
-artifact_path = ../../matlab/testSamples/tracedSampleModel.onnx
-role = centroiding
-execution_target_priority = imaginary_target
+{
+  "schema_version": 1,
+  "artifact_path": "../../matlab/testSamples/tracedSampleModel.onnx",
+  "task": "centroiding",
+  "execution_target_priority": [
+    "imaginary_target"
+  ]
+}

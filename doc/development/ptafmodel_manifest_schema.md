@@ -1,72 +1,65 @@
-# PTAF Model Manifest Schema
+# PTAF model manifests
 
-`.ptafmodel` files are versioned model manifests. They do not contain model
-weights. They bind a model artifact to a role, preprocessing/postprocessing
-contract labels, and backend-neutral runtime preferences.
+A `.ptafmodel` file is a UTF-8 JSON configuration that references an ONNX or
+TensorRT artifact. It contains no model weights. The authoritative schema is
+[`schemas/ptafmodel.schema.json`](../../schemas/ptafmodel.schema.json).
 
-## Syntax
+## Contract
 
-- UTF-8 text.
-- One `key = value` assignment per line.
-- `#` starts a comment.
-- Blank lines are ignored.
-- Unknown keys are rejected.
-- Relative `artifact_path` values are resolved from the manifest file location.
+Schema version remains `1`. Required properties are `schema_version`,
+`artifact_path`, and `task`. Legacy key-value syntax and the `role` property are
+not accepted. Comments, duplicate properties, unknown properties, and invalid
+values are rejected. Strings containing `#` are ordinary JSON strings.
 
-## Schema Version 1
+`artifact_path` is resolved relative to the manifest directory. `task` selects
+one of the existing model tasks. Public C++ facade names and enum types retain
+their existing names; serialized reports and command-line task selection use
+`task` and `--task`.
 
-Required keys:
+Optional settings retain their runtime defaults: automatic backend/artifact
+selection, backend-defined execution-target priority, fallback enabled, device
+zero, one intra-operation and inter-operation thread, profiling disabled,
+`log_id` equal to `autoforge_deploy`, and TensorRT optimization profile zero.
+Preprocessing and postprocessing default to `caller_supplied_tensors` and
+`raw_model_outputs`. These labels describe an adapter contract; validation does
+not execute or verify the corresponding algorithms.
 
-- `schema_version`: must be `1`.
-- `artifact_path`: relative or absolute path to `.onnx`, `.engine`, or `.plan`.
+Booleans must be JSON booleans. Execution-target priorities are nonempty arrays
+of distinct `cpu`, `cuda`, or `tensorrt` strings. Numeric runtime settings are
+non-negative integers representable by the native runtime API. Backend/artifact
+combinations must agree with each other and with recognized artifact extensions.
 
-Optional keys:
+## Example
 
-- `role`: one of `raw_tensor`, `centroiding`, `object_detection`, `feature_matching`, `tracking`, `optical_flow`, `custom`. Default: `raw_tensor`.
-- `preprocessing`: contract label for caller/model adapter expectations. Default: `caller_supplied_tensors`.
-- `postprocessing`: contract label for output adapter expectations. Default: `raw_model_outputs`.
-- `backend`: one of `auto`, `onnxruntime`, `tensorrt_engine`. Default: `auto`.
-- `artifact`: one of `auto`, `onnx`, `tensorrt_engine`. Default: `auto`.
-- `execution_target_priority`: comma-separated backend-neutral targets: `cpu`, `cuda`, `tensorrt`. Default: backend-defined.
-- `allow_fallback`: boolean. Default: `true`.
-- `device_id`: non-negative integer device index. Default: `0`.
-- `intra_op_num_threads`: backend thread setting. `0` means backend default. Negative values are invalid. Default: `1`.
-- `inter_op_num_threads`: backend thread setting. `0` means backend default. Negative values are invalid. Default: `1`.
-- `enable_profiling`: boolean. Default: `false`.
-- `log_id`: backend log/profiling label. Default: `autoforge_deploy`.
-- `tensorrt_optimization_profile_index`: non-negative TensorRT runtime profile index for serialized engines. Default: `0`.
-
-Boolean values accepted: `true`, `false`, `on`, `off`, `yes`, `no`, `1`, `0`.
-
-## Runtime Semantics
-
-- `execution_target_priority` is not an ONNX Runtime provider list.
-- ONNX Runtime backend maps targets internally to ORT execution providers.
-- TensorRT engine backend validates compatible targets and runs serialized
-  `.engine` / `.plan` artifacts when built with `ENABLE_TENSORRT=ON`.
-- The TensorRT profile key affects only the standalone serialized-engine
-  backend. DLA selection is not exposed. Precision is an engine-build property;
-  build FP16/INT8 engines with TensorRT tooling before loading them here.
-- `preprocessing` and `postprocessing` are manifest contract labels, not hidden
-  executable pipelines. Concrete conversion helpers stay in shared adapters.
-
-## Template
-
-```ini
-# ptafdeploy model config v1
-schema_version = 1
-artifact_path = relative/or/absolute/model.onnx
-role = raw_tensor
-preprocessing = caller_supplied_tensors
-postprocessing = raw_model_outputs
-backend = auto
-artifact = auto
-execution_target_priority = cuda,cpu
-allow_fallback = true
-device_id = 0
-intra_op_num_threads = 1
-inter_op_num_threads = 1
-enable_profiling = false
-log_id = autoforge_deploy
-tensorrt_optimization_profile_index = 0
+```json
+{
+  "schema_version": 1,
+  "artifact_path": "models/model.onnx",
+  "task": "centroiding",
+  "execution_target_priority": ["cpu"],
+  "allow_fallback": false
+}
 ```
+
+## Native validation
+
+`ValidatePtafModelConfig(path)` validates a file without loading a model.
+`ValidatePtafModelJson(json, path)` validates in-memory text using `path` for
+relative artifact resolution and diagnostics. Passing `true` as the second
+argument to `ValidatePtafModelConfig` additionally requires an existing regular
+artifact file with a supported extension. It does not verify the model contents.
+Model loading separately checks providers, tensor metadata, and runtime support.
+
+Validation reports JSON byte offsets or invalid property/schema paths. Duplicate
+properties and NUL bytes are rejected to prevent ambiguous parsing or truncated
+paths. The compiled schema is shared across calls; each call owns its document
+and validator. Validation runs during configuration loading, not inference.
+
+The schema is embedded in the core library and installed under
+`share/autoforge_deploy/schemas`. Validation requires no network access, OpenCV,
+or optional inference-output component. `GetPtafModelSchemaJson()` returns the
+embedded schema for editors and creation tools.
+
+Automatic generation during model export will be implemented in PTAF. Exporters
+must supply task and preprocessing information explicitly when it is not known;
+tensor shapes alone do not establish those semantics.

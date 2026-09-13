@@ -34,6 +34,8 @@ oTest.verifyEqual(numel(stRun.frames), 2);
 oTest.verifyEqual(stRun.frames{1}.source, "frame2.png");
 stJson = jsondecode(fileread(fullfile(strOutput, 'predictions.json')));
 oTest.verifyEqual(stJson.schema_version, 1);
+oTest.verifyEqual(string(stJson.model.task), "centroiding");
+oTest.verifyFalse(isfield(stJson.model, "role"));
 oTest.verifyEqual(numel(stJson.frames), 2);
 mOverlay = imread(fullfile(strOutput, stRun.frames{1}.overlay));
 oTest.verifyEqual(size(mOverlay, [1,2]), [24,32]);

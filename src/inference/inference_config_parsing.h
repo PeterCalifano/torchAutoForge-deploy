@@ -16,6 +16,32 @@
 
 namespace ptafdeploy::inference
 {
+    /** @brief Check backend compatibility with a resolved artifact kind.
+     * @param backend Requested backend, including automatic selection.
+     * @param artifact Resolved ONNX or serialized-engine artifact kind.
+     * @throws std::invalid_argument If the explicit backend cannot load the artifact kind.
+     */
+    void ValidateBackendArtifactCompatibility(EInferenceBackend backend, EModelArtifact artifact);
+
+    /** @brief Return the embedded manifest schema for editors and creation tools.
+     * @return JSON Schema Draft 4 document, identical to the installed schema.
+     */
+    [[nodiscard]] std::string GetPtafModelSchemaJson();
+
+    /** @brief Validate JSON syntax, schema, and manifest semantics without loading a model.
+     * @param json Manifest JSON text.
+     * @param config_path Manifest location used for diagnostics and relative artifact paths.
+     * @throws std::exception If parsing or validation fails.
+     */
+    void ValidatePtafModelJson(const std::string& json, const std::string& config_path);
+
+    /** @brief Validate a manifest file without creating an inference session.
+     * @param config_path Manifest file to read.
+     * @param check_artifact Also check artifact existence and supported extension.
+     * @throws std::exception If validation or an optional artifact check fails.
+     */
+    void ValidatePtafModelConfig(const std::string& config_path, bool check_artifact = false);
+
     /**
      * @brief Read a manifest's runtime policy without loading its model.
      * @param config_path Path to a model manifest accepted by CModelFacade.

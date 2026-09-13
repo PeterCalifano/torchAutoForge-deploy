@@ -103,7 +103,7 @@ matrix with rows `[cx cy width height score class_id]`.
 With the verified local model and image, all three demos report:
 
 ```text
-role=object_detection
+task=object_detection
 input_shape=[1,3,640,640]
 output_shape=[1,25200,85]
 detections=5

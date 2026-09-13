@@ -100,7 +100,7 @@ def load_model(options: DemoOptions) -> ptaf.CModelFacade:
         model.LoadModelConfigWithRuntimeConfig(str(options.manifest_path), runtime)
 
     if model.GetRole() != "object_detection":
-        raise RuntimeError("YOLO demo requires role=object_detection in the manifest")
+        raise RuntimeError("YOLO demo requires task=object_detection in the manifest")
     if model.GetNumInputs() != 1 or model.GetNumOutputs() != 1:
         raise RuntimeError("YOLO demo currently requires one model input and one output")
     return model
@@ -165,7 +165,7 @@ def print_detections(
         output_tensor: Raw model output.
         detections: Score-sorted pre-NMS detections.
     """
-    print(f"role={model.GetRole()}")
+    print(f"task={model.GetRole()}")
     print(f"backend={model.GetBackendDetail()}")
     print(f"input_name={input_tensor.name}")
     print(f"input_shape={list(input_tensor.shape)}")

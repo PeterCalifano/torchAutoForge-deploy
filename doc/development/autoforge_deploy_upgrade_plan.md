@@ -1458,3 +1458,43 @@ Evidence: `/tmp/ptaf-ci-repair-33b7fsqn`.
 
 This repair changes CI provisioning only. Hosted jobs have not run with the repair;
 arm64 execution and independent PR review remain pending. No commit or push was made.
+
+
+### JSON model manifests and interactive creation
+
+- [x] Define strict JSON manifests and the shared Draft 4 schema
+- [x] Implement shared validation and native generation/validation commands
+- [x] Add the Python wizard and migrate manifests and task-facing consumers
+- [x] Validate native, wrapper, and installed behavior; review and stage one batch
+
+Validation: core-only CTest completed with 55 tests and no failures (three
+environment-dependent skips); the image/output build completed with 60 tests and
+no failures (two external FiLM skips). Python and MATLAB wrapper checks passed,
+as did four Python sequence tests and the standalone centroiding suite (one
+external-model skip). C++, Python, and MATLAB reports use `model.task`.
+
+Installed native commands, the installed Python wizard, and a separate C++
+consumer passed outside the checkout with the external ONNX Runtime library
+available. The consumer did not discover OpenCV. Embedded, installed, and source
+schemas matched. Local diff and Python lint checks passed. Hosted CI and ROS 2
+execution have not been rerun for this batch; PTAF exporter integration remains
+a separate follow-up. No commit or push was made.
+
+#### Functional consolidation batches
+
+- [x] Review correctness, performance, complexity, documentation, and comments
+- [x] Stage the JSON manifest contract, migrated consumers, and native regression tests
+- [ ] After review and `next`, stage native creation commands and the Python wizard
+
+The parser review found that a raw NUL could hide trailing input; the parser now
+rejects it, with native regression coverage. String views avoid copying decoded
+strings during duplicate/NUL checks, and validated integers use integer accessors.
+Schema compilation is cached and no validation work is added to inference calls.
+No inference performance improvement is claimed from these setup-path changes.
+
+The first index snapshot built independently in
+`/tmp/ptaf-manifest-stage1-_98j8c0c`; its 55-test CTest suite had no failures
+(three environment-dependent skips). The full worktree suite had 56 tests with
+no failures and the same skips. Creation-tool files and their build/test/document
+hunks remain unstaged for the second batch. The wizard now relies on creation's
+validation instead of launching a redundant second validation process.

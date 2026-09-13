@@ -157,7 +157,7 @@ TEST_CASE("CModelFacade_loads_role_configs", "[inference][model_facade]")
         infer::CModelFacade model;
         REQUIRE_THROWS_WITH(
             model.LoadModelConfig(GetModelConfigPath("bad_unknown_key.ptafmodel").string()),
-            ContainsSubstring("Unknown model config key"));
+            ContainsSubstring("additionalProperties"));
     }
 
     SECTION("Bad enum-like config values are rejected before model load")
@@ -165,7 +165,7 @@ TEST_CASE("CModelFacade_loads_role_configs", "[inference][model_facade]")
         infer::CModelFacade model;
         REQUIRE_THROWS_WITH(
             model.LoadModelConfig(GetModelConfigPath("bad_execution_target.ptafmodel").string()),
-            ContainsSubstring("Unsupported execution target"));
+            ContainsSubstring("execution_target_priority"));
     }
 
     SECTION("Bad scalar runtime values are rejected before model load")
@@ -176,14 +176,14 @@ TEST_CASE("CModelFacade_loads_role_configs", "[inference][model_facade]")
             ContainsSubstring("device_id"));
         REQUIRE_THROWS_WITH(
             model.LoadModelConfig(GetModelConfigPath("bad_negative_threads.ptafmodel").string()),
-            ContainsSubstring("thread counts"));
+            ContainsSubstring("intra_op_num_threads"));
         REQUIRE_THROWS_WITH(
             model.LoadModelConfig(
                 GetModelConfigPath("bad_negative_tensorrt_profile.ptafmodel").string()),
-            ContainsSubstring("TensorRT optimization profile"));
+            ContainsSubstring("tensorrt_optimization_profile_index"));
         REQUIRE_THROWS_WITH(model.LoadModelConfig(
                                 GetModelConfigPath("bad_negative_tensorrt_dla.ptafmodel").string()),
-                            ContainsSubstring("Unknown model config key: tensorrt_dla_core"));
+                            ContainsSubstring("tensorrt_dla_core"));
     }
 
     SECTION("Bad direct runtime thread values are rejected before backend load")
@@ -222,7 +222,7 @@ TEST_CASE("CModelFacade_loads_role_configs", "[inference][model_facade]")
             ContainsSubstring("schema_version"));
         REQUIRE_THROWS_WITH(
             model.LoadModelConfig(GetModelConfigPath("bad_schema_version.ptafmodel").string()),
-            ContainsSubstring("Unsupported model config schema_version"));
+            ContainsSubstring("schema_version"));
     }
 }
 
@@ -238,4 +238,49 @@ TEST_CASE("Model runtime policy can be read before loading", "[inference][model_
     REQUIRE(runtime.intra_op_num_threads == 2);
     REQUIRE(runtime.inter_op_num_threads == 3);
     REQUIRE(runtime.log_id == "manifest_runtime_policy");
+}
+
+TEST_CASE("Manifest validation rejects ambiguous JSON without loading a model",
+          "[inference][model_facade]")
+{
+    const std::string valid_json =
+        R"({"schema_version":1,"artifact_path":"absent.onnx","task":"raw_tensor"})";
+    REQUIRE_NOTHROW(infer::ValidatePtafModelJson(valid_json, "model.ptafmodel"));
+
+    SECTION("Raw NUL cannot hide trailing input")
+    {
+        REQUIRE_THROWS_WITH(
+            infer::ValidatePtafModelJson(valid_json + '\0' + "trailing", "model.ptafmodel"),
+            ContainsSubstring("raw NUL at byte"));
+    }
+
+    SECTION("Duplicate properties have no first-value or last-value semantics")
+    {
+        REQUIRE_THROWS_WITH(infer::ValidatePtafModelJson(
+            R"({"schema_version":1,"artifact_path":"a.onnx","task":"raw_tensor","task":"custom"})",
+            "model.ptafmodel"), ContainsSubstring("duplicate property /task"));
+    }
+
+    SECTION("Decoded NUL cannot truncate an artifact path")
+    {
+        REQUIRE_THROWS_WITH(infer::ValidatePtafModelJson(
+            R"({"schema_version":1,"artifact_path":"a.onnx\u0000suffix","task":"raw_tensor"})",
+            "model.ptafmodel"), ContainsSubstring("NUL in property /artifact_path"));
+    }
+
+    SECTION("Runtime integers are validated before native conversion")
+    {
+        for (const std::string value : {"0", "2147483647"})
+        {
+            REQUIRE_NOTHROW(infer::ValidatePtafModelJson(
+                valid_json.substr(0, valid_json.size() - 1) + ",\"device_id\":" + value + "}",
+                "model.ptafmodel"));
+        }
+        for (const std::string value : {"-1", "0.5", "2147483648"})
+        {
+            REQUIRE_THROWS_WITH(infer::ValidatePtafModelJson(
+                valid_json.substr(0, valid_json.size() - 1) + ",\"device_id\":" + value + "}",
+                "model.ptafmodel"), ContainsSubstring("device_id"));
+        }
+    }
 }

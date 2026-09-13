@@ -400,7 +400,7 @@ scripts/run_jetson_runtime_smoke.py --build-dir build \
   --ort-model model.onnx \
   --with-tensorrt-ep \
   --device 0 --iterations 50 --warmup 5 \
-  -- --role raw_tensor --input-shape 1,3,640,640
+  -- --task raw_tensor --input-shape 1,3,640,640
 ```
 
 Jetson notes:

@@ -33,7 +33,7 @@ def test_benchmark_separator_is_not_forwarded(tmp_path: Path) -> None:
             "--ort-model",
             "model.onnx",
             "--",
-            "--role",
+            "--task",
             "raw_tensor",
         ],
         check=False,
@@ -42,5 +42,5 @@ def test_benchmark_separator_is_not_forwarded(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert " --role raw_tensor" in result.stdout
-    assert " -- --role raw_tensor" not in result.stdout
+    assert " --task raw_tensor" in result.stdout
+    assert " -- --task raw_tensor" not in result.stdout

@@ -220,7 +220,7 @@ int main(const int argc, char** argv)
         LoadModel(arguments, model);
         if (model.GetRole() != "object_detection")
         {
-            throw std::runtime_error("YOLO demo requires role=object_detection in the manifest.");
+            throw std::runtime_error("YOLO demo requires task=object_detection in the manifest.");
         }
         if (model.GetNumInputs() != 1U || model.GetNumOutputs() != 1U)
         {
@@ -255,7 +255,7 @@ int main(const int argc, char** argv)
         const std::vector<infer::SDetection2D> detections = infer::DecodeDetectionRows(
             output, detection_schema, arguments.score_threshold, arguments.max_detections);
 
-        std::cout << "role=" << model.GetRole() << '\n'
+        std::cout << "task=" << model.GetRole() << '\n'
                   << "backend=" << model.GetBackendDetail() << '\n'
                   << "input_name=" << input.name << '\n'
                   << "input_shape=" << FormatShape(input.shape) << '\n';
