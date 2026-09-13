@@ -50,6 +50,8 @@ else()
 
   add_library(${lib_name} ${lib_target_type}
               ${srcLibFiles})
+  # Version helper definitions consume the generated configuration header.
+  target_include_directories(${lib_name} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
   set_target_properties(${lib_name} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 

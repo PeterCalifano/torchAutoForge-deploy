@@ -252,6 +252,9 @@ namespace ptafdeploy::utils::inference_output
         }
         report << "]}\n";
         report.close();
+        // TODO (PC): Use atomic replacement on Windows; rename cannot overwrite an
+        // existing report there, so subsequent publication currently fails. Preserve
+        // the previous report if replacement fails; do not remove it before renaming.
         fs::rename(root_ / "predictions.json.tmp", root_ / "predictions.json");
         if (complete)
         {
