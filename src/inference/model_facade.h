@@ -9,6 +9,7 @@
 #include <inference/inference_manager.h>
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -77,13 +78,19 @@ namespace ptafdeploy::inference
      *
      * Use this layer from MATLAB/Python and application code when model role
      * matters. It keeps backend handles private and exposes enum-validated
-     * runtime configuration plus value-type tensor I/O.
+     * runtime configuration plus value-type tensor I/O. Every load entry point
+     * publishes the backend and contract together. A failed load leaves the
+     * previous contract and usable inference state intact.
      */
     class CModelFacade
     {
       public:
         /** @brief Construct an unloaded role-level facade. */
         CModelFacade() = default;
+        CModelFacade(const CModelFacade&) = delete;
+        CModelFacade& operator=(const CModelFacade&) = delete;
+        CModelFacade(CModelFacade&&) = delete;
+        CModelFacade& operator=(CModelFacade&&) = delete;
         /**
          * @brief Construct and load a raw-tensor model.
          * @param model_path Model artifact path.
@@ -229,7 +236,17 @@ namespace ptafdeploy::inference
         [[nodiscard]] static std::vector<std::string> GetRecognizedRoles();
 
       private:
-        CInferenceManager inference_manager_{};
-        SModelContract contract_{};
+        // Backend and descriptive contract have one publication boundary.
+        struct SLoadedModel
+        {
+            CInferenceManager manager{};
+            SModelContract contract{};
+        };
+
+        void LoadModelAndContract(const std::string& model_path, const std::string& config_path,
+                                  const SModelRoleConfig& role_config,
+                                  const SRuntimeConfig& runtime_config);
+
+        std::unique_ptr<SLoadedModel> loaded_model_{std::make_unique<SLoadedModel>()};
     };
 } // namespace ptafdeploy::inference

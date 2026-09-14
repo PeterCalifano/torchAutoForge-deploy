@@ -73,6 +73,30 @@ TEMPLATE_TEST_CASE("Public facades retain usable models after reload failure",
             REQUIRE_FALSE(contract.runtime.allow_fallback);
         }
     }
+    if constexpr (std::is_same_v<TestType, infer::CModelFacade>)
+    {
+        const auto original_contract = model.GetContract();
+        auto replacement_runtime = runtime;
+        replacement_runtime.SetDeviceId(7); // CPU execution still records the selected device.
+        const auto invalid_role = static_cast<infer::EModelRole>(999);
+        const infer::SModelRoleConfig invalid_config{invalid_role};
+
+        // Cover each public role entry point, including valid artifacts with invalid contracts.
+        REQUIRE_THROWS(model.LoadModelWithRole(onnx_path.string(), invalid_role));
+        REQUIRE_THROWS(model.LoadModelWithRoleConfig(onnx_path.string(), invalid_config));
+        REQUIRE_THROWS(model.LoadModelWithRoleAndRuntimeConfig(
+            onnx_path.string(), invalid_role, replacement_runtime));
+        REQUIRE_THROWS(model.LoadModelWithRoleConfigAndRuntimeConfig(
+            onnx_path.string(), invalid_config, replacement_runtime));
+        REQUIRE_THROWS(model.LoadModelConfig(corrupt_path.string()));
+        REQUIRE_THROWS(model.LoadModelConfigWithRuntimeConfig(
+            corrupt_path.string(), replacement_runtime));
+
+        REQUIRE(model.GetBackendDetail() == backend_detail);
+        REQUIRE(model.GetContract().role == original_contract.role);
+        REQUIRE(model.GetContract().runtime.device_id == original_contract.runtime.device_id);
+        REQUIRE(model.InferSingleFloatInput(input, {1, 11}) == reference);
+    }
     REQUIRE_NOTHROW(model.LoadModelWithRuntimeConfig(onnx_path.string(), runtime));
 
 #if defined(PTAFDEPLOY_ENABLE_TENSORRT)

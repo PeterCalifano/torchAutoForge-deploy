@@ -49,3 +49,40 @@ oCleanup = onCleanup(@() rmdir(strRoot, 's')); %#ok<NASGU>
 oTest.verifyError(@() RunCentroidingFacadeDemo("absent.onnx", strRoot), ...
     "ptafdeploy:CentroidingDemo:Input");
 end
+
+function TestRuntimeSelection_(oTest)
+% Verify device-only selection and deliberate target-policy replacement.
+strModel = string(getenv('PTAFDEPLOY_PLAIN_CENTROIDING_ONNX'));
+oTest.assumeTrue(isfile(strModel));
+strRoot = string(tempname);
+mkdir(strRoot);
+oCleanup = onCleanup(@() rmdir(strRoot, 's')); %#ok<NASGU>
+strImage = fullfile(strRoot, "frame.png");
+imwrite(uint8(ones(24, 32) * 80), strImage);
+strManifest = fullfile(strRoot, "model.ptafmodel");
+stManifest = struct("schema_version", 1, "artifact_path", strModel, ...
+    "task", "centroiding", "execution_target_priority", {{'cpu'}}, ...
+    "device_id", 0, "intra_op_num_threads", 2, "inter_op_num_threads", 3, ...
+    "allow_fallback", true, "log_id", "centroiding_manifest_policy");
+dFile = fopen(strManifest, 'w');
+oTest.assertGreaterThanOrEqual(dFile, 0);
+fprintf(dFile, '%s', jsonencode(stManifest));
+fclose(dFile);
+
+stRun = RunCentroidingFacadeDemo(strManifest, strImage, ui32DeviceId=uint32(1));
+oTest.verifyEqual(stRun.model.runtime.device_id, int32(1));
+oTest.verifyEqual(stRun.model.runtime.intra_op_num_threads, int32(2));
+oTest.verifyEqual(stRun.model.runtime.inter_op_num_threads, int32(3));
+oTest.verifyTrue(logical(stRun.model.runtime.allow_fallback));
+
+stRun = RunCentroidingFacadeDemo(strManifest, strImage, strTarget="cpu");
+oDefaults = ptafdeploy.inference.SRuntimeConfig();
+oTest.verifyEqual(stRun.model.runtime.device_id, int32(0));
+oTest.verifyEqual(stRun.model.runtime.intra_op_num_threads, oDefaults.GetIntraOpNumThreads());
+oTest.verifyFalse(logical(stRun.model.runtime.allow_fallback));
+
+stRun = RunCentroidingFacadeDemo(strModel, strImage, ui32DeviceId=uint32(1));
+oTest.verifyEqual(stRun.model.runtime.device_id, int32(1));
+oTest.verifyError(@() RunCentroidingFacadeDemo(strManifest, strImage, ...
+    ui32DeviceId=uint32([0; 1])), "ptafdeploy:CentroidingDemo:Device");
+end

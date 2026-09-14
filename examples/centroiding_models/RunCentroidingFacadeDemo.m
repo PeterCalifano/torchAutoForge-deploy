@@ -19,7 +19,7 @@ function stResult = RunCentroidingFacadeDemo(strModelPath, strImagePath, stOptio
 %   stOptions.bOverlays   Save original-resolution crosshairs; default false.
 %   stOptions.strTarget   "manifest", "cpu", or "cuda".
 %   stOptions.ui32DeviceId
-%                         Non-negative runtime device index.
+%                         Optional device index; empty leaves device selection implicit.
 %
 % OUTPUT
 %   stResult              Versioned run report with ordered frame records.
@@ -38,7 +38,7 @@ arguments (Input)
     strImagePath (1, 1) string
     stOptions.strTarget (1, 1) string {mustBeMember(stOptions.strTarget, ...
         ["manifest", "cpu", "cuda"])} = "manifest"
-    stOptions.ui32DeviceId (1, 1) uint32 = uint32(0)
+    stOptions.ui32DeviceId (:, 1) uint32 = uint32.empty(0, 1)
     stOptions.strOutputPath (1, 1) string = ""
     stOptions.bOverlays (1, 1) logical = false
 end
@@ -165,7 +165,7 @@ function oModel = LoadCentroidingModel_(strModelPath, strTarget, ui32DeviceId)
 arguments (Input)
     strModelPath (1, 1) string
     strTarget (1, 1) string
-    ui32DeviceId (1, 1) uint32
+    ui32DeviceId (:, 1) uint32
 end
 
 arguments (Output)
@@ -174,12 +174,15 @@ end
 
 [~, ~, strExtension] = fileparts(strModelPath);
 oModel = ptafdeploy.inference.CModelFacade();
-bOverrideRuntime = strTarget ~= "manifest";
+if ~isempty(ui32DeviceId) && ~isscalar(ui32DeviceId)
+    error("ptafdeploy:CentroidingDemo:Device", "Device override must be scalar or empty.");
+end
+bOverrideRuntime = strTarget ~= "manifest" || ~isempty(ui32DeviceId);
 
 if strcmpi(strExtension, ".ptafmodel")
     if bOverrideRuntime
         oModel.LoadModelConfigWithRuntimeConfig( ...
-            char(strModelPath), MakeRuntime_(strTarget, ui32DeviceId));
+            char(strModelPath), MakeRuntime_(strModelPath, strTarget, ui32DeviceId));
     else
         oModel.LoadModelConfig(char(strModelPath));
     end
@@ -187,7 +190,7 @@ elseif strcmpi(strExtension, ".onnx")
     if bOverrideRuntime
         oModel.LoadModelWithRoleAndRuntimeConfig( ...
             char(strModelPath), ptafdeploy.inference.EModelRole.centroiding, ...
-            MakeRuntime_(strTarget, ui32DeviceId));
+            MakeRuntime_(strModelPath, strTarget, ui32DeviceId));
     else
         oModel.LoadModelWithRole( ...
             char(strModelPath), ptafdeploy.inference.EModelRole.centroiding);
@@ -199,19 +202,31 @@ end
 end
 
 
-function oRuntime = MakeRuntime_(strTarget, ui32DeviceId)
-% Construct a strict backend-neutral runtime override.
+function oRuntime = MakeRuntime_(strModelPath, strTarget, ui32DeviceId)
+% Replace target policy or apply an independent device override.
 arguments (Input)
-    strTarget (1, 1) string {mustBeMember(strTarget, ["cpu", "cuda"])}
-    ui32DeviceId (1, 1) uint32
+    strModelPath (1, 1) string
+    strTarget (1, 1) string {mustBeMember(strTarget, ["manifest", "cpu", "cuda"])}
+    ui32DeviceId (:, 1) uint32
 end
 
 arguments (Output)
     oRuntime (1, 1) ptafdeploy.inference.SRuntimeConfig
 end
 
-oRuntime = ptafdeploy.inference.SRuntimeConfig();
-oRuntime.SetDeviceId(double(ui32DeviceId));
+% An explicit target intentionally resets policy; device-only selection preserves it.
+[~, ~, strExtension] = fileparts(strModelPath);
+if strTarget == "manifest" && strcmpi(strExtension, ".ptafmodel")
+    oRuntime = ptafdeploy.inference.ReadPtafModelRuntimeConfig(char(strModelPath));
+else
+    oRuntime = ptafdeploy.inference.SRuntimeConfig();
+end
+if ~isempty(ui32DeviceId)
+    oRuntime.SetDeviceId(double(ui32DeviceId));
+end
+if strTarget == "manifest"
+    return
+end
 oRuntime.ClearExecutionTargetPriority();
 if strTarget == "cpu"
     oRuntime.AddExecutionTarget(ptafdeploy.inference.EExecutionTarget.cpu);

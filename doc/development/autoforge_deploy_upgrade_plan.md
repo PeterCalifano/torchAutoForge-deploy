@@ -1666,3 +1666,45 @@ comments, formatting, and documentation. Eight Python/native regression cases
 and the MATLAB test covering four override combinations passed. Native and
 MATLAB inference used the local YOLO model and sample image. Hosted CI remains
 pending; this batch is prepared for staged review without a commit or push.
+
+### Follow-up review across loading, overrides, and build configurations
+
+Centroiding Python/MATLAB target overrides intentionally replace the complete
+runtime policy. Preserve this behavior, including the default device zero when
+no device is supplied with a target. A device-only override must be applied to
+the manifest policy or raw-artifact defaults independently of target selection.
+
+- [x] Apply and test device-only overrides in Python and MATLAB, for manifests
+  and raw ONNX; document and test intentional target-policy replacement
+- [x] Make all facade load entry points publish backend and contract together,
+  after contract construction and diagnostics succeed; test invalid roles and
+  manifest failures as well as later successful replacements
+- [x] Repair MinSizeRel handling across flags, validation, and diagnostic output;
+  inspect adjacent advertised configurations and multi-configuration handling
+- [x] Review performance, ownership, comments, documentation, and failure paths
+- [x] Stage runtime/demo corrections first; retain build-policy repairs separately
+
+Review covered all facade load entry points, manager dispatch, native and wrapped
+demo overrides, benchmark overrides, ROS model construction, and adjacent build
+configurations. Invalid-role checks alone were insufficient: contract metadata
+copies and diagnostics also followed backend replacement. The facade now owns
+one backend/contract pair and publishes it through a nonthrowing pointer exchange.
+Additional allocations are confined to construction and model loading. Dispatch
+adds a pointer indirection, with no per-inference allocation or tensor copy.
+Copy/move operations remain unavailable.
+
+Validation passed in the 69-case TensorRT/image/output suite (two external FiLM
+skips) and the 59-case CPU-only MinSizeRel suite (three environment-dependent
+skips). Python passed 12 centroiding cases and four YOLO wrapper cases; four
+optional native YOLO cases were skipped in this run. MATLAB passed all three
+centroiding tests with the real image-only model, including device-only raw ONNX
+execution on GPU device 1. Python/MATLAB wrapper builds, Ruff, and whitespace
+checks passed. The initial MATLAB assertions were corrected to accommodate the
+wrapper's integer representation of booleans.
+
+A temporary build acceptance project exercised Debug, Release, RelWithDebInfo,
+MinSizeRel, NOPTIM, rejection of an invalid name, NO_OPTIMIZATION, and separate
+Debug/Release compilation with Ninja Multi-Config. No template-conformance test
+was added to the repository. Build-policy implementation and its documentation
+remain unstaged for the next batch. No commit or push was made; hosted CI on
+these new changes remains pending.

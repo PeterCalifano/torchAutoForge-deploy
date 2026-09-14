@@ -5,15 +5,15 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-import image_sequence as images
-import inference_output as reports
-from centroiding_metadata import metadata
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 import autoforge_deploy as ptaf
+import image_sequence as images
+import inference_output as reports
 import numpy as np
+from centroiding_metadata import metadata
 from PIL import Image
 
 
@@ -24,7 +24,7 @@ class DemoOptions:
     model_path: Path
     image_path: Path
     target: str
-    device_id: int
+    device_id: int | None
     output_path: Path | None = None
     overlays: bool = False
 
@@ -67,12 +67,12 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> DemoOptions:
         default="manifest",
         help="Use configured runtime settings or force one execution target.",
     )
-    parser.add_argument("--device", type=int, default=0, dest="device_id")
+    parser.add_argument("--device", type=int, default=None, dest="device_id")
     parsed = parser.parse_args(arguments)
 
     if parsed.overlays and parsed.output_path is None:
         parser.error("--overlays requires --output")
-    if parsed.device_id < 0:
+    if parsed.device_id is not None and parsed.device_id < 0:
         parser.error("--device must be non-negative")
 
     return DemoOptions(
@@ -86,7 +86,7 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> DemoOptions:
 
 
 def make_runtime(options: DemoOptions) -> ptaf.SRuntimeConfig:
-    """Build a strict runtime override from validated options.
+    """Replace policy for a target override, or change only an explicit device.
 
     Args:
         options: Validated target and device selection.
@@ -95,12 +95,20 @@ def make_runtime(options: DemoOptions) -> ptaf.SRuntimeConfig:
         Backend-neutral runtime configuration.
     """
 
-    runtime = ptaf.SRuntimeConfig()
-    runtime.SetDeviceId(options.device_id)
-    runtime.ClearExecutionTargetPriority()
-    target = ptaf.EExecutionTarget.cpu if options.target == "cpu" else ptaf.EExecutionTarget.cuda
-    runtime.AddExecutionTarget(target)
-    runtime.SetAllowFallback(False)
+    # A target override intentionally replaces policy; a device-only override does not.
+    runtime = (
+        ptaf.ReadPtafModelRuntimeConfig(str(options.model_path))
+        if options.target == "manifest" and options.model_path.suffix.lower() == ".ptafmodel"
+        else ptaf.SRuntimeConfig()
+    )
+    if options.device_id is not None:
+        runtime.SetDeviceId(options.device_id)
+
+    if options.target != "manifest":
+        runtime.ClearExecutionTargetPriority()
+        target = ptaf.EExecutionTarget.cpu if options.target == "cpu" else ptaf.EExecutionTarget.cuda
+        runtime.AddExecutionTarget(target)
+        runtime.SetAllowFallback(False)
     return runtime
 
 
@@ -120,7 +128,7 @@ def load_model(options: DemoOptions) -> ptaf.CModelFacade:
 
     model = ptaf.CModelFacade()
     extension = options.model_path.suffix.lower()
-    has_override = options.target != "manifest"
+    has_override = options.target != "manifest" or options.device_id is not None
 
     if extension == ".ptafmodel":
         if has_override:

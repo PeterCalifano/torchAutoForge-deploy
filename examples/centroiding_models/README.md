@@ -190,3 +190,16 @@ The utility-refactor validation ran the native, Python, and MATLAB sequence test
 and six real images per language. The development tracker records checkpoint and
 input provenance, installation checks, observed cross-language differences, and
 remaining campaign limits. These checks do not establish centroiding accuracy.
+
+### Python and MATLAB runtime selection
+
+An explicit target (`--target cpu|cuda` or `strTarget`) intentionally replaces
+the manifest runtime policy with defaults, selects that target, and disables
+fallback. Without an explicit device, this target override uses device zero.
+It does not retain manifest thread counts, profiling, or backend selection.
+
+A device-only option (`--device N` or `ui32DeviceId`) changes just the device
+in the manifest runtime, or in the runtime defaults for a raw ONNX artifact.
+Omitting both options preserves the manifest policy or raw-artifact defaults.
+MATLAB accepts an empty device value for omission and rejects nonscalar values.
+The native centroiding CLI retains its existing field-by-field merge policy.

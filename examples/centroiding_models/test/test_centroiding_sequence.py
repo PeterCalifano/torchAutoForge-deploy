@@ -13,8 +13,8 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import image_sequence as images
 import inference_output as reports
-from centroiding_metadata import metadata
 import run_centroiding as demo
+from centroiding_metadata import metadata
 
 
 def test_selection_and_collision(tmp_path: Path) -> None:
@@ -107,3 +107,53 @@ def test_single_load_and_partial_decode_failure(
     assert data["status"] == "incomplete"
     assert len(data["frames"]) == 1
     assert data["frames"][0]["centroid"]["image_pixels"] == {"x": 4.0, "y": 3.0}
+
+
+@pytest.mark.parametrize("use_manifest", [False, True])
+@pytest.mark.parametrize(
+    "target,device", [("manifest", None), ("manifest", 1), ("cpu", None), ("cpu", 1)]
+)
+def test_runtime_selection(
+    tmp_path: Path, use_manifest: bool, target: str, device: int | None
+) -> None:
+    """Device-only selection preserves policy; explicit targets intentionally reset it."""
+    model_path = (
+        Path(__file__).resolve().parents[3] / "tests/matlab/testSamples/tracedSampleModel.onnx"
+    )
+    if use_manifest:
+        manifest = tmp_path / "model.ptafmodel"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifact_path": str(model_path),
+                    "task": "centroiding",
+                    "execution_target_priority": ["cpu"],
+                    "device_id": 7,
+                    "intra_op_num_threads": 2,
+                    "inter_op_num_threads": 3,
+                    "allow_fallback": True,
+                    "log_id": "centroiding_manifest_policy",
+                }
+            )
+        )
+        model_path = manifest
+
+    arguments = [str(model_path), "unused.png", "--target", target]
+    if device is not None:
+        arguments += ["--device", str(device)]
+
+    runtime = demo.load_model(demo.parse_arguments(arguments)).GetContract().runtime
+    expected_device = 7 if use_manifest and target == "manifest" else 0
+    assert runtime.GetDeviceId() == (device if device is not None else expected_device)
+    if use_manifest and target == "manifest":
+        assert runtime.GetIntraOpNumThreads() == 2
+        assert runtime.GetInterOpNumThreads() == 3
+        assert runtime.GetLogId() == "centroiding_manifest_policy"
+        assert runtime.GetAllowFallback()
+    if target == "cpu":
+        defaults = demo.ptaf.SRuntimeConfig()
+        assert runtime.GetIntraOpNumThreads() == defaults.GetIntraOpNumThreads()
+        assert runtime.GetInterOpNumThreads() == defaults.GetInterOpNumThreads()
+        assert runtime.GetLogId() == defaults.GetLogId()
+        assert not runtime.GetAllowFallback()

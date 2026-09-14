@@ -79,25 +79,6 @@ namespace ptafdeploy::inference
             return normalized_config;
         }
 
-        [[nodiscard]] SModelContract MakeContract(const std::string& model_path,
-                                                  const std::string& config_path,
-                                                  const SModelRoleConfig& role_config,
-                                                  const SRuntimeConfig& runtime_config,
-                                                  const CInferenceManager& inference_manager)
-        {
-            SModelContract contract;
-            contract.config_path = config_path;
-            contract.artifact_path = model_path;
-            contract.role = ToString(role_config.role);
-            contract.preprocessing = role_config.preprocessing;
-            contract.postprocessing = role_config.postprocessing;
-            contract.runtime = runtime_config;
-            contract.backend_detail = inference_manager.GetBackendDetail();
-            contract.inputs = inference_manager.GetInputInfos();
-            contract.outputs = inference_manager.GetOutputInfos();
-            return contract;
-        }
-
         [[nodiscard]] std::filesystem::path
         ResolveRelativePath(const std::filesystem::path& base_file, const std::string& path_value)
         {
@@ -376,112 +357,126 @@ namespace ptafdeploy::inference
                                                                const SModelRoleConfig& role_config,
                                                                const SRuntimeConfig& runtime_config)
     {
-        const SModelRoleConfig normalized_config = NormalizeConfig(role_config);
-        inference_manager_.LoadModelWithRuntimeConfig(model_path, runtime_config);
-        contract_ =
-            MakeContract(model_path, {}, normalized_config, runtime_config, inference_manager_);
-        GetLogger().info("Loaded task=", contract_.role, ", artifact=", contract_.artifact_path);
-        GetLogger().debug("Preprocessing=", contract_.preprocessing,
-                          ", postprocessing=", contract_.postprocessing);
+        LoadModelAndContract(model_path, {}, role_config, runtime_config);
     }
 
     void CModelFacade::LoadModelConfig(const std::string& config_path)
     {
-        GetLogger().debug("Reading model configuration: ", config_path);
-        const SParsedModelConfig parsed_config = ReadModelConfigFile(config_path);
-        inference_manager_.LoadModelWithRuntimeConfig(parsed_config.artifact_path.string(),
-                                                      parsed_config.runtime_config);
-        contract_ = MakeContract(parsed_config.artifact_path.string(),
-                                 std::filesystem::absolute(config_path).lexically_normal().string(),
-                                 parsed_config.role_config, parsed_config.runtime_config,
-                                 inference_manager_);
-        GetLogger().info("Loaded config task=", contract_.role,
-                         ", artifact=", contract_.artifact_path);
+        const auto parsed_config = ReadModelConfigFile(config_path);
+        LoadModelAndContract(parsed_config.artifact_path.string(), config_path,
+                             parsed_config.role_config, parsed_config.runtime_config);
     }
 
     void CModelFacade::LoadModelConfigWithRuntimeConfig(const std::string& config_path,
-                                                        const SRuntimeConfig& runtime_config)
+                                                       const SRuntimeConfig& runtime_config)
     {
-        GetLogger().debug("Reading model configuration with runtime override: ", config_path);
-        const SParsedModelConfig parsed_config = ReadModelConfigFile(config_path);
-        inference_manager_.LoadModelWithRuntimeConfig(parsed_config.artifact_path.string(),
-                                                      runtime_config);
-        contract_ = MakeContract(parsed_config.artifact_path.string(),
-                                 std::filesystem::absolute(config_path).lexically_normal().string(),
-                                 parsed_config.role_config, runtime_config, inference_manager_);
-        GetLogger().info("Loaded config task=", contract_.role,
-                         ", artifact=", contract_.artifact_path, " with runtime override");
+        const auto parsed_config = ReadModelConfigFile(config_path);
+        LoadModelAndContract(parsed_config.artifact_path.string(), config_path,
+                             parsed_config.role_config, runtime_config);
+    }
+
+    void CModelFacade::LoadModelAndContract(const std::string& model_path,
+                                            const std::string& config_path,
+                                            const SModelRoleConfig& role_config,
+                                            const SRuntimeConfig& runtime_config)
+    {
+        const auto normalized_config = NormalizeConfig(role_config);
+        auto pending_model_state = std::make_unique<SLoadedModel>();
+        auto& contract = pending_model_state->contract;
+
+        // Materialize caller-supplied contract fields before loading any backend.
+        contract.role = ToString(normalized_config.role);
+        contract.artifact_path = model_path;
+        if (!config_path.empty())
+        {
+            contract.config_path = std::filesystem::absolute(config_path).lexically_normal().string();
+        }
+        contract.preprocessing = normalized_config.preprocessing;
+        contract.postprocessing = normalized_config.postprocessing;
+        contract.runtime = runtime_config;
+
+        // Metadata copies and diagnostics may throw even after backend loading succeeds.
+        pending_model_state->manager.LoadModelWithRuntimeConfig(model_path, runtime_config);
+        contract.backend_detail = pending_model_state->manager.GetBackendDetail();
+        contract.inputs = pending_model_state->manager.GetInputInfos();
+        contract.outputs = pending_model_state->manager.GetOutputInfos();
+        GetLogger().info("Loaded task=", contract.role, ", artifact=", contract.artifact_path);
+        GetLogger().debug("Preprocessing=", contract.preprocessing,
+                          ", postprocessing=", contract.postprocessing);
+
+        // Publish both parts together only after every potentially throwing step.
+        loaded_model_.swap(pending_model_state);
     }
 
     SModelContract CModelFacade::GetContract() const
     {
-        EnsureModelLoaded(contract_);
-        return contract_;
+        EnsureModelLoaded(loaded_model_->contract);
+        return loaded_model_->contract;
     }
 
     std::string CModelFacade::GetRole() const
     {
-        EnsureModelLoaded(contract_);
-        return contract_.role;
+        EnsureModelLoaded(loaded_model_->contract);
+        return loaded_model_->contract.role;
     }
 
     std::string CModelFacade::GetPreprocessing() const
     {
-        EnsureModelLoaded(contract_);
-        return contract_.preprocessing;
+        EnsureModelLoaded(loaded_model_->contract);
+        return loaded_model_->contract.preprocessing;
     }
 
     std::string CModelFacade::GetPostprocessing() const
     {
-        EnsureModelLoaded(contract_);
-        return contract_.postprocessing;
+        EnsureModelLoaded(loaded_model_->contract);
+        return loaded_model_->contract.postprocessing;
     }
 
     std::string CModelFacade::GetBackendDetail() const
     {
-        return inference_manager_.GetBackendDetail();
+        return loaded_model_->manager.GetBackendDetail();
     }
 
     size_t CModelFacade::GetNumInputs() const
     {
-        return inference_manager_.GetNumInputs();
+        return loaded_model_->manager.GetNumInputs();
     }
 
     size_t CModelFacade::GetNumOutputs() const
     {
-        return inference_manager_.GetNumOutputs();
+        return loaded_model_->manager.GetNumOutputs();
     }
 
     STensorInfo CModelFacade::GetInputInfo(const size_t index) const
     {
-        return inference_manager_.GetInputInfo(index);
+        return loaded_model_->manager.GetInputInfo(index);
     }
 
     STensorInfo CModelFacade::GetOutputInfo(const size_t index) const
     {
-        return inference_manager_.GetOutputInfo(index);
+        return loaded_model_->manager.GetOutputInfo(index);
     }
 
     std::vector<SFloatTensor>
     CModelFacade::InferFloatTensors(const std::vector<SFloatTensor>& inputs) const
     {
-        EnsureModelLoaded(contract_);
-        GetLogger().trace("Running task=", contract_.role, " with ", inputs.size(),
+        EnsureModelLoaded(loaded_model_->contract);
+        GetLogger().trace("Running task=", loaded_model_->contract.role, " with ", inputs.size(),
                           " input tensor(s).");
-        return inference_manager_.InferFloatTensors(inputs);
+        return loaded_model_->manager.InferFloatTensors(inputs);
     }
 
     SFloatTensor CModelFacade::InferSingleFloatTensor(const SFloatTensor& input) const
     {
-        EnsureModelLoaded(contract_);
-        return inference_manager_.InferSingleFloatTensor(input);
+        EnsureModelLoaded(loaded_model_->contract);
+        return loaded_model_->manager.InferSingleFloatTensor(input);
     }
 
     std::vector<float> CModelFacade::InferSingleFloatInput(const std::vector<float>& values,
                                                            const std::vector<int64_t>& shape) const
     {
-        EnsureModelLoaded(contract_);
-        return inference_manager_.InferSingleFloatInput(values, shape);
+        EnsureModelLoaded(loaded_model_->contract);
+        return loaded_model_->manager.InferSingleFloatInput(values, shape);
     }
 
     std::vector<std::string> CModelFacade::GetRecognizedRoles()
