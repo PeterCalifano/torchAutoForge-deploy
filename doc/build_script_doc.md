@@ -70,6 +70,10 @@ The script now uses **GNU `getopt`** to support:
 * **`-t, --type <t> | --type-build <t>`**
   Set CMake build type (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`). Input is case-insensitive.
   Defaults to `relwithdebinfo`.
+  `MinSizeRel` uses `-Os -DNDEBUG` with the configured CPU and extra compiler flags.
+  Direct CMake callers may also select `NOPTIM` for the existing unoptimized flags.
+  Multi-configuration generators apply Debug instrumentation only when building Debug;
+  the configure-time `CMAKE_BUILD_TYPE` does not select that instrumentation.
   For `Debug`, `RelWithDebInfo`, and `Release`, the script **appends** `-Wall -Wextra -Wpedantic` to `CMAKE_CXX_FLAGS` unless you override them completely.
 
 * **`-f, --flagsCXX "<flags>"`**

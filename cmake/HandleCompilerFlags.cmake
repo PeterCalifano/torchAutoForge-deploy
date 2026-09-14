@@ -44,6 +44,7 @@ function(handle_compiler_flags)
 
     set(_release_flags -O3 -DNDEBUG -fmax-errors=1)
     set(_relwithdebinfo_flags -O2 -g -DNDEBUG)
+    set(_minsizerel_flags -Os -DNDEBUG)
     set(_noptim_flags
         -O0 -g3 -fno-omit-frame-pointer -fno-inline
         -fno-optimize-sibling-calls)
@@ -111,6 +112,8 @@ function(handle_compiler_flags)
     set(_relwithdebinfo_cxx_flags
         ${_relwithdebinfo_flags} ${_common_cxx_warnings} ${_safety_warnings}
         -Wnon-virtual-dtor)
+    set(_minsizerel_c_flags ${_minsizerel_flags} ${_common_c_warnings})
+    set(_minsizerel_cxx_flags ${_minsizerel_flags} ${_common_cxx_warnings})
     set(_noptim_c_flags
         ${_noptim_flags} ${_common_c_warnings} ${_safety_warnings})
     set(_noptim_cxx_flags
@@ -121,6 +124,9 @@ function(handle_compiler_flags)
     list(APPEND _release_cxx_flags ${_cpu_opt_flags})
     list(APPEND _relwithdebinfo_c_flags ${_cpu_opt_flags})
     list(APPEND _relwithdebinfo_cxx_flags ${_cpu_opt_flags})
+
+    list(APPEND _minsizerel_c_flags ${_cpu_opt_flags})
+    list(APPEND _minsizerel_cxx_flags ${_cpu_opt_flags})
 
     set(_user_c_flags)
     if(NOT "${_initial_c_flags}" STREQUAL "")
@@ -151,10 +157,12 @@ function(handle_compiler_flags)
     list(APPEND _debug_c_flags ${_user_c_flags})
     list(APPEND _release_c_flags ${_user_c_flags})
     list(APPEND _relwithdebinfo_c_flags ${_user_c_flags})
+    list(APPEND _minsizerel_c_flags ${_user_c_flags})
     list(APPEND _noptim_c_flags ${_user_c_flags})
     list(APPEND _debug_cxx_flags ${_user_cxx_flags})
     list(APPEND _release_cxx_flags ${_user_cxx_flags})
     list(APPEND _relwithdebinfo_cxx_flags ${_user_cxx_flags})
+    list(APPEND _minsizerel_cxx_flags ${_user_cxx_flags})
     list(APPEND _noptim_cxx_flags ${_user_cxx_flags})
 
     string(JOIN " " _c_flags_debug ${_debug_c_flags})
@@ -163,6 +171,8 @@ function(handle_compiler_flags)
     string(JOIN " " _cxx_flags_release ${_release_cxx_flags})
     string(JOIN " " _c_flags_relwithdebinfo ${_relwithdebinfo_c_flags})
     string(JOIN " " _cxx_flags_relwithdebinfo ${_relwithdebinfo_cxx_flags})
+    string(JOIN " " _c_flags_minsizerel ${_minsizerel_c_flags})
+    string(JOIN " " _cxx_flags_minsizerel ${_minsizerel_cxx_flags})
     string(JOIN " " _c_flags_noptim ${_noptim_c_flags})
     string(JOIN " " _cxx_flags_noptim ${_noptim_cxx_flags})
 
@@ -174,6 +184,8 @@ function(handle_compiler_flags)
         "${_c_flags_relwithdebinfo}" PARENT_SCOPE)
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO
         "${_cxx_flags_relwithdebinfo}" PARENT_SCOPE)
+    set(CMAKE_C_FLAGS_MINSIZEREL "${_c_flags_minsizerel}" PARENT_SCOPE)
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${_cxx_flags_minsizerel}" PARENT_SCOPE)
     set(CMAKE_C_FLAGS_NOPTIM "${_c_flags_noptim}" PARENT_SCOPE)
     set(CMAKE_CXX_FLAGS_NOPTIM "${_cxx_flags_noptim}" PARENT_SCOPE)
 
@@ -199,32 +211,49 @@ function(handle_compiler_flags_interface)
 
     target_compile_features(${ARG_TARGET} INTERFACE cxx_std_20)
 
+    # Validate exact names, including each configuration of a multi-config generator.
+    set(_build_types "${CMAKE_BUILD_TYPE}")
+    if(CMAKE_CONFIGURATION_TYPES)
+        set(_build_types ${CMAKE_CONFIGURATION_TYPES})
+    endif()
+    foreach(_build_type IN LISTS _build_types)
+        string(TOLOWER "${_build_type}" _build_type_lower)
+        if(NOT _build_type_lower MATCHES "^(debug|release|relwithdebinfo|minsizerel|noptim)$")
+            message(FATAL_ERROR "Unknown build type: ${_build_type}. Stopping build.")
+        endif()
+    endforeach()
+
     if(NO_OPTIMIZATION)
         message(STATUS
             "NO_OPTIMIZATION keeps assertions enabled and emits "
             "profiler-friendly debug flags.")
-    elseif(CMAKE_BUILD_TYPE_LOWER MATCHES "debug")
-        set(_sanitizer_flags)
+    else()
+        # Debug instrumentation must follow the built configuration, not configure-time defaults.
+        target_compile_options(${ARG_TARGET} INTERFACE
+            "$<$<CONFIG:Debug>:-fno-omit-frame-pointer>")
+        target_link_options(${ARG_TARGET} INTERFACE
+            "$<$<CONFIG:Debug>:-fno-omit-frame-pointer>")
         if(SANITIZE_BUILD AND SANITIZERS)
-            set(_sanitizer_flags -fsanitize=${SANITIZERS})
+            target_compile_options(${ARG_TARGET} INTERFACE
+                "$<$<CONFIG:Debug>:-fsanitize=${SANITIZERS}>")
+            target_link_options(${ARG_TARGET} INTERFACE
+                "$<$<CONFIG:Debug>:-fsanitize=${SANITIZERS}>")
         endif()
-        target_compile_options(
-            ${ARG_TARGET} INTERFACE
-            ${_sanitizer_flags}
-            -fno-omit-frame-pointer)
-        target_link_options(
-            ${ARG_TARGET} INTERFACE
-            ${_sanitizer_flags}
-            -fno-omit-frame-pointer)
-    elseif(NOT (CMAKE_BUILD_TYPE_LOWER MATCHES "release"
-               OR CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo"))
-        message(FATAL_ERROR
-            "Unknown build type: ${CMAKE_BUILD_TYPE}. Stopping build.")
     endif()
 endfunction()
 
 function(print_compiler_flags_summary)
     if(MSVC OR XCODE_VERSION)
+        return()
+    endif()
+
+    if(CMAKE_CONFIGURATION_TYPES)
+        message(STATUS "Build configurations: ${CMAKE_CONFIGURATION_TYPES}")
+        foreach(_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+            string(TOUPPER "${_config}" _config_upper)
+            message(STATUS "  ${_config} C flags: ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${_config_upper}}")
+            message(STATUS "  ${_config} C++ flags: ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${_config_upper}}")
+        endforeach()
         return()
     endif()
 
@@ -245,6 +274,12 @@ function(print_compiler_flags_summary)
         set(_display_c_flags "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_RELEASE}")
         set(_display_cxx_flags
             "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
+    elseif(CMAKE_BUILD_TYPE_LOWER STREQUAL "minsizerel")
+        set(_display_c_flags "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_MINSIZEREL}")
+        set(_display_cxx_flags "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_MINSIZEREL}")
+    elseif(CMAKE_BUILD_TYPE_LOWER STREQUAL "noptim")
+        set(_display_c_flags "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_NOPTIM}")
+        set(_display_cxx_flags "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_NOPTIM}")
     elseif(CMAKE_BUILD_TYPE_LOWER MATCHES "relwithdebinfo")
         set(_display_c_flags
             "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_RELWITHDEBINFO}")
