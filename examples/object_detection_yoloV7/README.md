@@ -113,3 +113,31 @@ detection[0]=class=17,...
 Small numeric differences across CPU, CUDA, OpenCV, Pillow, and MATLAB resize
 implementations are expected; the contract, output layout, detection class, and
 score ordering should remain coherent.
+
+### Runtime overrides
+
+All three demos start from the manifest runtime configuration. Selecting `cpu`
+or `cuda` replaces the requested target list and disables automatic fallback.
+An omitted device keeps the manifest device; an explicit device also works with
+`target=manifest`. Backend, profile, thread counts, profiling, and logging remain
+unchanged unless the interface explicitly overrides them. MATLAB uses an empty
+`ui32DeviceId` default to distinguish omission from an explicit zero.
+
+The shared `ReadPtafModelRuntimeConfig` reader is available through the Python and
+MATLAB wrappers and reads configuration without creating an inference session.
+
+With wrappers on the language paths, run the override regressions with:
+
+```bash
+YOLO_EXECUTABLE=/path/to/object_detection_yoloV7 \
+  python3 -m pytest -q examples/object_detection_yoloV7/test_runtime_overrides.py
+```
+
+```matlab
+results = runtests('examples/object_detection_yoloV7/test/TestYoloRuntimeOverrides.m');
+assertSuccess(results);
+```
+
+The native and MATLAB cases require the local YOLO model and sample image and
+skip when these external fixtures are absent. The Python policy cases use the
+small tracked ONNX fixture. Successful runs verify four override combinations.

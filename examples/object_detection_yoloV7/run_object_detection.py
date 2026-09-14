@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import sys
-from typing import Sequence
-
-import numpy as np
-from PIL import Image
 
 import autoforge_deploy as ptaf
+import numpy as np
+from PIL import Image
 
 
 @dataclass(frozen=True)
@@ -21,7 +20,7 @@ class DemoOptions:
     manifest_path: Path
     image_path: Path
     target: str
-    device_id: int
+    device_id: int | None
     score_threshold: float
     max_detections: int
 
@@ -49,12 +48,12 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> DemoOptions:
         default="manifest",
         help="Use manifest runtime settings or force one execution target.",
     )
-    parser.add_argument("--device", type=int, default=0, dest="device_id")
+    parser.add_argument("--device", type=int, default=None, dest="device_id")
     parser.add_argument("--score-threshold", type=float, default=0.25)
     parser.add_argument("--max-detections", type=int, default=20)
     parsed = parser.parse_args(arguments)
 
-    if parsed.device_id < 0:
+    if parsed.device_id is not None and parsed.device_id < 0:
         parser.error("--device must be non-negative")
     if not np.isfinite(parsed.score_threshold) or parsed.score_threshold < 0.0:
         parser.error("--score-threshold must be finite and non-negative")
@@ -84,19 +83,20 @@ def load_model(options: DemoOptions) -> ptaf.CModelFacade:
         RuntimeError: If the manifest is not an object-detection contract.
     """
     model = ptaf.CModelFacade()
-    if options.target == "manifest":
+    if options.target == "manifest" and options.device_id is None:
         model.LoadModelConfig(str(options.manifest_path))
     else:
-        runtime = ptaf.SRuntimeConfig()
-        runtime.SetDeviceId(options.device_id)
-        runtime.ClearExecutionTargetPriority()
-        target = (
-            ptaf.EExecutionTarget.cpu
-            if options.target == "cpu"
-            else ptaf.EExecutionTarget.cuda
-        )
-        runtime.AddExecutionTarget(target)
-        runtime.SetAllowFallback(False)
+        # Preserve unmentioned policy, including profile, threads, and logging.
+        runtime = ptaf.ReadPtafModelRuntimeConfig(str(options.manifest_path))
+        if options.device_id is not None:
+            runtime.SetDeviceId(options.device_id)
+        if options.target != "manifest":
+            runtime.ClearExecutionTargetPriority()
+            target = (
+                ptaf.EExecutionTarget.cpu if options.target == "cpu" else ptaf.EExecutionTarget.cuda
+            )
+            runtime.AddExecutionTarget(target)
+            runtime.SetAllowFallback(False)
         model.LoadModelConfigWithRuntimeConfig(str(options.manifest_path), runtime)
 
     if model.GetRole() != "object_detection":
@@ -129,15 +129,11 @@ def prepare_image(model: ptaf.CModelFacade, image_path: Path) -> ptaf.SFloatTens
         or shape[2] <= 0
         or shape[3] <= 0
     ):
-        raise RuntimeError(
-            "YOLO demo expects one float32 input with concrete shape [1,3,H,W]"
-        )
+        raise RuntimeError("YOLO demo expects one float32 input with concrete shape [1,3,H,W]")
 
     height, width = int(shape[2]), int(shape[3])
     with Image.open(image_path) as source_image:
-        rgb_image = source_image.convert("RGB").resize(
-            (width, height), Image.Resampling.BILINEAR
-        )
+        rgb_image = source_image.convert("RGB").resize((width, height), Image.Resampling.BILINEAR)
         hwc_values = np.asarray(rgb_image, dtype=np.uint8).reshape(-1)
 
     return ptaf.MakeNchwFloatTensorFromHwcFloat(
@@ -200,9 +196,7 @@ def run_demo(options: DemoOptions) -> None:
 
     output_shape = list(output_tensor.shape)
     if not output_shape or output_shape[-1] < 6:
-        raise RuntimeError(
-            "YOLO demo expects output rows [cx,cy,w,h,objectness,class_scores...]"
-        )
+        raise RuntimeError("YOLO demo expects output rows [cx,cy,w,h,objectness,class_scores...]")
 
     schema = ptaf.SDetectionRowSchema()
     schema.box_encoding = ptaf.EBoundingBoxEncoding.center_xywh
@@ -233,7 +227,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     """
     try:
         run_demo(parse_arguments(arguments))
-    except Exception as error:  # Boundary: provide one actionable CLI failure.
+    except Exception as error:  # noqa: BLE001 - CLI translates backend errors to an exit status.
         print(f"run_object_detection.py failed: {error}", file=sys.stderr)
         return 1
     return 0

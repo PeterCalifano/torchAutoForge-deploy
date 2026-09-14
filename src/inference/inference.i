@@ -8,6 +8,7 @@ namespace inference
 {
 
 #include <inference/inference_common.h>
+#include <inference/inference_config_parsing.h>
 #include <inference/inference_manager.h>
 #include <inference/inference_matlab_adapters.h>
 #include <inference/model_facade.h>
@@ -97,6 +98,9 @@ class SRuntimeConfig
     void UseCudaWithCpuFallback();
     void UseTensorRtWithCudaFallback();
 };
+
+// Read manifest settings without constructing an inference session.
+ptafdeploy::inference::SRuntimeConfig ReadPtafModelRuntimeConfig(string config_path);
 
 class SPoint2D
 {

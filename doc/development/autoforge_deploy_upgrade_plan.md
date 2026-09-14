@@ -1629,8 +1629,11 @@ validation, not a multi-file transaction across VERSION and ROS package files.
 
 - [x] Preserve generic-manager backend ownership until replacement loading succeeds
 - [x] Test failed reloads and backend switches through manager and model facades
-- [ ] Consolidate the reviewed YOLO override and wrapper-reader changes in the next batch
-- [x] Review and stage generic reload safety independently
+- [x] Expose the shared runtime-config reader to Python and MATLAB
+- [x] Merge only explicit YOLO device/target overrides across all three demos
+- [x] Validate native and wrapper behavior; review documentation and ownership
+- [x] Consolidate generic reload safety independently (commit `d4e63dc`)
+- [x] Review and stage the YOLO override and wrapper-reader batch
 
 #### Generic-manager reload batch review
 
@@ -1648,7 +1651,18 @@ ONNX-to-TensorRT switching, a failed switch back, and successful return to ONNX.
 CPU-only CTest passed 59 tests with three environment-dependent skips; the
 TensorRT/image/output suite passed 69 tests with two external FiLM skips.
 
-Hosted CI remains pending. No commit or push was made.
-
 The isolated staged snapshot `/tmp/ptaf-generic-index-9n1p_u2r` also passed the
 public-facade reload tests using the compatible TensorRT engine on device 1.
+
+#### YOLO runtime override batch review
+
+The C++, Python, and MATLAB demos retain the manifest runtime policy and apply
+only explicit target and device overrides. The wrappers expose the existing
+native runtime reader; configuration inspection does not create a model session.
+The change adds no per-inference work or duplicate runtime parser.
+
+Review covered override semantics, ownership, performance, unnecessary complexity,
+comments, formatting, and documentation. Eight Python/native regression cases
+and the MATLAB test covering four override combinations passed. Native and
+MATLAB inference used the local YOLO model and sample image. Hosted CI remains
+pending; this batch is prepared for staged review without a commit or push.

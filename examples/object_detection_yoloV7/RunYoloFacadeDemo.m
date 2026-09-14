@@ -16,7 +16,7 @@ function stResult = RunYoloFacadeDemo(strManifestPath, strImagePath, stOptions)
 %   strImagePath          Path to an image readable by IMREAD.
 %   stOptions.strTarget   "manifest", "cpu", or "cuda".
 %   stOptions.ui32DeviceId
-%                         Non-negative CUDA device index.
+%                         Optional device index; empty preserves the manifest setting.
 %   stOptions.dScoreThreshold
 %                         Finite non-negative objectness-class threshold.
 %   stOptions.ui32MaxDetections
@@ -37,7 +37,7 @@ arguments
     strImagePath (1, 1) string
     stOptions.strTarget (1, 1) string {mustBeMember(stOptions.strTarget, ...
         ["manifest", "cpu", "cuda"])} = "manifest"
-    stOptions.ui32DeviceId (1, 1) uint32 = uint32(0)
+    stOptions.ui32DeviceId (:, 1) uint32 = uint32.empty(0, 1)
     stOptions.dScoreThreshold (1, 1) double {mustBeFinite, mustBeNonnegative} = 0.25
     stOptions.ui32MaxDetections (1, 1) uint32 = uint32(20)
 end
@@ -120,24 +120,33 @@ function oModel = LoadYoloModel_(strManifestPath, strTarget, ui32DeviceId)
 arguments
     strManifestPath (1, 1) string
     strTarget (1, 1) string
-    ui32DeviceId (1, 1) uint32
+    ui32DeviceId (:, 1) uint32
 end
 
 oModel = ptafdeploy.inference.CModelFacade();
-if strTarget == "manifest"
+if strTarget == "manifest" && isempty(ui32DeviceId)
     oModel.LoadModelConfig(char(strManifestPath));
     return
 end
 
-oRuntime = ptafdeploy.inference.SRuntimeConfig();
-oRuntime.SetDeviceId(double(ui32DeviceId));
-oRuntime.ClearExecutionTargetPriority();
-if strTarget == "cpu"
-    oRuntime.AddExecutionTarget(ptafdeploy.inference.EExecutionTarget.cpu);
-else
-    oRuntime.AddExecutionTarget(ptafdeploy.inference.EExecutionTarget.cuda);
+if ~isempty(ui32DeviceId) && ~isscalar(ui32DeviceId)
+    error("ptafdeploy:YoloDemo:Device", "Device override must be scalar or empty.");
 end
-oRuntime.SetAllowFallback(false);
+
+% Preserve manifest settings that were not explicitly overridden.
+oRuntime = ptafdeploy.inference.ReadPtafModelRuntimeConfig(char(strManifestPath));
+if ~isempty(ui32DeviceId)
+    oRuntime.SetDeviceId(double(ui32DeviceId));
+end
+if strTarget ~= "manifest"
+    oRuntime.ClearExecutionTargetPriority();
+    if strTarget == "cpu"
+        oRuntime.AddExecutionTarget(ptafdeploy.inference.EExecutionTarget.cpu);
+    else
+        oRuntime.AddExecutionTarget(ptafdeploy.inference.EExecutionTarget.cuda);
+    end
+    oRuntime.SetAllowFallback(false);
+end
 oModel.LoadModelConfigWithRuntimeConfig(char(strManifestPath), oRuntime);
 end
 

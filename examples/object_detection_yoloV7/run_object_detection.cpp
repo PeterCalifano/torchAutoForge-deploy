@@ -3,6 +3,7 @@
  * @brief Run a YOLOv7 image through CModelFacade and generic task adapters.
  */
 
+#include <inference/inference_config_parsing.h>
 #include <inference/model_facade.h>
 #include <inference/task_adapters.h>
 #include <utils/logging/CLogger.h>
@@ -44,7 +45,7 @@ namespace
         fs::path manifest_path{};
         fs::path image_path{};
         std::optional<infer::EExecutionTarget> execution_target{};
-        int device_id{0};
+        std::optional<int> device_id{};
         float score_threshold{0.25F};
         size_t max_detections{20U};
     };
@@ -114,7 +115,10 @@ namespace
         arguments.manifest_path = manifest_path.getValue();
         arguments.image_path = image_path.getValue();
         arguments.execution_target = ParseTarget(target.getValue());
-        arguments.device_id = device.getValue();
+        if (device.isSet())
+        {
+            arguments.device_id = device.getValue();
+        }
         arguments.score_threshold = score_threshold.getValue();
         arguments.max_detections = static_cast<size_t>(max_detections.getValue());
 
@@ -123,17 +127,26 @@ namespace
 
     void LoadModel(const SArguments& arguments, infer::CModelFacade& model)
     {
-        if (!arguments.execution_target.has_value())
+        if (!arguments.execution_target.has_value() && !arguments.device_id.has_value())
         {
             model.LoadModelConfig(arguments.manifest_path.string());
             return;
         }
 
-        infer::SRuntimeConfig runtime;
-        runtime.SetDeviceId(arguments.device_id);
-        runtime.ClearExecutionTargetPriority();
-        runtime.AddExecutionTarget(*arguments.execution_target);
-        runtime.SetAllowFallback(false);
+        // Preserve manifest policy unless the caller explicitly overrides it.
+        auto runtime = infer::ReadPtafModelRuntimeConfig(arguments.manifest_path.string());
+        if (arguments.device_id.has_value())
+        {
+            runtime.SetDeviceId(*arguments.device_id);
+        }
+
+        if (arguments.execution_target.has_value())
+        {
+            runtime.ClearExecutionTargetPriority();
+            runtime.AddExecutionTarget(*arguments.execution_target);
+            runtime.SetAllowFallback(false);
+        }
+
         model.LoadModelConfigWithRuntimeConfig(arguments.manifest_path.string(), runtime);
     }
 
