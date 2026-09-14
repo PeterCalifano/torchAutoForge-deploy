@@ -1624,3 +1624,31 @@ record checks add no IO or retained frame storage. Explicit synchronization now
 checks helper readability and interpreter execution before writing VERSION.
 Ordinary non-sync generation retains its previous behavior. This is prerequisite
 validation, not a multi-file transaction across VERSION and ROS package files.
+
+### Generic reload safety and YOLO override corrections
+
+- [x] Preserve generic-manager backend ownership until replacement loading succeeds
+- [x] Test failed reloads and backend switches through manager and model facades
+- [ ] Consolidate the reviewed YOLO override and wrapper-reader changes in the next batch
+- [x] Review and stage generic reload safety independently
+
+#### Generic-manager reload batch review
+
+The manager owns its existing backend variant through a unique pointer and loads
+replacement storage before a nonthrowing ownership exchange. Backend objects
+remain nonmovable; no mutex or engine state is moved. Existing unloaded-state
+errors and public inference signatures are preserved. Replacement adds a bounded
+allocation during model loading and one pointer indirection during dispatch;
+no tensor copies or per-inference allocations are introduced by this change.
+
+Native regressions cover failed first loads, missing/corrupt ONNX reloads,
+failed engine switches, preserved model-facade contracts, and successful later
+replacement. With the compatible TensorRT fixture on device 1, tests also cover
+ONNX-to-TensorRT switching, a failed switch back, and successful return to ONNX.
+CPU-only CTest passed 59 tests with three environment-dependent skips; the
+TensorRT/image/output suite passed 69 tests with two external FiLM skips.
+
+Hosted CI remains pending. No commit or push was made.
+
+The isolated staged snapshot `/tmp/ptaf-generic-index-9n1p_u2r` also passed the
+public-facade reload tests using the compatible TensorRT engine on device 1.

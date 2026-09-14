@@ -10,6 +10,7 @@
 #include <inference/onnx_runtime/onnxruntime_inference_tools.hpp>
 #include <inference/tensorrt/tensorrt_inference_engine.h>
 
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
@@ -30,6 +31,14 @@ namespace ptafdeploy::inference
       public:
         /** @brief Construct an unloaded manager. */
         CInferenceManager() = default;
+        /** @brief Backend ownership cannot be copied or moved between managers. */
+        CInferenceManager(const CInferenceManager&) = delete;
+        /** @brief Copy assignment cannot duplicate backend ownership. */
+        CInferenceManager& operator=(const CInferenceManager&) = delete;
+        /** @brief Managers retain their identity and cannot be moved. */
+        CInferenceManager(CInferenceManager&&) = delete;
+        /** @brief Move assignment is disabled along with move construction. */
+        CInferenceManager& operator=(CInferenceManager&&) = delete;
 
         /**
          * @brief Construct a manager and load one model artifact.
@@ -53,8 +62,8 @@ namespace ptafdeploy::inference
          * @param model_path ONNX or serialized TensorRT artifact path.
          * @param options Backend selection and runtime options.
          * @throws std::exception When validation or backend loading fails.
-         * @note The selected backend replaces the previous backend before its
-         *       load completes; transactional reload is a deferred enhancement.
+         * @note Failed validation or backend loading preserves the previous usable model.
+         *       Successful reload invalidates references to previous backend metadata.
          */
         void LoadModel(const fs::path &model_path,
                        const SInferenceOptions &options = {});
@@ -63,8 +72,8 @@ namespace ptafdeploy::inference
          * @brief Select a backend from the artifact and load with default options.
          * @param model_path ONNX or serialized TensorRT artifact path.
          * @throws std::exception When validation or backend loading fails.
-         * @note The selected backend replaces the previous backend before its
-         *       load completes; transactional reload is a deferred enhancement.
+         * @note Failed validation or backend loading preserves the previous usable model.
+         *       Successful reload invalidates references to previous backend metadata.
          */
         void LoadModel(const std::string &model_path);
 
@@ -157,7 +166,7 @@ namespace ptafdeploy::inference
         [[nodiscard]] static EModelArtifact DetectArtifactType(const fs::path &model_path);
 
       private:
-      // TODO (PC) evaluate direct templating in place of std::variant usage.
-        TBackendVariant backend_{};
+        // Exchange ownership without moving backend objects that contain mutexes.
+        std::unique_ptr<TBackendVariant> backend_{std::make_unique<TBackendVariant>()};
     };
 }

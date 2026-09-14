@@ -150,8 +150,8 @@ namespace ptafdeploy::inference
          * @param runtime_config Complete runtime configuration.
          * @throws std::exception When configuration validation or backend
          *         loading fails.
-         * @note Transactional reload is deferred; after a failed reload the
-         *       previous contract must not be assumed usable.
+         * @note Failed configuration validation or backend loading preserves the
+         *       previous contract and usable inference state.
          */
         void LoadModelWithRoleConfigAndRuntimeConfig(const std::string& model_path,
                                                      const SModelRoleConfig& role_config,

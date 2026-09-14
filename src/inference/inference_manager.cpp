@@ -188,25 +188,28 @@ namespace ptafdeploy::inference
             ", requested_backend=", ToString(options.backend), ", device_id=", options.device_id,
             ", allow_fallback=", options.allow_fallback);
 
+        // A failed reload must not destroy the currently usable backend.
+        auto replacement_backend = std::make_unique<TBackendVariant>();
         switch (options.backend)
         {
         case EInferenceBackend::auto_backend:
             if (artifact == EModelArtifact::onnx)
             {
-                backend_.emplace<ptafdeploy::inference::onnxruntime::CInferenceManager_ORT>();
+                replacement_backend->emplace<onnxruntime::CInferenceManager_ORT>();
             }
             else
             {
-                backend_
-                    .emplace<ptafdeploy::inference::tensorrt::CInferenceManager_TensorRT_Engine>();
+                replacement_backend->emplace<tensorrt::CInferenceManager_TensorRT_Engine>();
             }
             break;
         case EInferenceBackend::onnxruntime:
-            backend_.emplace<ptafdeploy::inference::onnxruntime::CInferenceManager_ORT>();
+            replacement_backend->emplace<onnxruntime::CInferenceManager_ORT>();
             break;
         case EInferenceBackend::tensorrt_engine:
-            backend_.emplace<ptafdeploy::inference::tensorrt::CInferenceManager_TensorRT_Engine>();
+            replacement_backend->emplace<tensorrt::CInferenceManager_TensorRT_Engine>();
             break;
+        default:
+            throw std::invalid_argument("Unsupported inference backend");
         }
 
         std::visit(
@@ -216,12 +219,16 @@ namespace ptafdeploy::inference
                 if constexpr (!std::is_same_v<TBackend, std::monostate>)
                 {
                     backend.LoadModel(model_path, options);
+                    const auto& metadata = backend.GetModelMetadata();
+                    GetLogger().info("Loaded inference artifact with ", metadata.inputs.size(),
+                                     " input(s), ", metadata.outputs.size(), " output(s); ",
+                                     metadata.backend_detail);
                 }
             },
-            backend_);
-        const SModelMetadata& metadata = GetModelMetadata();
-        GetLogger().info("Loaded inference artifact with ", metadata.inputs.size(), " input(s), ",
-                         metadata.outputs.size(), " output(s); ", metadata.backend_detail);
+            *replacement_backend);
+
+        // Loading and diagnostics have succeeded; ownership exchange cannot throw.
+        backend_.swap(replacement_backend);
     }
 
     void CInferenceManager::LoadModel(const std::string& model_path)
@@ -260,7 +267,7 @@ namespace ptafdeploy::inference
                     return backend.GetModelMetadata();
                 }
             },
-            backend_);
+            *backend_);
     }
 
     std::string CInferenceManager::GetBackendDetail() const
@@ -315,7 +322,7 @@ namespace ptafdeploy::inference
                     return backend.Infer(inputs);
                 }
             },
-            backend_);
+            *backend_);
     }
 
     std::vector<SFloatTensor>
