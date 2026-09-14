@@ -6,11 +6,19 @@
  * @date 2025-01-04
  */
 #pragma once
+#include <string>
 
 // Library version
 #define PROJECT_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
 #define PROJECT_VERSION_MINOR @PROJECT_VERSION_MINOR@
 #define PROJECT_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define PROJECT_VERSION "@PROJECT_VERSION@"
+#define FULL_VERSION "@FULL_VERSION@"
+
+/** @brief Print the library version and its compilation date and time to stdout. */
+void PrintVersion();
+
+/** @brief Return the library's configured semantic version string. */
+std::string GetVersionString();
 
 #cmakedefine VARIABLE_DEFINED_BY_CMAKE // This is a placeholder for a variable defined by CMake. If it is not define, the #define is not included in the output file from configure_file().
-

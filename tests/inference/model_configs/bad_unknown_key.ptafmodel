@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "artifact_path": "../../matlab/testSamples/tracedSampleModel.onnx",
+  "task": "centroiding",
+  "unexpected_key": "should_fail"
+}

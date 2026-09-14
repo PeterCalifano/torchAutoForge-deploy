@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "artifact_path": "../../models/onnx/best_model_plain_traveling-goat-68_22b61bbd4ddd.onnx",
+  "task": "centroiding",
+  "preprocessing": "opencv_grayscale_resize_linear_nchw_unit_scale",
+  "postprocessing": "normalized_centroid_xy",
+  "backend": "onnxruntime",
+  "artifact": "onnx",
+  "execution_target_priority": [
+    "cpu"
+  ],
+  "allow_fallback": false,
+  "device_id": 0,
+  "intra_op_num_threads": 1,
+  "inter_op_num_threads": 1,
+  "enable_profiling": false,
+  "log_id": "ptafdeploy_centroiding_plain"
+}

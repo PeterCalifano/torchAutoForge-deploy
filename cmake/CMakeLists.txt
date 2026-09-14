@@ -9,15 +9,5 @@ else()
 	set(SCRIPT_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib/cmake")
 endif()
 
-# Install scripts
-install(FILES
-  GTSAMCMakeToolsConfig.cmake
-  Config.cmake.in
-  dllexport.h.in
-  GtsamBuildTypes.cmake
-  GtsamMakeConfigFile.cmake
-  GtsamTesting.cmake
-  GtsamPrinting.cmake
-  FindNumPy.cmake
-  README.html
-  DESTINATION "${SCRIPT_INSTALL_DIR}/GTSAMCMakeTools")
+# Install scripts from this directory
+# TBC

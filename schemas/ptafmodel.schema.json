@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "PTAF model manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "artifact_path",
+    "task"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "artifact_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task": {
+      "type": "string",
+      "enum": [
+        "raw_tensor",
+        "centroiding",
+        "object_detection",
+        "feature_matching",
+        "tracking",
+        "optical_flow",
+        "custom"
+      ]
+    },
+    "preprocessing": {
+      "type": "string",
+      "minLength": 1
+    },
+    "postprocessing": {
+      "type": "string",
+      "minLength": 1
+    },
+    "backend": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "onnxruntime",
+        "tensorrt_engine"
+      ]
+    },
+    "artifact": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "onnx",
+        "tensorrt_engine"
+      ]
+    },
+    "execution_target_priority": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "cpu",
+          "cuda",
+          "tensorrt"
+        ]
+      }
+    },
+    "allow_fallback": {
+      "type": "boolean"
+    },
+    "enable_profiling": {
+      "type": "boolean"
+    },
+    "log_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "device_id": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "intra_op_num_threads": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "inter_op_num_threads": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "tensorrt_optimization_profile_index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    }
+  }
+}

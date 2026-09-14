@@ -1,0 +1,112 @@
+name: build_linux_cuda
+
+on:
+  workflow_dispatch:
+    inputs:
+      cuda_architecture:
+        description: Single numeric CUDA architecture for CUDA and embedded PTX
+        required: true
+        default: '89'
+        type: string
+      tensorrt_root:
+        description: Optional TensorRT root; falls back to the TENSORRT_ROOT repository variable
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: ptafdeploy-cuda-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUILD_DIR: build-cuda-ci
+  BUILD_TYPE: RelWithDebInfo
+  ORT_VERSION: '1.23.0'
+  REPOSITORY_TENSORRT_ROOT: ${{ vars.TENSORRT_ROOT }}
+
+jobs:
+  build-test:
+    # GPU CI stays dormant unless explicitly enabled and dispatched from develop.
+    if: >-
+      ${{ github.ref == 'refs/heads/develop' &&
+          vars.CI_USE_SELF_HOSTED == 'true' }}
+    runs-on: [self-hosted, Linux, X64, gpu, cuda]
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Validate GPU runner and TensorRT
+        env:
+          INPUT_TENSORRT_ROOT: ${{ inputs.tensorrt_root }}
+        run: |
+          command -v cmake
+          command -v ninja
+          command -v nvcc
+          command -v nvidia-smi
+          nvidia-smi
+          nvcc --version
+
+          architecture="${{ inputs.cuda_architecture }}"
+          case "${architecture}" in
+            ''|*[!0-9]*)
+              echo 'cuda_architecture must be one numeric CMake architecture.' >&2
+              exit 2
+              ;;
+          esac
+
+          trt_root="${INPUT_TENSORRT_ROOT:-${REPOSITORY_TENSORRT_ROOT:-}}"
+          if [[ -z "${trt_root}" ]]; then
+            echo 'Set the TENSORRT_ROOT repository variable or dispatch input.' >&2
+            exit 2
+          fi
+          test -f "${trt_root}/include/NvInfer.h"
+          if [[ -d "${trt_root}/lib" ]]; then
+            trt_lib_dir="${trt_root}/lib"
+          elif [[ -d "${trt_root}/lib64" ]]; then
+            trt_lib_dir="${trt_root}/lib64"
+          else
+            echo "TensorRT library directory not found below ${trt_root}." >&2
+            exit 2
+          fi
+          find "${trt_lib_dir}" -maxdepth 1 -name 'libnvinfer.so*' -print -quit | grep -q .
+          {
+            echo "TENSORRT_ROOT=${trt_root}"
+            echo "CUDA_ARCHITECTURE=${architecture}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Setup ONNX Runtime
+        run: |
+          ort_root="$("${GITHUB_WORKSPACE}/.github/scripts/install_onnxruntime.sh" x86_64 "${GITHUB_WORKSPACE}/.ci_deps/onnxruntime")"
+          {
+            echo "ONNXRUNTIME_ROOT=${ort_root}"
+            echo "onnxruntime_DIR=${ort_root}/lib/cmake/onnxruntime"
+            echo "LD_LIBRARY_PATH=${ort_root}/lib:${TENSORRT_ROOT}/lib:${TENSORRT_ROOT}/lib64:${LD_LIBRARY_PATH:-}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Configure CUDA and TensorRT
+        run: |
+          cmake -S . -B "${BUILD_DIR}" -G Ninja \
+            -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHITECTURE}" \
+            -DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}" \
+            -Donnxruntime_DIR="${onnxruntime_DIR}" \
+            -DTENSORRT_ROOT="${TENSORRT_ROOT}" \
+            -DCPU_ENABLE_NATIVE_TUNING=OFF \
+            -Dautoforge_deploy_ENABLE_CUDA=ON \
+            -Dautoforge_deploy_ENABLE_TENSORRT=ON \
+            -DENABLE_TESTS=ON
+
+      - name: Build
+        run: cmake --build "${BUILD_DIR}" --parallel 4
+
+      - name: Test target functionality
+        run: >-
+          ctest --test-dir "${BUILD_DIR}" --output-on-failure
+          --parallel 2 --no-tests=error

@@ -1,17 +1,59 @@
-# List of TODOs for autoforge-deploy module
+# torchAutoForge-deploy TODO
 
-- [x] Add configuration for python library module (use same as ML Gears). This is standalone wrt pyTorchAutoForge. The latter depends on this for the deployment instead.  
+Authoritative staged plan: `doc/development/autoforge_deploy_upgrade_plan.md`.
 
-- [ ] Implement prototype module for Inference management with Onnx runtime library (ORT)
-  - [x] Fix compilation issues to build program
-  - [ ] Complete implementation of class CInferenceManager_ORT version 1
-  - [ ] Test inference with dummy model and values and compare against python
-  - [ ] Implement prototype wrapper module for MATLAB/python (automatic)
-  - [ ] Test execution within MATLAB to check for issues due to multithreads
-  - [ ] Test inference of onnx model in MATLAB
+## Closed In Current Local WIP
 
-- [ ] Implement prototype binding of ORT inference to python through pybind11 or gtwrap
+- [x] Configure CMake build and installation basics.
+- [x] Fix initial ORT compilation path.
+- [x] Resolve old `CInferenceManager_ORT` constructor mismatch.
+- [x] Load `.onnx` models through ONNX Runtime.
+- [x] Extract ORT input/output names, dtypes, and shapes.
+- [x] Run basic host-memory ORT inference.
+- [x] Add generic tensor metadata/view/buffer types.
+- [x] Add backend-agnostic inference facade.
+- [x] Add tests for ORT metadata, ORT inference, generic tensor helpers, facade dispatch, and TensorRT load behavior.
+- [x] Finish initial wrapper interfaces for Python and MATLAB.
+- [x] Add MATLAB wrapper smoke test path for loading and running an ONNX model.
+- [x] Replace hardcoded model path in `run_ort_inference`.
+- [ ] Complete review of the Stage 18 legacy tensor/image-spec retirement; use
+  `ptafdeploy::inference` descriptors/views/buffers for current consumers.
+- [x] Add focused ORT validation regressions and numeric output reference checks.
+- [x] Add generic model-role facade and contract for raw tensor, centroiding, object detection, and reserved learned-module roles.
+- [x] Expose model-role facade through Python and MATLAB wrappers.
+- [x] Add `.ptafmodel` role configs and config-loader smoke tests for centroiding and object-detection flows.
+- [x] Add enum-backed runtime configuration for backend/artifact/execution-target choices.
+- [x] Add target-aware generic `benchmark_model` CLI for CPU/GPU/Jetson smoke timing.
+- [x] Add versioned `.ptafmodel` manifest schema and template.
+- [x] Add shared adapter helpers for HWC-to-NCHW float preprocessing, centroid extraction, and YOLO-style raw detection decoding.
+- [x] Add optional standalone TensorRT serialized-engine backend behind `ENABLE_TENSORRT`.
+- [x] Validate ORT CUDA target selection on local GPU.
+- [x] Validate ORT fallback from TensorRT target to CUDA when ORT TensorRT EP is unavailable.
+- [x] Validate standalone TensorRT engine load/inference on local GPU with a generated fixture engine.
+- [x] Document Jetson benchmark setup and expected command lines.
+- [x] Add ORT provider preflight CLI and CTest coverage for required target checks.
+- [x] Add manual Jetson runtime smoke runner with dry-run CTest coverage.
+- [x] Add TensorRT serialized-engine runtime optimization-profile selection.
+- [x] Remove unqualified TensorRT DLA configuration and support claims.
+- [x] Add Ubuntu 22.04 GitHub Actions build/test jobs for x86_64 and native arm64.
+- [x] Add Ubuntu 22.04 Python wrapper CI job for x86_64.
+- [x] Add CI build-folder and ONNX Runtime dependency caching keyed by arch/config/source hash.
+- [x] Add Doxygen HTML CI build and GitHub Pages deployment workflow.
+- [x] Complete release design/documentation review in `doc/development/release_design_review.md`.
+- [x] Semantically import applicable cpp_cuda_template through v1.12.2 plus the recorded dirty patch: build, PTX, packaging, wrappers, docs, devcontainer, CI, and ROS functionality without OptiX.
+- [x] Add the target-specific ROS 2 lifecycle bridge, installed fixture, and real standalone/composed inference tests.
+- [x] Remove unrelated template scaffolding while retaining the ordinary CUDA and embedded-PTX examples.
 
-- [ ] Add module with pre-trained/tailored models, e.g. feature matching
+## Open Work
 
-- [x] Configure cmake build and installation of project
+- [ ] Complete the Stage 18 consolidation pre-stage, then implement centroiding
+  sequences and native JSON output using the checklist in
+  [Stage 18](doc/development/autoforge_deploy_upgrade_plan.md#stage-18-centroiding-sequences-and-native-json-output).
+
+- [ ] Add optional NMS and alternate object-detection box-format adapters when target model contracts require them.
+- [ ] Validate CUDA/TensorRT runtime path on Jetson hardware.
+- [ ] Validate ONNX Runtime TensorRT Execution Provider when an ORT build exposing `TensorrtExecutionProvider` is available.
+- [ ] Confirm GitHub Actions x86_64, arm64, Python wrapper, docs, guarded CUDA, and ROS 2 jobs are green after pushing these workflows.
+- [ ] Enable GitHub Pages for the repository if not already enabled.
+- [ ] Add TensorRT dynamic-output allocator support if required by target engines.
+- [ ] Add TensorRT engine-building precision tooling only if this repo takes ownership of engine generation.

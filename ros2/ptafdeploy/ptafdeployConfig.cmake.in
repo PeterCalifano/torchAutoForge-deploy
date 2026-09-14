@@ -1,0 +1,3 @@
+# Forward the ROS 2 shim package to the canonical installed inference package.
+include(CMakeFindDependencyMacro)
+find_dependency(autoforge_deploy CONFIG REQUIRED)

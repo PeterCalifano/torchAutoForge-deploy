@@ -1,0 +1,4 @@
+{
+  "artifact_path": "../../matlab/testSamples/tracedSampleModel.onnx",
+  "task": "centroiding"
+}

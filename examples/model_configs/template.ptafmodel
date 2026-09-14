@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "artifact_path": "model.onnx",
+  "task": "raw_tensor",
+  "execution_target_priority": [
+    "cpu"
+  ],
+  "allow_fallback": false
+}

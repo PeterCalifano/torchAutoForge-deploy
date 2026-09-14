@@ -1,0 +1,5 @@
+FloatTensor[] inputs
+---
+bool success
+FloatTensor[] outputs
+string status

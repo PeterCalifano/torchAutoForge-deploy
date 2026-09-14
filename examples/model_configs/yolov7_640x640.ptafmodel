@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "artifact_path": "../../models/onnx/yolov7_640x640.onnx",
+  "task": "object_detection",
+  "preprocessing": "image_tensor_nchw_rgb_640",
+  "postprocessing": "yolov7_raw_detection_tensor",
+  "backend": "onnxruntime",
+  "artifact": "onnx",
+  "execution_target_priority": [
+    "cuda",
+    "cpu"
+  ],
+  "allow_fallback": true,
+  "device_id": 0
+}

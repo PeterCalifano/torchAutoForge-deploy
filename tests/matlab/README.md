@@ -11,12 +11,12 @@ Pipeline:
 3. Use test_SimulinkInference to compute performances on the given dataset.
    Note: it should be exactly equal to Matlab one.
 
-NOTE: In this repository (torchAutoForge-deploy - dev_UM branch) you can 
-also find the python scripts: python/scripts
+PyTorch-to-ONNX export and numerical output comparison are provided by PTAF's
+`ModelHandlerONNx` exporter and `onnx_validate` method. The former hard-coded
+`ExportPytorchToONNX.py` script has been removed; its `.mat` report is not required.
 
-1. ExportPytorchToONNX.py : Converts checkpoint (.pth) into .onnx 
-2. TestOnnxAccuracy.py : Computes the .onnx model accuracy on the given 
-   dataset (which is the filtered one)
+The legacy dataset accuracy script remains at
+`python/scripts/tmp_to_rework_as_generic/TestOnnxAccuracy.py`.
 
 NOTE: The model class can be found in (Gitlab/COSMICA) => 
 nav-frontend/.experimental/neuralCOB/NeuralCOB_module

@@ -1,0 +1,66 @@
+name: Bug report
+description: Report an inference, wrapper, build, packaging, CUDA, or ROS defect.
+title: "[BUG] "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: State the observed failure and expected behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Generic inference facade
+        - ONNX Runtime backend
+        - TensorRT backend
+        - CUDA or PTX build
+        - Python wrapper
+        - MATLAB wrapper
+        - ROS 2 bridge
+        - Packaging or installed consumer
+        - Documentation or CI
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction commands
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: First relevant error
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Platform and toolchain
+      placeholder: Ubuntu 24.04, GCC 13, CMake 3.28, CUDA 12.9, ROS Jazzy
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Build and runtime configuration
+      description: Include CMake options, provider target, model artifact type, and wrapper or ROS mode.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reproduced this in a clean build directory when practical.
+        - label: I removed model data or credentials that cannot be shared.
+        - label: I identified whether the failure is top-level, installed-consumer, or ROS overlay behavior.

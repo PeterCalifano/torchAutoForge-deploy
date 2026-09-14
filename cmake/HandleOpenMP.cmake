@@ -1,11 +1,24 @@
+# CMake configuration to handle OpenMP setup and linking
+include_guard(GLOBAL)
 
-###############################################################################
-# Find OpenMP (if we're also using MKL)
-find_package(OpenMP)  # do this here to generate correct message if disabled
+option(ENABLE_OMP "Enable OpenMP" OFF)
 
-if(GTSAM_WITH_EIGEN_MKL AND GTSAM_WITH_EIGEN_MKL_OPENMP AND GTSAM_USE_EIGEN_MKL)
-    if(OPENMP_FOUND AND GTSAM_USE_EIGEN_MKL AND GTSAM_WITH_EIGEN_MKL_OPENMP)
-        set(GTSAM_USE_EIGEN_MKL_OPENMP 1) # This will go into config.h
-        list_append_cache(GTSAM_COMPILE_OPTIONS_PUBLIC ${OpenMP_CXX_FLAGS})
-    endif()
+if(NOT DEFINED NUM_OMP_THREADS)
+    set(NUM_OMP_THREADS 8 "Number of OpenMP threads to use")
 endif()
+
+function(handle_openmp)
+    if(ENABLE_OMP AND NOT NO_OPTIMIZATION)
+        find_package(OpenMP REQUIRED)
+        foreach(_lang C CXX)
+            set(_lang_var "CMAKE_${_lang}_FLAGS")
+            if(OpenMP_${_lang}_FLAGS)
+                set(${_lang_var} "${${_lang_var}} ${OpenMP_${_lang}_FLAGS}" PARENT_SCOPE)
+            else()
+                set(${_lang_var} "${${_lang_var}} -fopenmp" PARENT_SCOPE)
+            endif()
+        endforeach()
+    else()
+        set(OpenMP_CXX_FOUND OFF PARENT_SCOPE)
+    endif()
+endfunction()

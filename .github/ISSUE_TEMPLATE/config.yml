@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Build and API documentation
+    url: https://github.com/PeterCalifano/torchAutoForge-deploy/blob/main/README.md
+    about: Review supported backends, wrappers, CUDA/PTX scope, and ROS usage first.

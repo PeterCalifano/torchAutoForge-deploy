@@ -1,0 +1,5 @@
+# Archival donor patches preserve the exact recorded diff, including whitespace.
+doc/development/*.patch -whitespace
+
+# Third-party license text remains byte-identical to its reviewed local donor.
+lib/header_only/tclap/COPYING -whitespace
