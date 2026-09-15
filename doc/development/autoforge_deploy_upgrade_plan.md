@@ -1708,3 +1708,15 @@ Debug/Release compilation with Ninja Multi-Config. No template-conformance test
 was added to the repository. Build-policy implementation and its documentation
 remain unstaged for the next batch. No commit or push was made; hosted CI on
 these new changes remains pending.
+
+### Schema-dependent CI triggers
+
+- [x] Inspect Linux and adjacent workflow filters for schema-dependent builds
+- [x] Include `schemas/**` in push and pull-request filters for Linux and ROS 2
+- [x] Verify YAML parsing, schema-path matching, and existing branch restrictions
+- [x] Review and stage the trigger correction independently
+
+Both workflows compile the core's embedded manifest schema. Schema-only changes
+now match their path filters; push remains main-only and pull requests target
+main or develop. Local YAML and filter checks passed. Hosted trigger execution
+remains pending publication; no commit or push was made.
