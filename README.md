@@ -1,41 +1,90 @@
 # torchAutoForge-deploy
 
-C++20 library for deploying machine-learning models through ONNX Runtime (ORT)
-and optional TensorRT engine runtime, with Python/MATLAB bindings through gtwrap.
+C++20 library for running exported ML models in production code. It loads ONNX
+models through ONNX Runtime (ORT) or serialized TensorRT engines through one
+backend-agnostic API, and exposes the same API to Python, MATLAB, and ROS 2.
 
-## Status
+A model is described by a `.ptafmodel` JSON manifest: artifact path, task role,
+pre/postprocessing contract, execution targets, and fallback policy. The C++
+library, the wrappers, the CLI tools, and the ROS 2 node all read the same
+manifest, so switching a model from CPU to CUDA or TensorRT is a configuration
+change.
 
-The prototype supports:
+## Features
 
-- ONNX loading, tensor metadata queries, and host-memory inference through
-  `ptafdeploy::inference::CInferenceManager` and its ORT backend,
-  `ptafdeploy::inference::onnxruntime::CInferenceManager_ORT`;
-- backend-neutral inputs and owned outputs through
-  `ptafdeploy::inference::STensorView` and `STensorBuffer`;
-- role-level contracts through `ptafdeploy::inference::CModelFacade`, with
-  enum-backed runtime settings and validated `.ptafmodel` manifests;
-- Python/MATLAB bindings for model loading, metadata, runtime target selection,
-  and single-input float inference, without exposing raw backend handles;
-- shared HWC-to-NCHW conversion, centroid extraction, and YOLO-style raw detection
-  decoding;
-- one-shot inference on prepared float32 tensors with `run_ort_inference`, including
-  dynamic shapes and raw output files, and timing through `benchmark_model`;
-- serialized `.engine` / `.plan` inference through the same facade when built with
-  `autoforge_deploy_ENABLE_TENSORRT=ON`.
+- **One inference API, two backends.** `CInferenceManager` dispatches to ORT
+  (`.onnx`) or, when built with TensorRT, to standalone `.engine` / `.plan`
+  files.
+- **Role-level models.** `CModelFacade` adds task contracts (raw tensor,
+  centroiding, object detection) on top of raw tensor inference. Feature
+  matching, tracking, and optical flow are reserved roles.
+- **Validated manifests.** `.ptafmodel` files follow a versioned
+  [JSON schema](schemas/ptafmodel.schema.json). `make-ptafmodel` creates and
+  validates them.
+- **Execution target selection.** Ordered target priority (CPU, CUDA, TensorRT
+  EP) with optional fallback, device ID, and thread counts.
+- **Python and MATLAB bindings** generated with gtwrap, without exposing raw
+  backend handles.
+- **ROS 2 Jazzy overlay** with a lifecycle node that serves inference as a
+  service.
+- **CLI tools** for one-shot inference, benchmarking, provider listing, and
+  evaluation.
+- **Shared tensor helpers** for HWC-to-NCHW conversion, centroid extraction, and
+  YOLO-style raw detection decoding.
+- **Tested on x86_64 and arm64** in CI. Jetson CUDA/TensorRT paths are run
+  manually on target boards.
 
-Still open:
+## Quick Start
 
-- Higher-level Python/MATLAB convenience APIs are still minimal.
-- TensorRT standalone currently supports host-staged dense tensor IO for
-  serialized engines plus runtime optimization-profile selection. Dynamic-output
-  allocators and DLA execution are not qualified; precision remains an
-  engine-build concern.
-- Initial higher-level model roles exist for raw tensor, centroiding, and object
-  detection; feature matching, tracking, and optical flow are reserved roles.
+Build and test with the default RelWithDebInfo configuration. ONNX Runtime must
+be installed first (see [Dependencies](#dependencies)).
 
-See `doc/development/autoforge_deploy_upgrade_plan.md` for the staged upgrade
-plan. See `doc/development/ptafmodel_manifest_schema.md` for the versioned
-`.ptafmodel` manifest schema.
+```bash
+export ONNXRUNTIME_ROOT=/path/to/onnxruntime
+./build_lib.sh
+```
+
+Run a model once on a zero-filled input:
+
+```bash
+./build/src/programs/run_ort_inference model.onnx \
+  --shape 1,3,640,640 --fill 0 --targets cpu --no-fallback
+```
+
+Load a manifest from C++:
+
+```cpp
+#include <inference/model_facade.h>
+
+ptafdeploy::inference::CModelFacade model;
+model.LoadModelConfig("model.ptafmodel");
+
+const std::vector<int64_t> shape{1, 3, 640, 640};
+std::vector<float> input(1 * 3 * 640 * 640, 0.0F);
+const std::vector<float> output = model.InferSingleFloatInput(input, shape);
+```
+
+The same calls from Python, after building with `./build_lib.sh -p`:
+
+```python
+import autoforge_deploy as ptaf
+
+model = ptaf.CModelFacade()
+model.LoadModelConfig("model.ptafmodel")
+output = model.InferSingleFloatInput(input_values, [1, 3, 640, 640])
+```
+
+Link the installed library from another CMake project:
+
+```cmake
+find_package(autoforge_deploy CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE autoforge_deploy::autoforge_deploy)
+```
+
+Complete examples live in [`examples/`](examples/): a
+[YOLOv7 detector](examples/object_detection_yoloV7/) and
+[centroiding models](examples/centroiding_models/), each with C++, Python, and
+MATLAB entry points.
 
 ## Dependencies
 
@@ -43,31 +92,30 @@ plan. See `doc/development/ptafmodel_manifest_schema.md` for the versioned
 |------------|---------|----------|-------|
 | Eigen3 | >= 3.4 | Yes | Core C++ dependency |
 | ONNX Runtime | local install | Yes | CMake package required |
-| OpenCV | local install | Example-only | YOLO and centroiding image IO/drawing |
+| OpenCV | local install | Examples only | YOLO and centroiding image IO/drawing |
 | CUDA Toolkit | >= 12.0 | Optional | CUDA/PTX builds and TensorRT runtime prerequisites |
 | TensorRT | local install | Optional | Standalone `.engine` / `.plan` runtime |
 | gtwrap | local or installed | Optional | Python/MATLAB wrappers |
 
-OptiX support belongs to the renderer/template repositories and is excluded here.
-
-ONNX Runtime discovery uses this precedence:
+CMake finds ONNX Runtime in this order:
 
 1. explicit `onnxruntime_DIR`;
 2. CMake cache `ONNXRUNTIME_ROOT`;
 3. environment `ONNXRUNTIME_ROOT`;
 4. normal CMake config-package discovery.
 
-`ONNXRUNTIME_ROOT` is expected to contain
+`ONNXRUNTIME_ROOT` must contain
 `lib/cmake/onnxruntime/onnxruntimeConfig.cmake`.
 
 The CUDA/PTX build option is independent of TensorRT. The TensorRT backend may
-link `CUDA::cudart` without enabling the project CUDA language. ORT GPU execution
-requires a compatible provider-enabled ONNX Runtime installation and its runtime
-dependencies; enabling project CUDA compilation does not supply those providers.
+link `CUDA::cudart` without enabling the project CUDA language. ORT GPU
+execution requires an ONNX Runtime build with the CUDA or TensorRT execution
+provider and its runtime dependencies. Enabling project CUDA compilation does
+not supply those providers.
+
+OptiX is not a dependency of this repository.
 
 ## Build
-
-Primary entrypoint:
 
 ```bash
 ./build_lib.sh                        # RelWithDebInfo: configure + build + test
@@ -94,7 +142,10 @@ cmake --build build --parallel $(nproc)
 ctest --test-dir build --output-on-failure -j $(nproc)
 ```
 
-## CMake Options
+See [`doc/build_script_doc.md`](doc/build_script_doc.md) for every
+`build_lib.sh` option.
+
+### CMake Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -117,116 +168,75 @@ ctest --test-dir build --output-on-failure -j $(nproc)
 | `GTWRAP_MAINTENANCE_UPDATE` | OFF | Explicitly authorize wrapper-checkout updates |
 | `GTWRAP_SYNC_TO_MASTER` | OFF | Request an update; requires maintenance authorization |
 
-## Tests
+## Model Manifests
 
-```bash
-ctest --test-dir build --output-on-failure -j $(nproc)
-ctest --test-dir build -R CInferenceManager_ORT -V
-ctest --test-dir build --show-only
+A minimal `.ptafmodel`:
+
+```json
+{
+  "schema_version": 1,
+  "artifact_path": "model.onnx",
+  "task": "centroiding",
+  "preprocessing": "opencv_grayscale_resize_linear_nchw_unit_scale",
+  "postprocessing": "normalized_centroid_xy",
+  "execution_target_priority": ["cpu"],
+  "allow_fallback": false
+}
 ```
 
-The test suite covers:
+Create one with
+`make-ptafmodel init model.onnx --task centroiding --output model.ptafmodel`, or
+run the installed `make_ptafmodel.py` wizard. Both use the same native writer
+and validator. The [manifest schema reference](doc/development/ptafmodel_manifest_schema.md)
+covers fields, defaults, templates, and validation commands.
+[`examples/model_configs/`](examples/model_configs/) has working manifests.
 
-- ORT model metadata extraction;
-- ORT host-buffer inference on the checked-in ONNX fixture;
-- tensor helper byte-count/dynamic-shape behavior;
-- facade artifact dispatch;
-- TensorRT load errors when the backend is disabled or the engine path is invalid;
-- optional TensorRT engine inference when
-  `autoforge_deploy_ENABLE_TENSORRT=ON` and
-  `PTAFDEPLOY_TENSORRT_TEST_ENGINE` points to a generated `.engine`;
-- one-shot ONNX CLI metadata, input-source validation, and real inference.
+## Command-Line Tools
 
-Permanent tests in this derived repository cover inference, wrappers, programs,
-or ROS behavior. The template repository owns tests of shared CMake, logger,
-and PTX mechanics.
-Validate their integration here with explicit configure/build/package/consumer
-checks rather than permanent copies of the donor tests.
+| Program | Purpose |
+|---------|---------|
+| `run_ort_inference` | One inference on prepared float32 tensors, with metadata inspection and raw output files |
+| `benchmark_model` | Warmup and timed iterations through the facade |
+| `get_available_providers` | List ORT execution providers, or fail if required targets are missing |
+| `make-ptafmodel` | Create and validate `.ptafmodel` manifests |
+| `evaluate_inference` / `prepare_image_sequence` | Optional. Prepare image selections and summarize timing or point-error reports |
 
-## One-Shot ONNX Inference
-
-`run_ort_inference` accepts already-prepared float32 tensors and runs exactly one
-inference. For a model accepting shape `[1,3,640,640]`, run a zero-filled smoke test:
-
-```bash
-./build/src/programs/run_ort_inference model.onnx \
-  --shape 1,3,640,640 --fill 0 --targets cpu --no-fallback
-```
-
-Use repeated `--input [name=]path.f32`, `--shape [name=]d0,d1,...`, and
-`--fill [name=]value` options for multi-input models. `--metadata-only` inspects
-the model without requiring tensor data, and `--output-dir` writes raw float32
-outputs in addition to the bounded stdout preview. See
-[`doc/run_ort_inference.md`](doc/run_ort_inference.md) for the complete binary
-format, naming rules, runtime options, output contract, and troubleshooting.
-
-## CUDA And Embedded PTX Examples
-
-With `autoforge_deploy_ENABLE_CUDA=ON`,
-`src/template_src_kernels/placeholder.cu/.cuh` remains an ordinary CUDA source
-example. `placeholder_to_ptx.ptx.cu` is compiled separately to PTX, converted
-to an embedded C byte array with CUDA `bin2c`, and linked into the library.
-Dedicated `.ptx.cu` files never enter ordinary CUDA compilation.
-
-This is compile-and-embed support only. The library does not provide a CUDA
-Driver PTX loader, and OptiX is neither an option nor a dependency.
-
-## Install, Package, Docs, And Logger
-
-The installed consumer target is:
-
-```cmake
-find_package(autoforge_deploy CONFIG REQUIRED)
-target_link_libraries(my_app PRIVATE autoforge_deploy::autoforge_deploy)
-```
-
-Build documentation and packages with:
-
-```bash
-cmake --preset docs
-cmake --build --preset docs --target doc
-
-cmake -S . -B build-package \
-  -Donnxruntime_DIR=/path/to/lib/cmake/onnxruntime
-cmake --build build-package --parallel
-cpack --config build-package/CPackConfig.cmake
-cpack --config build-package/CPackSourceConfig.cmake
-```
-
-Doxygen XML can be connected to gtwrap docstring generation. The public
-dependency-free logger lives in `ptafdeploy::logging`; set its default threshold
-with `PTAFDEPLOY_LOG_LEVEL`.
-
-The generated build-tree `VERSION` and CPack filenames use the Git-derived
-`FULL_VERSION`; generated Python packaging metadata takes its version from
-the same value. The ignored source-tree `VERSION` remains a no-Git fallback
-and cannot overwrite the authoritative package value.
+`run_ort_inference` accepts repeated `--input [name=]path.f32`,
+`--shape [name=]d0,d1,...`, and `--fill [name=]value` options for multi-input
+models. `--metadata-only` inspects the model without tensor data, and
+`--output-dir` writes raw float32 outputs. See
+[`doc/run_ort_inference.md`](doc/run_ort_inference.md) for the binary format,
+naming rules, runtime options, and troubleshooting. See
+[`doc/native_evaluation.md`](doc/native_evaluation.md) for the evaluation tools
+and [`doc/image_and_inference_output.md`](doc/image_and_inference_output.md) for
+the optional image annotation and JSON output utilities.
 
 ## Python And MATLAB Wrappers
 
-`autoforge_deploy` is the sole active Python distribution and import identity.
-`python/autoforgeDeployPy` is protected legacy material pending the approved
-[Python consolidation plan](doc/development/model_export_and_python_consolidation_plan.md).
+`autoforge_deploy` is the Python distribution and import name. The wheel ships
+the extension next to `libautoforge_deploy`. ONNX Runtime must be installed
+separately.
 
-Wrapper resolution is read-only during ordinary configuration. The default
-`./build_lib.sh -p` or `-m` command may use the checked-out `lib/wrap`, but it
-does not fetch, advance, initialize, or add a submodule. Request checkout
-maintenance explicitly:
+Ordinary configuration does not modify the wrapper checkout. `./build_lib.sh -p`
+or `-m` uses the checked-out `lib/wrap` and does not fetch, advance, or
+initialize a submodule. Request checkout maintenance explicitly:
 
 ```bash
 ./build_lib.sh -p --wrap-update          # update an existing resolved checkout
 ./build_lib.sh -p --wrap-submodule-init  # initialize a declared fallback
 ```
 
-The Python wheel co-locates the extension with `libautoforge_deploy`; ONNX
-Runtime must be installed separately.
 Python wrapping assembles metadata, package sources, the extension, and
-`_wrapper_build.py` under `<build>/python`; the checkout remains unchanged and
-the build-only link metadata is excluded from wheels.
+`_wrapper_build.py` under `<build>/python`. Build-only link metadata is excluded
+from wheels.
 
 For MATLAB, pass `Matlab_ROOT_DIR` to CMake or export `MATLAB_ROOT_DIR`. The
-wrapper smoke exercises this repository's generic facade, model loading,
-inference, error recovery, and MEX teardown.
+MATLAB smoke test covers the facade, model loading, inference, error recovery,
+and MEX teardown.
+
+`python/autoforgeDeployPy` is legacy code kept until the
+[Python consolidation plan](doc/development/model_export_and_python_consolidation_plan.md)
+is complete.
 
 ## ROS 2 Jazzy Overlay
 
@@ -237,8 +247,6 @@ The optional overlay under `ros2/` contains four packages:
 - `ptafdeploy_ros`: lifecycle component/executable backed by `CModelFacade`;
 - `ptafdeploy_spinup`: installed model fixture and launch files.
 
-Build and run the standalone launch:
-
 ```bash
 ./build_ros2.sh --clean \
   --cmake-arg -Donnxruntime_DIR=/path/to/lib/cmake/onnxruntime
@@ -246,111 +254,15 @@ source ros2/install/setup.bash
 ros2 launch ptafdeploy_spinup ptafdeploy.launch.py
 ```
 
-The composed launch is `ptafdeploy_composition.launch.py`. Both accept
-`autostart`, `namespace`, `node_name`, and `model_config_path`. The lifecycle
-node loads its `.ptafmodel` during configure, serves `~/infer` only while
-active, and publishes `~/status`. See
-`doc/ros2_overlay.md` for the complete contract.
+The composed launch is `ptafdeploy_composition.launch.py`. Both launch files
+accept `autostart`, `namespace`, `node_name`, and `model_config_path`. The
+lifecycle node loads its `.ptafmodel` during configure, serves `~/infer` only
+while active, and publishes `~/status`. See
+[`doc/ros2_overlay.md`](doc/ros2_overlay.md) for the full contract.
 
-## Developer Containers
+## Benchmarks And Jetson
 
-`.devcontainer` supports CPU or CUDA 12.9 profiles, optional ROS 2 build args,
-and Docker or Podman GPU passthrough:
-
-```bash
-./configure_devcontainer.sh --no-cuda --no-ros
-./configure_devcontainer.sh --cuda --gpu-runtime docker --ros2 jazzy
-./run_in_container.sh --build -- \
-  ./build_lib.sh -D autoforge_deploy_ENABLE_CUDA=ON
-./run_in_container.sh --vscode --engine podman
-./run_in_container.sh --matlab-root /path/to/MATLAB/R2023b -- ./build_lib.sh -m
-```
-
-The standalone launcher runs with the host numeric identity so bind-mounted
-outputs remain host-owned. Its VS Code mode starts a persistent attachment
-container, and an optional MATLAB installation is mounted read-only at the same
-absolute path while exporting `MATLAB_ROOT_DIR`.
-
-## CI And API Docs
-
-GitHub Actions separates native, documentation, CUDA/TensorRT, and ROS 2
-responsibilities. Native jobs use Ubuntu 22.04 runners for x86_64 and arm64:
-
-- `ubuntu-22.04`: configure, build, run default CTest, and run CPU ORT provider
-  preflight.
-- `ubuntu-22.04-arm`: same runnable CPU subset on arm64. This catches ARM build
-  and host-inference regressions without requiring Jetson GPU hardware in CI.
-- `ubuntu-22.04` Python wrapper job: builds the gtwrap Python module and runs
-  the `autoforge_deploy_python_facade_smoke` CTest.
-- Native and documentation jobs cache downloaded ONNX Runtime packages by OS,
-  architecture, and ORT version. They do not cache CMake build trees.
-- Doxygen HTML/XML is built separately and uploaded as a Pages artifact. The
-  deployment job is currently disabled (`if: ${{ false }}`); an artifact upload
-  does not publish the site.
-- A manual guarded self-hosted workflow builds ordinary CUDA plus embedded PTX
-  and the TensorRT backend together when repository variable
-  `CI_USE_SELF_HOSTED=true`.
-- Ubuntu 24.04/ROS 2 Jazzy CI installs ONNX Runtime and runs the real overlay
-  lifecycle and launch tests.
-
-Hosted CI does not validate Jetson CUDA/TensorRT hardware paths. Use the Jetson
-benchmark commands below on target boards. MATLAB wrapper tests are not part of
-hosted CI; run them locally where MATLAB is licensed and installed.
-
-Native/docs/ROS workflows run on `main` pushes and pull requests targeting
-`main` or `develop`. They can also be dispatched manually; native manual jobs
-require `develop`.
-CUDA/TensorRT is manual-only and additionally requires `develop` and the
-self-hosted enable variable. Workflow definitions do not establish that a
-particular revision has passed CI.
-
-## Architecture
-
-```text
-src/
-  inference/
-    inference_common.h      - generic tensor descriptors, views, buffers, options
-    inference_manager.*     - backend-agnostic facade
-    model_facade.*          - role-level model contract facade
-    task_value_types.*      - generic wrapper-safe task values
-    task_adapters.*         - schema-driven tensor conversion and row decoding
-    onnx_runtime/           - CInferenceManager_ORT backend
-    tensorrt/               - optional standalone TensorRT engine backend
-  programs/
-    get_available_providers - lists ORT providers
-    run_ort_inference       - one-shot prepared-tensor ONNX inference
-    benchmark_model         - generic facade benchmark path
-  utils/
-    filesystem.h            - file-path validation
-    parsing/value_parsing.* - strict reusable textual-value parsing
-    logging/CLogger.*       - dependency-free project logger
-    images/                 - optional OpenCV image operations
-    inference_output/       - optional native tensor JSON and report publication
-  wrap_interface.i          - gtwrap top-level interface
-  inference/inference.i     - gtwrap inference facade/value interface
-examples/model_configs/
-  *.ptafmodel               - versioned manifests with repo-relative artifact paths
-ros2/
-  ptafdeploy*                - optional lifecycle inference overlay
-```
-
-`CInferenceManager` is the public backend-agnostic facade; `CModelFacade` adds
-role-level contracts for C++, Python, and MATLAB. Keep model-specific schemas
-and result interpretation in integrations above raw tensor inference. Reuse the
-shared geometry records and tensor adapters without adding model-specific
-branches to the ORT backend.
-
-## Current Gaps
-
-- NMS and alternate detector policies are pending.
-- The development tracker records historical local validation of ORT CUDA
-  selection, fallback when TensorRT EP is unavailable, and standalone TensorRT
-  inference. These results apply to the revisions and conditions recorded there.
-- Jetson hardware validation is still pending.
-
-## Benchmark
-
-Small CPU smoke benchmark:
+CPU smoke benchmark:
 
 ```bash
 ./build/src/programs/benchmark_model \
@@ -358,8 +270,8 @@ Small CPU smoke benchmark:
   --iterations 20 --warmup 3
 ```
 
-Jetson/CUDA target smoke benchmark, when the installed ONNX Runtime package
-has CUDA execution-target support:
+CUDA benchmark, when the installed ONNX Runtime has the CUDA execution
+provider:
 
 ```bash
 ./build/src/programs/get_available_providers --require-targets cuda
@@ -374,7 +286,7 @@ scripts/run_jetson_runtime_smoke.py --build-dir build \
   --targets cuda --device 0 --no-fallback --iterations 50 --warmup 5
 ```
 
-TensorRT standalone engine benchmark:
+Standalone TensorRT engine benchmark:
 
 ```bash
 cmake -S . -B build-trt \
@@ -392,7 +304,7 @@ scripts/run_jetson_runtime_smoke.py --build-dir build-trt \
   -- --trt-profile 0
 ```
 
-ORT TensorRT Execution Provider smoke, when the installed ORT build exposes
+ORT TensorRT Execution Provider benchmark, when the installed ORT build exposes
 `TensorrtExecutionProvider`:
 
 ```bash
@@ -405,24 +317,162 @@ scripts/run_jetson_runtime_smoke.py --build-dir build \
 
 Jetson notes:
 
-- Use the TensorRT and CUDA versions installed by JetPack.
-- `scripts/run_jetson_runtime_smoke.py --dry-run ...` is covered by CTest so
-  argument handling can be checked without Jetson hardware.
-- Set `TENSORRT_ROOT` only if TensorRT is outside the standard JetPack paths.
+- Use the TensorRT and CUDA versions installed by JetPack. Set `TENSORRT_ROOT`
+  only if TensorRT is outside the standard JetPack paths.
+- Build engines on the target Jetson or a GPU with the same SM architecture.
+  TensorRT engines are not portable across GPU architectures.
 - Use `--trt-profile` for engines with multiple optimization profiles.
-- DLA selection is not currently exposed or qualified by this library.
-- Build engines on the target Jetson or a compatible target GPU/SM; TensorRT
-  engines are not portable across arbitrary GPU architectures.
-- Use `--device 0` for typical Jetson boards unless multiple accelerators are exposed.
+- Use `--device 0` on typical Jetson boards.
+- DLA selection is not exposed or qualified.
+- `scripts/run_jetson_runtime_smoke.py --dry-run ...` runs in CTest, so
+  argument handling is checked without Jetson hardware.
 
-Optional [image and inference-output utilities](doc/image_and_inference_output.md)
-provide native annotation and JSON serialization without changing the inference facades.
-[Native evaluation tools](doc/native_evaluation.md) prepare reproducible image selections
-and summarize timing reports or source-matched point errors.
+## Tests
 
-### Create a model manifest
+```bash
+ctest --test-dir build --output-on-failure -j $(nproc)
+ctest --test-dir build -R CInferenceManager_ORT -V
+ctest --test-dir build --show-only
+```
 
-Use `make-ptafmodel init model.onnx --task centroiding --output model.ptafmodel`, or
-run the installed `make_ptafmodel.py` wizard. Both use the same native writer
-and validator. See the [JSON manifest contract](doc/development/ptafmodel_manifest_schema.md)
-for schema, defaults, templates, and validation commands.
+Tests use Catch2 v3 and cover:
+
+- ORT model metadata extraction and host-buffer inference on the checked-in
+  ONNX fixture;
+- tensor helper byte counts and dynamic shapes;
+- facade artifact dispatch and model-role behavior;
+- TensorRT load errors when the backend is disabled or the engine path is
+  invalid;
+- TensorRT engine inference when `autoforge_deploy_ENABLE_TENSORRT=ON` and
+  `PTAFDEPLOY_TENSORRT_TEST_ENGINE` points to a generated `.engine`;
+- `run_ort_inference` metadata, input validation, and real inference;
+- the Python wrapper smoke test and the ROS 2 lifecycle bridge.
+
+## Architecture
+
+```text
+src/
+  inference/
+    inference_common.h      - generic tensor descriptors, views, buffers, options
+    inference_manager.*     - backend-agnostic facade
+    model_facade.*          - role-level model contract facade
+    task_value_types.*      - generic wrapper-safe task values
+    task_adapters.*         - schema-driven tensor conversion and row decoding
+    onnx_runtime/           - CInferenceManager_ORT backend
+    tensorrt/               - optional standalone TensorRT engine backend
+  programs/                 - CLI tools listed above
+  utils/
+    filesystem.h            - file-path validation
+    parsing/value_parsing.* - strict reusable textual-value parsing
+    logging/CLogger.*       - dependency-free project logger
+    images/                 - optional OpenCV image operations
+    inference_output/       - optional native tensor JSON and report publication
+  wrap_interface.i          - gtwrap top-level interface
+  inference/inference.i     - gtwrap inference facade/value interface
+schemas/
+  ptafmodel.schema.json     - manifest JSON schema
+examples/model_configs/
+  *.ptafmodel               - versioned manifests with repo-relative artifact paths
+ros2/
+  ptafdeploy*               - optional lifecycle inference overlay
+```
+
+`CInferenceManager` is the backend-agnostic tensor API. `CModelFacade` adds
+role-level contracts for C++, Python, and MATLAB. Model-specific schemas and
+result interpretation belong in integrations above raw tensor inference, not in
+the ORT backend.
+
+The logger lives in `ptafdeploy::logging` and has no external dependencies. Set
+its default threshold with `PTAFDEPLOY_LOG_LEVEL`.
+
+### CUDA And Embedded PTX
+
+With `autoforge_deploy_ENABLE_CUDA=ON`,
+`src/template_src_kernels/placeholder.cu/.cuh` is an ordinary CUDA source
+example. `placeholder_to_ptx.ptx.cu` is compiled separately to PTX, converted
+to an embedded C byte array with CUDA `bin2c`, and linked into the library.
+Dedicated `.ptx.cu` files never enter ordinary CUDA compilation. The library
+embeds PTX but does not provide a CUDA Driver PTX loader.
+
+## Install, Package, And Docs
+
+```bash
+cmake --preset docs
+cmake --build --preset docs --target doc
+
+cmake -S . -B build-package \
+  -Donnxruntime_DIR=/path/to/lib/cmake/onnxruntime
+cmake --build build-package --parallel
+cpack --config build-package/CPackConfig.cmake
+cpack --config build-package/CPackSourceConfig.cmake
+```
+
+Doxygen XML can feed gtwrap docstring generation. The build-tree `VERSION`,
+CPack filenames, and Python package metadata all use the Git-derived
+`FULL_VERSION`. The ignored source-tree `VERSION` is a fallback for builds
+without Git and cannot overwrite the package version.
+
+## Developer Containers
+
+`.devcontainer` supports CPU or CUDA 12.9 profiles, optional ROS 2 build args,
+and Docker or Podman GPU passthrough:
+
+```bash
+./configure_devcontainer.sh --no-cuda --no-ros
+./configure_devcontainer.sh --cuda --gpu-runtime docker --ros2 jazzy
+./run_in_container.sh --build -- \
+  ./build_lib.sh -D autoforge_deploy_ENABLE_CUDA=ON
+./run_in_container.sh --vscode --engine podman
+./run_in_container.sh --matlab-root /path/to/MATLAB/R2023b -- ./build_lib.sh -m
+```
+
+The launcher runs with the host user and group IDs, so bind-mounted outputs stay
+owned by the host user. `--vscode` starts a persistent container for VS Code to
+attach to. `--matlab-root` mounts a MATLAB installation read-only at the same
+absolute path and exports `MATLAB_ROOT_DIR`.
+
+## CI
+
+GitHub Actions runs separate native, documentation, CUDA/TensorRT, and ROS 2
+workflows:
+
+- **Native x86_64 and arm64** (`ubuntu-22.04`, `ubuntu-22.04-arm`): configure,
+  build, run CTest, and run the CPU ORT provider check. The arm64 job catches
+  ARM build and host-inference regressions without Jetson hardware.
+- **Python wrapper** (`ubuntu-22.04`): builds the gtwrap Python module and runs
+  `autoforge_deploy_python_facade_smoke`.
+- **Docs**: builds Doxygen HTML/XML and uploads it as a Pages artifact. The
+  deploy job is disabled (`if: ${{ false }}`), so the site is not published.
+- **CUDA/TensorRT**: manual, self-hosted, requires `develop` and the repository
+  variable `CI_USE_SELF_HOSTED=true`. Builds CUDA, embedded PTX, and the
+  TensorRT backend together.
+- **ROS 2 Jazzy** (Ubuntu 24.04): installs ONNX Runtime and runs the overlay
+  lifecycle and launch tests.
+
+Native and docs jobs cache ONNX Runtime downloads by OS, architecture, and ORT
+version. They do not cache build trees. Native, docs, and ROS workflows run on
+pushes to `main` and on pull requests targeting `main` or `develop`, and can be
+dispatched manually (native manual runs require `develop`).
+
+Hosted CI does not cover Jetson CUDA/TensorRT hardware or MATLAB. Run those
+locally.
+
+## Status And Limitations
+
+Open items:
+
+- Python/MATLAB APIs above the facade are minimal.
+- The TensorRT backend supports host-staged dense tensor IO and runtime
+  optimization-profile selection. Dynamic-output allocators and DLA are not
+  qualified. Precision is set when the engine is built.
+- NMS and alternate detector policies are pending.
+- Jetson hardware validation is pending.
+
+The [upgrade plan](doc/development/autoforge_deploy_upgrade_plan.md) tracks
+staged work and records local validation of ORT CUDA selection, fallback when
+the TensorRT EP is unavailable, and standalone TensorRT inference. Those results
+apply only to the revisions and conditions recorded there.
+
+## License
+
+[MIT](LICENSE)
