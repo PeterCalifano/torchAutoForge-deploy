@@ -13,7 +13,7 @@ set(MATLAB_DEFAULT_RELEASE "R2023b")
 # PROJECT DEFINITION
 set(project_name "autoforge_deploy")
 set(project_description
-    "C++20 deployment library for ONNX Runtime and optional TensorRT inference")
+    "C++20 deployment library for optional ONNX Runtime and TensorRT inference")
 set(project_homepage_url
     "https://github.com/PeterCalifano/torchAutoForge-deploy")
 set(PROJECT_MAINTAINER_NAME "Pietro Califano" CACHE STRING
@@ -40,6 +40,7 @@ endif()
 set(METADATA_ONLY_OPTION_NAME "${project_name}_METADATA_ONLY")
 set(ENABLE_CUDA_OPTION_NAME "${project_name}_ENABLE_CUDA")
 set(ENABLE_TENSORRT_OPTION_NAME "${project_name}_ENABLE_TENSORRT")
+set(ENABLE_ORT_OPTION_NAME "${project_name}_ENABLE_ORT")
 
 function(_autoforge_deploy_migrate_top_level_bool_option_alias
          legacy_option canonical_option option_help)
@@ -74,12 +75,15 @@ option(${METADATA_ONLY_OPTION_NAME}
 option(${ENABLE_CUDA_OPTION_NAME} "Enable CUDA" OFF)
 option(${ENABLE_TENSORRT_OPTION_NAME}
        "Enable standalone TensorRT engine backend" OFF)
+option(${ENABLE_ORT_OPTION_NAME}
+       "Enable ONNX Runtime inference backend" ON)
 
 # Retained modules consume the historical local names. Directory-scope values
 # isolate them from parent caches without changing their established APIs.
 set(PROJECT_METADATA_ONLY "${${METADATA_ONLY_OPTION_NAME}}")
 set(ENABLE_CUDA "${${ENABLE_CUDA_OPTION_NAME}}")
 set(ENABLE_TENSORRT "${${ENABLE_TENSORRT_OPTION_NAME}}")
+set(ENABLE_ORT "${${ENABLE_ORT_OPTION_NAME}}")
 
 if(PROJECT_METADATA_ONLY)
   set(languages NONE)
@@ -139,6 +143,7 @@ endif()
 set(CUDA_COMPILE_TARGET "${LIB_NAMESPACE}_cuda_compile_interface")
 set(OPENGL_COMPILE_TARGET "${LIB_NAMESPACE}_opengl_compile_interface")
 set(TENSORRT_COMPILE_TARGET "${LIB_NAMESPACE}_tensorrt_interface")
+set(ORT_COMPILE_TARGET "${LIB_NAMESPACE}_ort_interface")
 set(LIB_COMPILE_TARGET "${LIB_NAMESPACE}_lib_compile_interface")
 set(SANITIZER_TARGET "${LIB_NAMESPACE}_sanitizer_target_interface")
 set(TCLAP_COMPILE_TARGET "${LIB_NAMESPACE}_tclap_interface")
@@ -334,27 +339,7 @@ message(STATUS "====================  Dependencies ===========================")
 find_package( Eigen3 3.4 REQUIRED )
 find_package( Doxygen QUIET)
 
-set(ONNXRUNTIME_ROOT "" CACHE PATH
-    "Optional ONNX Runtime install root (expects lib/cmake/onnxruntime)")
-if("${ONNXRUNTIME_ROOT}" STREQUAL "" AND DEFINED ENV{ONNXRUNTIME_ROOT}
-   AND NOT "$ENV{ONNXRUNTIME_ROOT}" STREQUAL "")
-  set(ONNXRUNTIME_ROOT "$ENV{ONNXRUNTIME_ROOT}" CACHE PATH
-      "Optional ONNX Runtime install root (expects lib/cmake/onnxruntime)" FORCE)
-endif()
-if((NOT DEFINED onnxruntime_DIR OR "${onnxruntime_DIR}" STREQUAL "")
-   AND EXISTS "${ONNXRUNTIME_ROOT}/lib/cmake/onnxruntime")
-  set(onnxruntime_DIR "${ONNXRUNTIME_ROOT}/lib/cmake/onnxruntime" CACHE PATH
-      "Path to onnxruntime CMake package" FORCE)
-endif()
-if((NOT DEFINED onnxruntime_INCLUDE_DIRS OR "${onnxruntime_INCLUDE_DIRS}" STREQUAL "")
-   AND EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime")
-  set(onnxruntime_INCLUDE_DIRS "${ONNXRUNTIME_ROOT}/include/onnxruntime" CACHE PATH
-      "Optional ONNX Runtime include directory hint")
-endif()
-
-find_package(onnxruntime REQUIRED)
-add_library(ort_target_interface INTERFACE)
-target_link_libraries(ort_target_interface INTERFACE onnxruntime::onnxruntime)
+# ONNX Runtime is resolved by handle_ort() below (empty interface when disabled).
 
 # Handle Catch2 tools
 include(cmake/HandleCatch2.cmake)
@@ -378,6 +363,10 @@ if(ENABLE_CUDA AND PROJECT_HAS_PTX_SOURCES)
   include(cmake/cmake_cuda_ptx_tools.cmake)
 endif()
 
+# Configure ONNX Runtime backend support (empty interface when disabled)
+include(cmake/HandleORT.cmake)
+handle_ort(TARGET ${ORT_COMPILE_TARGET})
+
 # Configure TensorRT standalone engine support (empty interface when disabled)
 include(cmake/HandleTensorRT.cmake)
 handle_tensorrt(TARGET ${TENSORRT_COMPILE_TARGET})
@@ -391,7 +380,11 @@ include(cmake/HandleSubmodules.cmake)
 handle_submodules() # Automatically adds subdirectories in lib/ (and build them if CMakeLists.txt found)
 
 # Set the dependencies for the automated export
-set(EXPORT_TARGET_DEPS Eigen3 onnxruntime) # TODO make automatic based on used packages
+set(EXPORT_TARGET_DEPS Eigen3) # TODO make automatic based on used packages
+
+if(ENABLE_ORT)
+  list(APPEND EXPORT_TARGET_DEPS onnxruntime)
+endif()
 
 if(ENABLE_CUDA)
   list(APPEND EXPORT_TARGET_DEPS CUDAToolkit)
@@ -536,6 +529,8 @@ if (ENABLE_CUDA)
   message(STATUS "CUDA regular NVCC flags                  : ${CUDA_NVCC_EXTRA_FLAGS}")
   message(STATUS "CUDA PTX NVCC flags                      : ${CUDA_PTX_NVCC_FLAGS}")
 endif()
+message(STATUS "ONNX Runtime backend                     : ${ENABLE_ORT}")
+message(STATUS "TensorRT engine backend                  : ${ENABLE_TENSORRT}")
 message(STATUS "TBB enabled                              : ${ENABLE_TBB}")
 message(STATUS "CPU native tuning                        : ${CPU_ENABLE_NATIVE_TUNING}")
 message(STATUS "CPU SIMD enabled                         : ${CPU_ENABLE_SIMD}")

@@ -655,6 +655,30 @@ namespace ptafdeploy::inference::tensorrt
 #endif
     }
 
+    std::string CInferenceManager_TensorRT_Engine::GetRuntimeVersion()
+    {
+#if defined(PTAFDEPLOY_ENABLE_TENSORRT)
+        // TensorRT 10+ encodes MAJOR*10000 + MINOR*100 + PATCH; 8.x used MAJOR*1000.
+        const int32_t version = getInferLibVersion();
+        const int32_t major_scale = version >= 100000 ? 10000 : 1000;
+        return std::to_string(version / major_scale) + "." +
+               std::to_string((version % major_scale) / 100) + "." +
+               std::to_string(version % 100);
+#else
+        return {};
+#endif
+    }
+
+    bool CInferenceManager_TensorRT_Engine::IsRuntimeAvailable()
+    {
+#if defined(PTAFDEPLOY_ENABLE_TENSORRT)
+        int device_count = 0;
+        return cudaGetDeviceCount(&device_count) == cudaSuccess && device_count > 0;
+#else
+        return false;
+#endif
+    }
+
     void CInferenceManager_TensorRT_Engine::ThrowNotImplemented()
     {
         throw std::runtime_error(

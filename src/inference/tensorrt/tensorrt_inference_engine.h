@@ -77,6 +77,12 @@ namespace ptafdeploy::inference::tensorrt
         [[nodiscard]] std::vector<ptafdeploy::inference::STensorBuffer>
         Infer(const std::vector<ptafdeploy::inference::STensorView>& inputs) const;
 
+        /** @brief Return the linked TensorRT version, or empty when not built. */
+        [[nodiscard]] static std::string GetRuntimeVersion();
+
+        /** @brief Return true when TensorRT is built and a CUDA device is visible. */
+        [[nodiscard]] static bool IsRuntimeAvailable();
+
       private:
         [[noreturn]] static void ThrowNotImplemented();
 

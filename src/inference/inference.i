@@ -7,6 +7,7 @@ namespace ptafdeploy
 namespace inference
 {
 
+#include <inference/inference_build_info.h>
 #include <inference/inference_common.h>
 #include <inference/inference_config_parsing.h>
 #include <inference/inference_manager.h>
@@ -47,6 +48,21 @@ enum class EBoundingBoxEncoding {
     center_xywh,
     corners_xyxy
 };
+
+class SBackendBuildInfo
+{
+    SBackendBuildInfo();
+
+    string name;
+    bool compiled_in;
+    bool runtime_available;
+    string version;
+    std::vector<string> providers;
+    string note;
+};
+
+std::vector<ptafdeploy::inference::SBackendBuildInfo> GetBackendBuildInfo();
+string FormatBackendBuildInfo();
 
 class STensorInfo
 {

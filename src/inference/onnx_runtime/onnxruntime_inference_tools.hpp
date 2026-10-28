@@ -7,7 +7,10 @@
 
 #include <filesystem>
 #include <inference/inference_common.h>
+
+#if defined(PTAFDEPLOY_ENABLE_ORT)
 #include <onnxruntime_cxx_api.h>
+#endif
 
 #include <memory>
 #include <string>
@@ -23,6 +26,8 @@ namespace ptafdeploy::inference::onnxruntime
      * Owns ORT environment/session state, extracts backend-neutral metadata,
      * validates host tensor views, and returns owned dense output buffers.
      * Provider selection is driven by `SInferenceOptions::execution_target_priority`.
+     * When built with `autoforge_deploy_ENABLE_ORT=OFF` the class stays declared
+     * but loading and inference throw an actionable "not built" error.
      */
     class CInferenceManager_ORT
     {
@@ -78,12 +83,17 @@ namespace ptafdeploy::inference::onnxruntime
         [[nodiscard]] static bool
         IsExecutionTargetAvailable(ptafdeploy::inference::EExecutionTarget target);
 
+        /** @brief Return the linked ORT version string, or empty when ORT is not built. */
+        [[nodiscard]] static std::string GetRuntimeVersion();
+
       protected:
         fs::path model_path_{};
+#if defined(PTAFDEPLOY_ENABLE_ORT)
         Ort::Env exec_env_{};
         Ort::SessionOptions session_options_{};
         std::unique_ptr<Ort::Session> session_ptr_{nullptr};
         Ort::AllocatorWithDefaultOptions allocator_{};
+#endif
         ptafdeploy::inference::SInferenceOptions options_{};
         ptafdeploy::inference::SModelMetadata model_metadata_{};
     };

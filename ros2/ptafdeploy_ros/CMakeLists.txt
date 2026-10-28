@@ -14,18 +14,20 @@ find_package(rclcpp_lifecycle REQUIRED)
 
 # Locate the imported ONNX Runtime library so installed ROS executables can find it at runtime.
 set(PTAFDEPLOY_ROS_ORT_RUNTIME_DIR "")
-foreach(
-  location_property
-  IMPORTED_LOCATION
-  IMPORTED_LOCATION_RELWITHDEBINFO
-  IMPORTED_LOCATION_RELEASE
-  IMPORTED_LOCATION_DEBUG)
-  get_target_property(onnxruntime_location onnxruntime::onnxruntime ${location_property})
-  if(onnxruntime_location AND NOT onnxruntime_location MATCHES "-NOTFOUND$")
-    get_filename_component(PTAFDEPLOY_ROS_ORT_RUNTIME_DIR "${onnxruntime_location}" DIRECTORY)
-    break()
-  endif()
-endforeach()
+if(TARGET onnxruntime::onnxruntime)
+  foreach(
+    location_property
+    IMPORTED_LOCATION
+    IMPORTED_LOCATION_RELWITHDEBINFO
+    IMPORTED_LOCATION_RELEASE
+    IMPORTED_LOCATION_DEBUG)
+    get_target_property(onnxruntime_location onnxruntime::onnxruntime ${location_property})
+    if(onnxruntime_location AND NOT onnxruntime_location MATCHES "-NOTFOUND$")
+      get_filename_component(PTAFDEPLOY_ROS_ORT_RUNTIME_DIR "${onnxruntime_location}" DIRECTORY)
+      break()
+    endif()
+  endforeach()
+endif()
 
 # Build wrapper-safe tensor conversions independently for reuse by nodes and tests.
 add_library(ptafdeploy_ros_conversions SHARED src/conversions.cpp)
@@ -107,54 +109,59 @@ if(BUILD_TESTING)
     target_link_libraries(test_conversions ptafdeploy_ros_conversions)
   endif()
 
-  # Verify lifecycle gating, configuration, inference, and failure propagation.
-  ament_add_gtest(test_inference_lifecycle_node test/test_inference_lifecycle_node.cpp)
+  # Lifecycle tests load ONNX fixtures; skip them for a core built without ONNX Runtime.
+  if(NOT DEFINED autoforge_deploy_HAS_ORT OR autoforge_deploy_HAS_ORT)
+    # Verify lifecycle gating, configuration, inference, and failure propagation.
+    ament_add_gtest(test_inference_lifecycle_node test/test_inference_lifecycle_node.cpp)
 
-  if(TARGET test_inference_lifecycle_node)
-    target_compile_definitions(test_inference_lifecycle_node PRIVATE
-      "PTAFDEPLOY_TEST_MODEL_CONFIG=\"${PTAFDEPLOY_TEST_MODEL_CONFIG_PATH}\"")
+    if(TARGET test_inference_lifecycle_node)
+      target_compile_definitions(test_inference_lifecycle_node PRIVATE
+        "PTAFDEPLOY_TEST_MODEL_CONFIG=\"${PTAFDEPLOY_TEST_MODEL_CONFIG_PATH}\"")
 
-    target_include_directories(test_inference_lifecycle_node PRIVATE
-      "${CMAKE_CURRENT_SOURCE_DIR}/include")
+      target_include_directories(test_inference_lifecycle_node PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-    ament_target_dependencies(test_inference_lifecycle_node
-      lifecycle_msgs
-      rclcpp
-      rclcpp_lifecycle
-      ptafdeploy_interfaces)
-
-    target_link_libraries(test_inference_lifecycle_node ptafdeploy_ros_component)
-  endif()
-
-  # Add real YOLO lifecycle coverage only when its integration dependency is available.
-  find_package(OpenCV QUIET COMPONENTS core imgproc imgcodecs)
-  if(OpenCV_FOUND)
-    ament_add_gtest(test_yolo_inference_lifecycle_node
-      test/test_yolo_inference_lifecycle_node.cpp)
-
-    if(TARGET test_yolo_inference_lifecycle_node)
-      target_compile_definitions(test_yolo_inference_lifecycle_node PRIVATE
-        "PTAFDEPLOY_TEST_YOLO_CONFIG=\"${PTAFDEPLOY_TEST_YOLO_CONFIG_PATH}\""
-        "PTAFDEPLOY_TEST_YOLO_MODEL=\"${PTAFDEPLOY_TEST_YOLO_MODEL_PATH}\""
-        "PTAFDEPLOY_TEST_YOLO_IMAGE=\"${PTAFDEPLOY_TEST_YOLO_IMAGE_PATH}\"")
-
-      target_include_directories(test_yolo_inference_lifecycle_node PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        ${OpenCV_INCLUDE_DIRS})
-
-      ament_target_dependencies(test_yolo_inference_lifecycle_node
+      ament_target_dependencies(test_inference_lifecycle_node
+        lifecycle_msgs
         rclcpp
         rclcpp_lifecycle
         ptafdeploy_interfaces)
 
-      target_link_libraries(test_yolo_inference_lifecycle_node
-        ptafdeploy_ros_component
-        ptafdeploy_ros_conversions
-        autoforge_deploy::autoforge_deploy
-        ${OpenCV_LIBS})
+      target_link_libraries(test_inference_lifecycle_node ptafdeploy_ros_component)
+    endif()
+
+    # Add real YOLO lifecycle coverage only when its integration dependency is available.
+    find_package(OpenCV QUIET COMPONENTS core imgproc imgcodecs)
+    if(OpenCV_FOUND)
+      ament_add_gtest(test_yolo_inference_lifecycle_node
+        test/test_yolo_inference_lifecycle_node.cpp)
+
+      if(TARGET test_yolo_inference_lifecycle_node)
+        target_compile_definitions(test_yolo_inference_lifecycle_node PRIVATE
+          "PTAFDEPLOY_TEST_YOLO_CONFIG=\"${PTAFDEPLOY_TEST_YOLO_CONFIG_PATH}\""
+          "PTAFDEPLOY_TEST_YOLO_MODEL=\"${PTAFDEPLOY_TEST_YOLO_MODEL_PATH}\""
+          "PTAFDEPLOY_TEST_YOLO_IMAGE=\"${PTAFDEPLOY_TEST_YOLO_IMAGE_PATH}\"")
+
+        target_include_directories(test_yolo_inference_lifecycle_node PRIVATE
+          "${CMAKE_CURRENT_SOURCE_DIR}/include"
+          ${OpenCV_INCLUDE_DIRS})
+
+        ament_target_dependencies(test_yolo_inference_lifecycle_node
+          rclcpp
+          rclcpp_lifecycle
+          ptafdeploy_interfaces)
+
+        target_link_libraries(test_yolo_inference_lifecycle_node
+          ptafdeploy_ros_component
+          ptafdeploy_ros_conversions
+          autoforge_deploy::autoforge_deploy
+          ${OpenCV_LIBS})
+      endif()
+    else()
+      message(STATUS "OpenCV unavailable: skipping the optional ROS 2 YOLO integration test")
     endif()
   else()
-    message(STATUS "OpenCV unavailable: skipping the optional ROS 2 YOLO integration test")
+    message(STATUS "Core built without ONNX Runtime: skipping ROS 2 lifecycle tests")
   endif()
 endif()
 

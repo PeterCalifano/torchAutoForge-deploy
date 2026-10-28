@@ -122,7 +122,7 @@ if (ENABLE_OPENGL)
 endif()
 
 # Link ORT target interface
-target_link_libraries(${lib_name} ${lib_link_scope} ort_target_interface)
+target_link_libraries(${lib_name} ${lib_link_scope} ${ORT_COMPILE_TARGET})
 
 # Link profiling interface: gperftools always when found, compile flags only with ENABLE_PROFILING.
 # Default is PRIVATE to keep profiling a build-time concern. Set
@@ -146,7 +146,7 @@ target_include_directories(${lib_name} SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/lib
 target_include_directories(${lib_name} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 ### INCLUDE DIRECTORIES
-if(DEFINED onnxruntime_INCLUDE_DIRS AND NOT "${onnxruntime_INCLUDE_DIRS}" STREQUAL "")
+if(ENABLE_ORT AND DEFINED onnxruntime_INCLUDE_DIRS AND NOT "${onnxruntime_INCLUDE_DIRS}" STREQUAL "")
   target_include_directories(${lib_name} PRIVATE ${onnxruntime_INCLUDE_DIRS})
 endif()
 
@@ -156,7 +156,7 @@ set(installable_targets ${installable_targets}
                         ${lib_name} 
                         ${project_name}_include
                         ${LIB_COMPILE_TARGET}
-                        ort_target_interface
+                        ${ORT_COMPILE_TARGET}
                         ${TENSORRT_COMPILE_TARGET})
 
 if (TARGET ${PROFILING_COMPILE_TARGET})

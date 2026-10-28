@@ -15,6 +15,7 @@
 #include <utils/logging/CLogger.h>
 #include <utils/filesystem.h>
 
+#if defined(PTAFDEPLOY_ENABLE_ORT)
 namespace ptafdeploy::inference::onnxruntime
 {
     namespace
@@ -469,6 +470,11 @@ namespace ptafdeploy::inference::onnxruntime
         return available_providers;
     }
 
+    std::string CInferenceManager_ORT::GetRuntimeVersion()
+    {
+        return OrtGetApiBase()->GetVersionString();
+    }
+
     bool CInferenceManager_ORT::IsExecutionTargetAvailable(
         const ptafdeploy::inference::EExecutionTarget target)
     {
@@ -509,3 +515,57 @@ namespace ptafdeploy::inference::onnxruntime
         return outputs;
     }
 } // namespace ptafdeploy::inference::onnxruntime
+#else
+namespace ptafdeploy::inference::onnxruntime
+{
+    namespace
+    {
+        [[noreturn]] void ThrowOrtNotBuilt()
+        {
+            throw std::runtime_error(
+                "ONNX Runtime backend was not built. Reconfigure with "
+                "autoforge_deploy_ENABLE_ORT=ON.");
+        }
+    } // namespace
+
+    CInferenceManager_ORT::CInferenceManager_ORT(
+        const fs::path& model_path, const ptafdeploy::inference::SInferenceOptions& options)
+    {
+        LoadModel(model_path, options);
+    }
+
+    void CInferenceManager_ORT::LoadModel(const fs::path&,
+                                          const ptafdeploy::inference::SInferenceOptions&)
+    {
+        ThrowOrtNotBuilt();
+    }
+
+    const ptafdeploy::inference::SModelMetadata&
+    CInferenceManager_ORT::GetModelMetadata() const noexcept
+    {
+        return model_metadata_;
+    }
+
+    std::vector<std::string> CInferenceManager_ORT::GetAvailableProviders()
+    {
+        return {};
+    }
+
+    std::string CInferenceManager_ORT::GetRuntimeVersion()
+    {
+        return {};
+    }
+
+    bool CInferenceManager_ORT::IsExecutionTargetAvailable(
+        const ptafdeploy::inference::EExecutionTarget)
+    {
+        return false;
+    }
+
+    std::vector<ptafdeploy::inference::STensorBuffer> CInferenceManager_ORT::Infer(
+        const std::vector<ptafdeploy::inference::STensorView>&) const
+    {
+        ThrowOrtNotBuilt();
+    }
+} // namespace ptafdeploy::inference::onnxruntime
+#endif // PTAFDEPLOY_ENABLE_ORT
