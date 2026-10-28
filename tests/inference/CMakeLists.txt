@@ -1,5 +1,10 @@
 # Register compiled product tests while excluding known non-test sources.
 set(EXCLUDED_LIST "test_to_exclude")
+if(NOT ENABLE_ORT)
+  # These sources exercise the ONNX Runtime backend or load the ONNX fixture directly.
+  list(APPEND EXCLUDED_LIST
+    testCInferenceManager_ORT testFilmCentroidingOnnx testReloadSafety)
+endif()
 
 add_tests(${project_name}
   EXCLUDED_LIST TESTS_LIST
@@ -20,36 +25,39 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET benchmark_model)
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
     PASS_REGULAR_EXPRESSION "model.ptafmodel")
 
-  add_test(NAME ${LIB_NAMESPACE}_benchmark_model_manifest_smoke
-    COMMAND $<TARGET_FILE:benchmark_model>
-            "${_benchmark_centroid_config}"
-            --iterations 1
-            --warmup 0)
+  # Manifest and raw-ONNX smoke runs load an ONNX fixture and need the ORT backend.
+  if(ENABLE_ORT)
+    add_test(NAME ${LIB_NAMESPACE}_benchmark_model_manifest_smoke
+      COMMAND $<TARGET_FILE:benchmark_model>
+              "${_benchmark_centroid_config}"
+              --iterations 1
+              --warmup 0)
 
-  set_tests_properties(${LIB_NAMESPACE}_benchmark_model_manifest_smoke PROPERTIES
-    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "task=centroiding")
+    set_tests_properties(${LIB_NAMESPACE}_benchmark_model_manifest_smoke PROPERTIES
+      ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+      PASS_REGULAR_EXPRESSION "task=centroiding")
 
-  add_test(NAME ${LIB_NAMESPACE}_benchmark_model_preserves_manifest_targets
-    COMMAND $<TARGET_FILE:benchmark_model>
-            "${_benchmark_centroid_config}" --device 0 --iterations 1 --warmup 0)
+    add_test(NAME ${LIB_NAMESPACE}_benchmark_model_preserves_manifest_targets
+      COMMAND $<TARGET_FILE:benchmark_model>
+              "${_benchmark_centroid_config}" --device 0 --iterations 1 --warmup 0)
 
-  set_tests_properties(${LIB_NAMESPACE}_benchmark_model_preserves_manifest_targets PROPERTIES
-    PASS_REGULAR_EXPRESSION "requested_targets=cpu")
+    set_tests_properties(${LIB_NAMESPACE}_benchmark_model_preserves_manifest_targets PROPERTIES
+      PASS_REGULAR_EXPRESSION "requested_targets=cpu")
 
-  add_test(NAME ${LIB_NAMESPACE}_benchmark_model_raw_onnx_smoke
-    COMMAND $<TARGET_FILE:benchmark_model>
-            "${_benchmark_fixture_model}"
-            --task centroiding
-            --targets cpu
-            --no-fallback
-            --input-shape 1,11
-            --iterations 1
-            --warmup 0)
+    add_test(NAME ${LIB_NAMESPACE}_benchmark_model_raw_onnx_smoke
+      COMMAND $<TARGET_FILE:benchmark_model>
+              "${_benchmark_fixture_model}"
+              --task centroiding
+              --targets cpu
+              --no-fallback
+              --input-shape 1,11
+              --iterations 1
+              --warmup 0)
 
-  set_tests_properties(${LIB_NAMESPACE}_benchmark_model_raw_onnx_smoke PROPERTIES
-    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "task=centroiding")
+    set_tests_properties(${LIB_NAMESPACE}_benchmark_model_raw_onnx_smoke PROPERTIES
+      ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+      PASS_REGULAR_EXPRESSION "task=centroiding")
+  endif()
 
   add_test(NAME ${LIB_NAMESPACE}_benchmark_model_rejects_unknown_target
     COMMAND $<TARGET_FILE:benchmark_model>
@@ -74,96 +82,139 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET benchmark_model)
     WILL_FAIL TRUE)
 endif()
 
-# Report ORT provider availability and validate required backend-neutral targets.
-if(ENABLE_TESTS AND BUILD_TESTING AND TARGET get_available_providers)
-  add_test(NAME ${LIB_NAMESPACE}_get_available_providers_cli_help
-    COMMAND $<TARGET_FILE:get_available_providers> --help)
+# Report compiled backends; the report itself must work in every backend configuration.
+if(ENABLE_TESTS AND BUILD_TESTING AND TARGET get_build_info)
+  add_test(NAME ${LIB_NAMESPACE}_get_build_info_cli_help
+    COMMAND $<TARGET_FILE:get_build_info> --help)
 
-  set_tests_properties(${LIB_NAMESPACE}_get_available_providers_cli_help PROPERTIES
+  set_tests_properties(${LIB_NAMESPACE}_get_build_info_cli_help PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "--require-targets")
+    PASS_REGULAR_EXPRESSION "--require-backends")
 
-  add_test(NAME ${LIB_NAMESPACE}_get_available_providers_cpu_preflight
-    COMMAND $<TARGET_FILE:get_available_providers> --require-targets cpu)
+  add_test(NAME ${LIB_NAMESPACE}_get_build_info_reports_all_backends
+    COMMAND $<TARGET_FILE:get_build_info>)
 
-  set_tests_properties(${LIB_NAMESPACE}_get_available_providers_cpu_preflight PROPERTIES
+  set_tests_properties(${LIB_NAMESPACE}_get_build_info_reports_all_backends PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "required_targets_available=cpu")
+    PASS_REGULAR_EXPRESSION "onnxruntime: compiled=.*tensorrt_engine: compiled=")
+
+  if(ENABLE_ORT)
+    add_test(NAME ${LIB_NAMESPACE}_get_build_info_ort_compiled
+      COMMAND $<TARGET_FILE:get_build_info> --require-backends onnxruntime)
+
+    set_tests_properties(${LIB_NAMESPACE}_get_build_info_ort_compiled PROPERTIES
+      ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+      PASS_REGULAR_EXPRESSION "onnxruntime: compiled=yes")
+
+    add_test(NAME ${LIB_NAMESPACE}_get_build_info_cpu_preflight
+      COMMAND $<TARGET_FILE:get_build_info> --require-targets cpu)
+
+    set_tests_properties(${LIB_NAMESPACE}_get_build_info_cpu_preflight PROPERTIES
+      ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+      PASS_REGULAR_EXPRESSION "required_targets_available=cpu")
+  else()
+    add_test(NAME ${LIB_NAMESPACE}_get_build_info_ort_disabled
+      COMMAND $<TARGET_FILE:get_build_info> --require-backends onnxruntime)
+
+    set_tests_properties(${LIB_NAMESPACE}_get_build_info_ort_disabled PROPERTIES
+      ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+      WILL_FAIL TRUE)
+  endif()
+endif()
+
+# Exercise the generic inference CLI. Help and backend listing work in every configuration.
+if(ENABLE_TESTS AND BUILD_TESTING AND TARGET run_inference)
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_cli_help
+    COMMAND $<TARGET_FILE:run_inference> --help)
+
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_cli_help PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "--backend")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_list_backends
+    COMMAND $<TARGET_FILE:run_inference> --list-backends)
+
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_list_backends PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "onnxruntime: compiled=.*tensorrt_engine: compiled=")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_rejects_missing_model
+    COMMAND $<TARGET_FILE:run_inference>
+            "${CMAKE_CURRENT_BINARY_DIR}/missing_model.onnx")
+
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_rejects_missing_model PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    WILL_FAIL TRUE)
+
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_rejects_ort_flags_for_tensorrt
+    COMMAND $<TARGET_FILE:run_inference>
+            "${CMAKE_CURRENT_BINARY_DIR}/missing_model.engine"
+            --targets cpu)
+
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_rejects_ort_flags_for_tensorrt PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "onnxruntime backend only")
 endif()
 
 # Exercise one-shot ONNX inference and its explicit metadata-only mode.
-if(ENABLE_TESTS AND BUILD_TESTING AND TARGET run_ort_inference)
-  set(_run_ort_fixture_model
+if(ENABLE_TESTS AND BUILD_TESTING AND TARGET run_inference AND ENABLE_ORT)
+  set(_run_inference_fixture_model
     "${PROJECT_SOURCE_DIR}/tests/matlab/testSamples/tracedSampleModel.onnx")
-  set(_run_ort_fixture_input
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_data/run_ort_input_1x11.f32")
+  set(_run_inference_fixture_input
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_data/run_inference_input_1x11.f32")
 
-  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_cli_help
-    COMMAND $<TARGET_FILE:run_ort_inference> --help)
-
-  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_cli_help PROPERTIES
-    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    PASS_REGULAR_EXPRESSION "--input")
-
-  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_metadata_only
-    COMMAND $<TARGET_FILE:run_ort_inference>
-            "${_run_ort_fixture_model}"
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_metadata_only
+    COMMAND $<TARGET_FILE:run_inference>
+            "${_run_inference_fixture_model}"
             --metadata-only)
 
-  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_metadata_only PROPERTIES
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_metadata_only PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
     PASS_REGULAR_EXPRESSION "model\\.input\\[0\\]\\.shape=\\[-1,11\\]")
 
-  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_metadata_rejects_tensor_source
-    COMMAND $<TARGET_FILE:run_ort_inference>
-            "${_run_ort_fixture_model}"
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_metadata_rejects_tensor_source
+    COMMAND $<TARGET_FILE:run_inference>
+            "${_run_inference_fixture_model}"
             --metadata-only
             --fill 0)
 
   set_tests_properties(
-    ${LIB_NAMESPACE}_run_ort_inference_metadata_rejects_tensor_source PROPERTIES
+    ${LIB_NAMESPACE}_run_inference_metadata_rejects_tensor_source PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
     WILL_FAIL TRUE)
 
-  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_zero_fill
-    COMMAND $<TARGET_FILE:run_ort_inference>
-            "${_run_ort_fixture_model}"
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_zero_fill
+    COMMAND $<TARGET_FILE:run_inference>
+            "${_run_inference_fixture_model}"
             --shape 1,11
             --fill 0)
 
-  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_zero_fill PROPERTIES
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_zero_fill PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
     PASS_REGULAR_EXPRESSION "output\\[0\\]\\.values=")
 
-  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_raw_input_and_output
-    COMMAND $<TARGET_FILE:run_ort_inference>
-            "${_run_ort_fixture_model}"
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_raw_input_and_output
+    COMMAND $<TARGET_FILE:run_inference>
+            "${_run_inference_fixture_model}"
             --shape 1,11
-            --input "${_run_ort_fixture_input}"
-            --output-dir "${CMAKE_CURRENT_BINARY_DIR}/run_ort_cli_outputs")
+            --input "${_run_inference_fixture_input}"
+            --output-dir "${CMAKE_CURRENT_BINARY_DIR}/run_inference_cli_outputs")
 
-  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_raw_input_and_output PROPERTIES
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_raw_input_and_output PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
     PASS_REGULAR_EXPRESSION "output\\[0\\]\\.file=.*0_output\\.f32")
 
-  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_requires_input_source
-    COMMAND $<TARGET_FILE:run_ort_inference> "${_run_ort_fixture_model}")
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_requires_input_source
+    COMMAND $<TARGET_FILE:run_inference> "${_run_inference_fixture_model}")
 
-  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_requires_input_source PROPERTIES
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_requires_input_source PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
     WILL_FAIL TRUE)
 
-  add_test(NAME ${LIB_NAMESPACE}_run_ort_inference_rejects_missing_model
-    COMMAND $<TARGET_FILE:run_ort_inference>
-            "${CMAKE_CURRENT_BINARY_DIR}/missing_model.onnx")
-
-  set_tests_properties(${LIB_NAMESPACE}_run_ort_inference_rejects_missing_model PROPERTIES
-    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
-    WILL_FAIL TRUE)
 endif()
 
 # Keep Jetson orchestration coverage as a target-owned dry run on hosted systems.
-if(ENABLE_TESTS AND BUILD_TESTING AND TARGET benchmark_model AND TARGET get_available_providers)
+if(ENABLE_TESTS AND BUILD_TESTING AND ENABLE_ORT AND TARGET benchmark_model AND TARGET get_build_info)
   add_test(NAME ${LIB_NAMESPACE}_jetson_runtime_runner_dry_run
     COMMAND ${PYTHON_EXECUTABLE}
             "${PROJECT_SOURCE_DIR}/scripts/run_jetson_runtime_smoke.py"
@@ -184,6 +235,7 @@ set(_python_wrapper_target "${${PROJECT_NAME}_PYTHON_WRAPPER_TARGET}")
 
 if(ENABLE_TESTS
   AND BUILD_TESTING
+  AND ENABLE_ORT
   AND ${_python_wrapper_option_name}
   AND TARGET ${_python_wrapper_target})
 
@@ -215,7 +267,7 @@ endif()
 
 # Exercise the generated MATLAB facade when MATLAB and its wrapper are available.
 set(_matlab_wrapper_option_name "${LIB_NAMESPACE}_BUILD_MATLAB_WRAPPER")
-if(ENABLE_TESTS AND BUILD_TESTING AND ${_matlab_wrapper_option_name})
+if(ENABLE_TESTS AND BUILD_TESTING AND ENABLE_ORT AND ${_matlab_wrapper_option_name})
   find_program(_matlab_smoke_executable
     NAMES matlab
     HINTS "${Matlab_ROOT_DIR}/bin"

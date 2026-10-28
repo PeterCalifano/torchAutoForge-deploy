@@ -1720,3 +1720,25 @@ Both workflows compile the core's embedded manifest schema. Schema-only changes
 now match their path filters; push remains main-only and pull requests target
 main or develop. Local YAML and filter checks passed. Hosted trigger execution
 remains pending publication; no commit or push was made.
+
+### Optional ONNX Runtime backend
+
+- [x] Add `autoforge_deploy_ENABLE_ORT` (default ON) with `cmake/HandleORT.cmake`
+  and the `PTAFDEPLOY_ENABLE_ORT` feature definition, mirroring TensorRT
+- [x] Keep `CInferenceManager_ORT` declared; ORT-off stubs throw an explicit
+  "not built" error; `onnxruntime_cxx_api.h` is not included when ORT is off
+- [x] Export `onnxruntime` and `autoforge_deploy_HAS_ORT` / `_HAS_TENSORRT` only
+  as the installed configuration dictates
+- [x] Generalize `run_ort_inference` into `run_inference` (`--backend`,
+  `--artifact`, `--trt-profile`, `--list-backends`); no alias kept
+- [x] Replace `get_available_providers` with `get_build_info` and add
+  `GetBackendBuildInfo()` / `FormatBackendBuildInfo()` (C++, CLI, gtwrap interface)
+- [x] Gate ONNX-fixture tests and programs on `ENABLE_ORT`; add backend-info tests
+
+Debug `ctest` passed for ORT+TensorRT (69 tests), ORT-only (66), TensorRT-only
+(46) and neither backend (43). A TensorRT-only `run_inference` executed a
+serialized engine end to end, and an installed ORT-off package was consumed out
+of tree. Python/MATLAB/ROS 2 smoke tests that load ONNX fixtures are now gated on
+ORT. The gtwrap interface change, wrapper builds and the ROS 2 overlay were not
+exercised because the `lib/wrap` submodule is not initialized. No commit or push
+was made.

@@ -27,7 +27,7 @@ change.
   backend handles.
 - **ROS 2 Jazzy overlay** with a lifecycle node that serves inference as a
   service.
-- **CLI tools** for one-shot inference, benchmarking, provider listing, and
+- **CLI tools** for one-shot inference, benchmarking, backend/provider listing, and
   evaluation.
 - **Shared tensor helpers** for HWC-to-NCHW conversion, centroid extraction, and
   YOLO-style raw detection decoding.
@@ -36,8 +36,10 @@ change.
 
 ## Quick Start
 
-Build and test with the default RelWithDebInfo configuration. ONNX Runtime must
-be installed first (see [Dependencies](#dependencies)).
+Build and test with the default RelWithDebInfo configuration. ONNX Runtime is
+enabled by default and must be installed first (see
+[Dependencies](#dependencies)); pass `-D autoforge_deploy_ENABLE_ORT=OFF` for a
+TensorRT-only build.
 
 ```bash
 export ONNXRUNTIME_ROOT=/path/to/onnxruntime
@@ -47,7 +49,7 @@ export ONNXRUNTIME_ROOT=/path/to/onnxruntime
 Run a model once on a zero-filled input:
 
 ```bash
-./build/src/programs/run_ort_inference model.onnx \
+./build/src/programs/run_inference model.onnx \
   --shape 1,3,640,640 --fill 0 --targets cpu --no-fallback
 ```
 
@@ -91,13 +93,23 @@ MATLAB entry points.
 | Dependency | Version | Required | Notes |
 |------------|---------|----------|-------|
 | Eigen3 | >= 3.4 | Yes | Core C++ dependency |
-| ONNX Runtime | local install | Yes | CMake package required |
+| ONNX Runtime | local install | Optional (default ON) | CMake package required when `autoforge_deploy_ENABLE_ORT=ON` |
 | OpenCV | local install | Examples only | YOLO and centroiding image IO/drawing |
 | CUDA Toolkit | >= 12.0 | Optional | CUDA/PTX builds and TensorRT runtime prerequisites |
 | TensorRT | local install | Optional | Standalone `.engine` / `.plan` runtime |
 | gtwrap | local or installed | Optional | Python/MATLAB wrappers |
 
-CMake finds ONNX Runtime in this order:
+ONNX Runtime is controlled by `autoforge_deploy_ENABLE_ORT` (default `ON`).
+With `OFF`, no ONNX Runtime package is searched, installed packages do not
+require it, and loading `.onnx` models fails with an explicit "not built" error.
+
+To see which backends a build or install provides, run
+`get_build_info` (or `run_inference --list-backends`), call
+`ptafdeploy::inference::GetBackendBuildInfo()` from C++ or the Python/MATLAB
+wrappers, or read `autoforge_deploy_HAS_ORT` / `autoforge_deploy_HAS_TENSORRT`
+after `find_package(autoforge_deploy)`.
+
+When enabled, CMake finds ONNX Runtime in this order:
 
 1. explicit `onnxruntime_DIR`;
 2. CMake cache `ONNXRUNTIME_ROOT`;
@@ -195,17 +207,20 @@ covers fields, defaults, templates, and validation commands.
 
 | Program | Purpose |
 |---------|---------|
-| `run_ort_inference` | One inference on prepared float32 tensors, with metadata inspection and raw output files |
+| `run_inference` | One inference on prepared float32 tensors, with metadata inspection and raw output files |
 | `benchmark_model` | Warmup and timed iterations through the facade |
-| `get_available_providers` | List ORT execution providers, or fail if required targets are missing |
+| `get_build_info` | Report which backends this build provides (versions, ORT providers), or fail if required backends or targets are missing |
 | `make-ptafmodel` | Create and validate `.ptafmodel` manifests |
 | `evaluate_inference` / `prepare_image_sequence` | Optional. Prepare image selections and summarize timing or point-error reports |
 
-`run_ort_inference` accepts repeated `--input [name=]path.f32`,
+`run_inference` selects the backend from the artifact extension, or explicitly
+with `--backend auto|onnxruntime|tensorrt_engine`; `--targets` and the thread
+options apply to ONNX Runtime only and `--trt-profile` to TensorRT only.
+It accepts repeated `--input [name=]path.f32`,
 `--shape [name=]d0,d1,...`, and `--fill [name=]value` options for multi-input
 models. `--metadata-only` inspects the model without tensor data, and
 `--output-dir` writes raw float32 outputs. See
-[`doc/run_ort_inference.md`](doc/run_ort_inference.md) for the binary format,
+[`doc/run_inference.md`](doc/run_inference.md) for the binary format,
 naming rules, runtime options, and troubleshooting. See
 [`doc/native_evaluation.md`](doc/native_evaluation.md) for the evaluation tools
 and [`doc/image_and_inference_output.md`](doc/image_and_inference_output.md) for
@@ -274,7 +289,7 @@ CUDA benchmark, when the installed ONNX Runtime has the CUDA execution
 provider:
 
 ```bash
-./build/src/programs/get_available_providers --require-targets cuda
+./build/src/programs/get_build_info --require-targets cuda
 
 scripts/run_jetson_runtime_smoke.py --build-dir build \
   --ort-model examples/model_configs/yolov7_640x640.ptafmodel \
@@ -345,7 +360,7 @@ Tests use Catch2 v3 and cover:
   invalid;
 - TensorRT engine inference when `autoforge_deploy_ENABLE_TENSORRT=ON` and
   `PTAFDEPLOY_TENSORRT_TEST_ENGINE` points to a generated `.engine`;
-- `run_ort_inference` metadata, input validation, and real inference;
+- `run_inference` metadata, input validation, and real inference;
 - the Python wrapper smoke test and the ROS 2 lifecycle bridge.
 
 ## Architecture

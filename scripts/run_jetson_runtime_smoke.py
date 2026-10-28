@@ -37,7 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Verify requested ORT providers and run short benchmark_model "
+            "Verify requested ORT providers or the TensorRT backend and run short "
+            "benchmark_model "
             "passes without model-specific code."
         )
     )
@@ -167,7 +168,7 @@ def make_benchmark_command(
 def run_smoke(arguments: SmokeArguments) -> None:
     """Execute the requested provider checks and runtime benchmark passes."""
 
-    providers_program = arguments.build_dir / "src/programs/get_available_providers"
+    providers_program = arguments.build_dir / "src/programs/get_build_info"
     benchmark_program = arguments.build_dir / "src/programs/benchmark_model"
     require_executable(providers_program)
     require_executable(benchmark_program)
@@ -203,6 +204,10 @@ def run_smoke(arguments: SmokeArguments) -> None:
             run_command(trt_ep_command, arguments.dry_run)
 
     if arguments.trt_engine is not None:
+        run_command(
+            [str(providers_program), "--require-backends", "tensorrt_engine"],
+            arguments.dry_run,
+        )
         trt_command = make_benchmark_command(
             benchmark_program, arguments.trt_engine, arguments
         )

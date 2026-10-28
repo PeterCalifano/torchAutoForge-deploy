@@ -33,8 +33,10 @@ This repository's product and build contracts are authoritative. Treat
 `cpp_cuda_template_project` as a source of reusable mechanics, not as a file-copy
 baseline or a requirement for structural parity.
 
-- Preserve ONNX Runtime as the required backend, standalone TensorRT as an
-  optional backend, the independent CUDA/PTX feature, the four-package ROS 2
+- Preserve ONNX Runtime as a default-on optional backend
+  (`autoforge_deploy_ENABLE_ORT`; `CInferenceManager_ORT` stays declared and
+  throws a "not built" error when off), standalone TensorRT as an optional
+  backend, the independent CUDA/PTX feature, the four-package ROS 2
   overlay, current workflows, and the list-driven installed dependency replay.
 - TensorRT may use `CUDA::cudart` without enabling the project CUDA language or
   PTX examples. Do not make `autoforge_deploy_ENABLE_TENSORRT` imply
@@ -119,6 +121,7 @@ exception.
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `autoforge_deploy_ENABLE_ORT` | ON | ONNX Runtime backend; OFF allows a TensorRT-only build |
 | `autoforge_deploy_ENABLE_IMAGE_SUPPORT` | OFF | Optional OpenCV image utilities |
 | `autoforge_deploy_ENABLE_INFERENCE_OUTPUT` | OFF | Optional native tensor JSON and reports |
 | `autoforge_deploy_METADATA_ONLY` | OFF | Configure project identity/version without dependencies |
@@ -361,7 +364,7 @@ scope.
 1. Maintain the completed semantic alignment with
    `/home/peterc/devDir/dev-tools/cpp_cuda_template_project` signed tag
    `v2.0.1` at `1d87153b2d060bf03c2c9adcd1df6c6d4f40ea09`, while preserving
-   ORT-specific dependency wiring, independent TensorRT/CUDA policy, and the
+   optional ORT dependency wiring, independent TensorRT/CUDA policy, and the
    intentional absence of OptiX.
 2. Make wrappers work for MATLAB/Python through a stable generic inference
    facade.

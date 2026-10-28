@@ -133,7 +133,7 @@ jobs:
           --parallel 2 --no-tests=error
 
       - name: Verify CPU provider
-        run: "${{ matrix.build_dir }}/src/programs/get_available_providers --require-targets cpu"
+        run: "${{ matrix.build_dir }}/src/programs/get_build_info --require-targets cpu"
 
       - name: Verify install
         if: matrix.arch == 'x86_64'

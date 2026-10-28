@@ -31,12 +31,14 @@ namespace
         return test_source_path.parent_path() / "model_configs" / filename;
     }
 
+#if defined(PTAFDEPLOY_ENABLE_ORT)
     void RequireReferenceOutput(const std::vector<float>& values)
     {
         REQUIRE(values.size() == 2);
         REQUIRE(values[0] == Catch::Approx(1.686690331F).margin(1.0e-5F));
         REQUIRE(values[1] == Catch::Approx(4.697796822F).margin(1.0e-5F));
     }
+#endif // PTAFDEPLOY_ENABLE_ORT
 
     bool ContainsRole(const std::vector<std::string>& roles, const std::string& role)
     {
@@ -44,6 +46,7 @@ namespace
     }
 } // namespace
 
+#if defined(PTAFDEPLOY_ENABLE_ORT)
 TEST_CASE("CModelFacade_exposes_role_contract", "[inference][model_facade]")
 {
     const std::string model_path = GetOrtFixturePath().string();
@@ -64,7 +67,9 @@ TEST_CASE("CModelFacade_exposes_role_contract", "[inference][model_facade]")
     REQUIRE(model.GetInputInfo(0).shape[1] == 11);
     REQUIRE(model.GetOutputInfo(0).shape[1] == 2);
 }
+#endif // PTAFDEPLOY_ENABLE_ORT
 
+#if defined(PTAFDEPLOY_ENABLE_ORT)
 TEST_CASE("CModelFacade_runs_float_inference_for_role_models", "[inference][model_facade]")
 {
     infer::SModelRoleConfig config{infer::EModelRole::object_detection, "image_tensor_nchw",
@@ -79,6 +84,7 @@ TEST_CASE("CModelFacade_runs_float_inference_for_role_models", "[inference][mode
                                           7.0F, 8.0F, 9.0F, 10.0F, 11.0F};
     RequireReferenceOutput(model.InferSingleFloatInput(input_values, {1, 11}));
 }
+#endif // PTAFDEPLOY_ENABLE_ORT
 
 TEST_CASE("CModelFacade_validates_roles_and_loaded_state", "[inference][model_facade]")
 {
@@ -117,6 +123,7 @@ TEST_CASE("CModelFacade_validates_roles_and_loaded_state", "[inference][model_fa
     }
 }
 
+#if defined(PTAFDEPLOY_ENABLE_ORT)
 TEST_CASE("CModelFacade_loads_role_configs", "[inference][model_facade]")
 {
     SECTION("Centroiding config loads model and runs fixture inference")
@@ -225,6 +232,7 @@ TEST_CASE("CModelFacade_loads_role_configs", "[inference][model_facade]")
             ContainsSubstring("schema_version"));
     }
 }
+#endif // PTAFDEPLOY_ENABLE_ORT
 
 TEST_CASE("Model runtime policy can be read before loading", "[inference][model_facade]")
 {

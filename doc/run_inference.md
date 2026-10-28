@@ -1,6 +1,6 @@
-# One-Shot ONNX Inference
+# One-Shot Inference
 
-`run_ort_inference` loads one `.onnx` artifact through
+`run_inference` loads one `.onnx` or serialized TensorRT (`.engine`/`.plan`) artifact through
 `ptafdeploy::inference::CInferenceManager` and either prints its tensor contract
 or executes one inference from prepared float32 tensors. It is intentionally a
 tensor-level utility: PNG decoding, normalization, detection decoding, and
@@ -8,7 +8,9 @@ centroid interpretation belong in model integration examples.
 
 ## Build And Discovery
 
-ONNX Runtime is required for normal builds. Point CMake at its config package
+ONNX Runtime is enabled by default (`autoforge_deploy_ENABLE_ORT=ON`); with
+`OFF` only the TensorRT backend is available. Run
+`run_inference --list-backends` to see what the build provides. Point CMake at its config package
 with either supported form:
 
 ```bash
@@ -21,7 +23,7 @@ export ONNXRUNTIME_ROOT=/path/to/onnxruntime
 
 `ONNXRUNTIME_ROOT` must contain
 `lib/cmake/onnxruntime/onnxruntimeConfig.cmake`. The executable is normally
-written to `build/src/programs/run_ort_inference`.
+written to `build/src/programs/run_inference`.
 
 ## Inspect A Model
 
@@ -29,7 +31,7 @@ Metadata-only mode loads the requested execution providers and reports every
 input/output name, dtype, and declared shape without requiring tensor values:
 
 ```bash
-./build/src/programs/run_ort_inference model.onnx --metadata-only
+./build/src/programs/run_inference model.onnx --metadata-only
 ```
 
 Dynamic dimensions are printed as `-1`. They require a concrete `--shape` only
@@ -48,7 +50,7 @@ Static input shapes are read from the model. Supply every dynamic dimension as
 a positive integer:
 
 ```bash
-./build/src/programs/run_ort_inference model.onnx \
+./build/src/programs/run_inference model.onnx \
   --shape 1,3,640,640 \
   --input input.f32
 ```
@@ -62,7 +64,7 @@ For a multi-input model, qualify every input, shape, and fill with the exact
 model input name reported by `--metadata-only`:
 
 ```bash
-./build/src/programs/run_ort_inference model.onnx \
+./build/src/programs/run_inference model.onnx \
   --input image=image.f32 \
   --shape image=1,1,1536,2048 \
   --fill prior=0.0
@@ -93,11 +95,11 @@ use `--targets cuda --no-fallback` to require CUDA-only execution.
 For a CPU-only reproducible run:
 
 ```bash
-./build/src/programs/run_ort_inference model.onnx \
+./build/src/programs/run_inference model.onnx \
   --shape 1,11 --fill 0 --targets cpu --no-fallback
 ```
 
-Use `get_available_providers --require-targets cuda` before requesting CUDA on a
+Use `get_build_info --require-targets cuda` before requesting CUDA on a
 new machine. TensorRT in `--targets` means the ONNX Runtime TensorRT Execution
 Provider; standalone serialized `.engine` inference remains the separate
 TensorRT backend.
@@ -173,5 +175,5 @@ integration layer.
 - `1`: invalid command line, tensor specification, shape, path, or file size
 - `2`: model loading, provider setup, inference, or output-write failure
 
-Run `run_ort_inference --help` for the complete option list and short inline
+Run `run_inference --help` for the complete option list and short inline
 descriptions.

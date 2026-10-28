@@ -16,7 +16,7 @@ and optional TensorRT-backed ML inference:
 - `ptafdeploy::inference::CModelFacade` is the role-level facade used by
   C++/Python/MATLAB consumers.
 - `ptafdeploy::inference::onnxruntime::CInferenceManager_ORT` is the ONNX
-  Runtime backend.
+  Runtime backend (optional via `autoforge_deploy_ENABLE_ORT`, default ON).
 - `ptafdeploy::inference::tensorrt::CInferenceManager_TensorRT_Engine` is the
   optional serialized-engine backend when `autoforge_deploy_ENABLE_TENSORRT=ON`.
 - Python/MATLAB wrappers use the populated gtwrap interfaces under `src/`.
@@ -81,8 +81,8 @@ runtime prerequisite.
 
 1. Maintain the completed semantic alignment with
    `/home/peterc/devDir/dev-tools/cpp_cuda_template_project` signed tag
-   `v2.0.1` at `1d87153b2d060bf03c2c9adcd1df6c6d4f40ea09`. Preserve ORT
-   dependency wiring, independent TensorRT/CUDA policy, and the absence of OptiX.
+   `v2.0.1` at `1d87153b2d060bf03c2c9adcd1df6c6d4f40ea09`. Preserve optional
+   (default-on) ORT dependency wiring, independent TensorRT/CUDA policy, and the absence of OptiX.
    Track product work in `doc/development/autoforge_deploy_upgrade_plan.md`.
 2. Make wrappers work for MATLAB/Python through a stable generic inference
    facade.

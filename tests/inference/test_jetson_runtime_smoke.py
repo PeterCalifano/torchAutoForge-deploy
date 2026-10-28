@@ -19,7 +19,7 @@ def test_benchmark_separator_is_not_forwarded(tmp_path: Path) -> None:
     """Keep the CLI-only `--` separator out of benchmark_model arguments."""
 
     build_dir = tmp_path / "build"
-    _make_executable(build_dir / "src/programs/get_available_providers")
+    _make_executable(build_dir / "src/programs/get_build_info")
     _make_executable(build_dir / "src/programs/benchmark_model")
     script_path = Path(__file__).parents[2] / "scripts/run_jetson_runtime_smoke.py"
 

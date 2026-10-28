@@ -1,6 +1,6 @@
 /**
- * @file run_ort_inference.cpp
- * @brief Run one ONNX inference from prepared float32 tensors.
+ * @file run_inference.cpp
+ * @brief Run one inference from prepared float32 tensors on any compiled backend.
  *
  * The executable owns CLI collection, raw float32 file IO, and stable textual
  * output. Model loading and inference remain behind `CInferenceManager`, while
@@ -8,6 +8,7 @@
  * parsing APIs.
  */
 
+#include <inference/inference_build_info.h>
 #include <inference/inference_config_parsing.h>
 #include <inference/inference_manager.h>
 #include <inference/inference_tensor_parsing.h>
@@ -47,7 +48,7 @@ namespace
     /** @brief Return the process-wide logger configured from the environment once. */
     [[nodiscard]] logging::CLogger& GetLogger()
     {
-        static logging::CLogger logger("run_ort_inference", logging::ELogLevel::Info,
+        static logging::CLogger logger("run_inference", logging::ELogLevel::Info,
                                        logging::ELogColorMode::Disabled, std::clog, std::clog);
         static const bool environment_applied = logger.setLevelFromEnvironment();
         static_cast<void>(environment_applied);
@@ -57,7 +58,7 @@ namespace
     /** @brief Validated command-line state for one metadata or inference invocation. */
     struct SArguments
     {
-        /** @brief ONNX artifact requested by the user. */
+        /** @brief Model artifact (ONNX or serialized TensorRT engine) requested by the user. */
         fs::path model_path{};
 
         /** @brief Backend-neutral execution-provider and threading policy. */
@@ -80,7 +81,17 @@ namespace
 
         /** @brief Whether to stop after printing model metadata. */
         bool metadata_only{false};
+
+        /** @brief Whether to print the compiled backends and exit without a model. */
+        bool list_backends{false};
     };
+
+    /** @brief Return true for serialized TensorRT engine extensions. */
+    [[nodiscard]] bool IsTensorRtArtifactPath(const fs::path& path)
+    {
+        const std::string extension = path.extension().string();
+        return extension == ".engine" || extension == ".plan";
+    }
 
     /**
      * @brief Declare, collect, and cross-validate one command line.
@@ -93,11 +104,12 @@ namespace
      */
     [[nodiscard]] SArguments ParseArguments(const int argc, char** argv)
     {
-        TCLAP::CmdLine command("Run one ONNX inference from prepared float32 "
-                               "tensors. Static shapes come from model "
-                               "metadata; dynamic inputs require --shape. Use "
-                               "--metadata-only to inspect without "
-                               "executing.",
+        TCLAP::CmdLine command("Run one inference from prepared float32 "
+                               "tensors on the selected backend. Static shapes "
+                               "come from model metadata; dynamic inputs "
+                               "require --shape. Use --metadata-only to "
+                               "inspect without executing, or --list-backends "
+                               "to show the backends compiled into this build.",
                                ' ', PTAFDEPLOY_CLI_VERSION);
         command.setExceptionHandling(false);
 
@@ -105,11 +117,41 @@ namespace
         // syntax is parsed only after model metadata is available.
         TCLAP::UnlabeledValueArg<std::string> model_path(
             "model",
-            "Path to the ONNX model artifact",
-            true,
+            "Path to the model artifact (.onnx, .engine or .plan)",
+            false,
             "",
-            "model.onnx",
+            "model.onnx|model.engine",
             command);
+        TCLAP::ValueArg<std::string> backend(
+            "",
+            "backend",
+            "Inference backend; auto selects from the artifact extension",
+            false,
+            "",
+            "auto|onnxruntime|tensorrt_engine",
+            command);
+        TCLAP::ValueArg<std::string> artifact(
+            "",
+            "artifact",
+            "Model artifact type override",
+            false,
+            "",
+            "auto|onnx|tensorrt_engine",
+            command);
+        TCLAP::ValueArg<int> tensorrt_profile(
+            "",
+            "trt-profile",
+            "TensorRT optimization-profile index (tensorrt_engine backend only)",
+            false,
+            0,
+            "non-negative integer",
+            command);
+        TCLAP::SwitchArg list_backends(
+            "",
+            "list-backends",
+            "Print the backends compiled into this build and exit",
+            command,
+            false);
         TCLAP::MultiArg<std::string> inputs(
             "",
             "input",
@@ -134,7 +176,7 @@ namespace
         TCLAP::ValueArg<std::string> targets(
             "",
             "targets",
-            "Comma-separated ORT execution-target priority",
+            "Comma-separated execution-target priority (onnxruntime backend only)",
             false,
             "",
             "cpu,cuda,tensorrt",
@@ -150,7 +192,7 @@ namespace
         TCLAP::ValueArg<int> intra_op_threads(
             "",
             "intra-op-threads",
-            "ORT intra-operation threads; zero uses its default",
+            "Intra-operation threads; zero uses the default (onnxruntime backend only)",
             false,
             1,
             "non-negative integer",
@@ -158,7 +200,7 @@ namespace
         TCLAP::ValueArg<int> inter_op_threads(
             "",
             "inter-op-threads",
-            "ORT inter-operation threads; zero uses its default",
+            "Inter-operation threads; zero uses the default (onnxruntime backend only)",
             false,
             1,
             "non-negative integer",
@@ -194,6 +236,17 @@ namespace
 
         command.parse(argc, argv);
 
+        SArguments arguments;
+        if (list_backends.getValue())
+        {
+            arguments.list_backends = true;
+            return arguments;
+        }
+        if (!model_path.isSet())
+        {
+            throw std::invalid_argument("A model path is required unless --list-backends is used.");
+        }
+
         const long long requested_preview_count = max_output_values.getValue();
         if (requested_preview_count < 0 ||
             static_cast<unsigned long long>(requested_preview_count) >
@@ -202,7 +255,6 @@ namespace
             throw std::invalid_argument("--max-output-values expects a non-negative integer.");
         }
 
-        SArguments arguments;
         arguments.model_path = model_path.getValue();
         arguments.input_specs = inputs.getValue();
         arguments.shape_specs = shapes.getValue();
@@ -228,11 +280,45 @@ namespace
             intra_op_threads.getValue(),
             inter_op_threads.getValue());
         arguments.runtime.SetAllowFallback(!no_fallback.getValue());
-        arguments.runtime.SetLogId("run_ort_inference");
+        arguments.runtime.SetLogId("run_inference");
+        if (backend.isSet())
+        {
+            arguments.runtime.backend = infer::ParseInferenceBackendName(backend.getValue());
+        }
+        if (artifact.isSet())
+        {
+            arguments.runtime.artifact = infer::ParseModelArtifactName(artifact.getValue());
+        }
+        if (tensorrt_profile.isSet())
+        {
+            arguments.runtime.SetTensorRtOptimizationProfileIndex(tensorrt_profile.getValue());
+        }
         if (targets.isSet())
         {
             arguments.runtime.execution_target_priority =
                 infer::ParseExecutionTargetPriority(targets.getValue());
+        }
+
+        // Backend-specific options must not be silently ignored. Without an explicit
+        // backend, an explicit artifact type takes precedence over the extension.
+        // Artifact/extension mismatches are rejected later by the inference facade.
+        const bool tensorrt_artifact =
+            arguments.runtime.artifact == infer::EModelArtifact::auto_artifact
+                ? IsTensorRtArtifactPath(arguments.model_path)
+                : arguments.runtime.artifact == infer::EModelArtifact::tensorrt_engine;
+        const bool uses_tensorrt =
+            arguments.runtime.backend == infer::EInferenceBackend::tensorrt_engine ||
+            (arguments.runtime.backend == infer::EInferenceBackend::auto_backend &&
+             tensorrt_artifact);
+        if (uses_tensorrt && (targets.isSet() || intra_op_threads.isSet() || inter_op_threads.isSet()))
+        {
+            throw std::invalid_argument(
+                "--targets, --intra-op-threads and --inter-op-threads apply to the "
+                "onnxruntime backend only.");
+        }
+        if (!uses_tensorrt && tensorrt_profile.isSet())
+        {
+            throw std::invalid_argument("--trt-profile applies to the tensorrt_engine backend only.");
         }
         return arguments;
     }
@@ -438,7 +524,7 @@ namespace
             {
                 throw std::invalid_argument("Input '" + input_info.name + "' uses " +
                                             input_info.dtype +
-                                            "; run_ort_inference accepts float32 only.");
+                                            "; run_inference accepts float32 only.");
             }
 
             // Each model input must select exactly one data source; shape
@@ -591,8 +677,7 @@ namespace
 } // namespace
 
 /**
- * @brief Inspect or execute one ONNX model through the generic inference
- * facade.
+ * @brief Inspect or execute one model through the generic inference facade.
  * @param argc Number of command-line arguments.
  * @param argv Command-line argument values.
  * @return Zero on success, one for invalid user input, or two for runtime
@@ -603,7 +688,12 @@ int main(const int argc, char** argv)
     try
     {
         const SArguments arguments = ParseArguments(argc, argv);
-        GetLogger().info("Loading ONNX artifact: ", arguments.model_path.string());
+        if (arguments.list_backends)
+        {
+            std::cout << infer::FormatBackendBuildInfo();
+            return 0;
+        }
+        GetLogger().info("Loading model artifact: ", arguments.model_path.string());
 
         infer::CInferenceManager inference_manager;
         inference_manager.LoadModelWithRuntimeConfig(arguments.model_path.string(),
