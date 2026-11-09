@@ -5,6 +5,8 @@
 
 #include "tensorrt_inference_engine.h"
 
+#include <inference/inference_build_info.h>
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -681,7 +683,7 @@ namespace ptafdeploy::inference::tensorrt
 
     void CInferenceManager_TensorRT_Engine::ThrowNotImplemented()
     {
-        throw std::runtime_error(
-            "TensorRT standalone backend was not built. Reconfigure with ENABLE_TENSORRT=ON.");
+        throw std::runtime_error("TensorRT standalone backend was not built: " +
+                                 std::string(kTensorRtNotBuiltHint) + ".");
     }
 } // namespace ptafdeploy::inference::tensorrt

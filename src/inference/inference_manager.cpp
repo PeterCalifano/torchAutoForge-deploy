@@ -26,22 +26,6 @@ namespace ptafdeploy::inference
             return logger;
         }
 
-        [[nodiscard]] EModelArtifact DetectArtifactTypeFromPath(const fs::path& model_path)
-        {
-            const std::string extension = model_path.extension().string();
-            if (extension == ".onnx")
-            {
-                return EModelArtifact::onnx;
-            }
-            if (extension == ".engine" || extension == ".plan")
-            {
-                return EModelArtifact::tensorrt_engine;
-            }
-
-            throw std::invalid_argument("Unsupported model artifact extension: " +
-                                        model_path.string());
-        }
-
         [[nodiscard]] SInferenceOptions MakeInferenceOptions(const SRuntimeConfig& runtime_config)
         {
             SInferenceOptions options;
@@ -79,7 +63,7 @@ namespace ptafdeploy::inference
         [[nodiscard]] EModelArtifact ResolveArtifactType(const fs::path& model_path,
                                                          const SInferenceOptions& options)
         {
-            const EModelArtifact detected_artifact = DetectArtifactTypeFromPath(model_path);
+            const EModelArtifact detected_artifact = DetectModelArtifact(model_path);
             if (options.artifact != EModelArtifact::auto_artifact &&
                 options.artifact != detected_artifact)
             {
@@ -362,10 +346,5 @@ namespace ptafdeploy::inference
                                              const std::vector<int64_t>& shape) const
     {
         return InferSingleFloatTensor(SFloatTensor{"", shape, values}).values;
-    }
-
-    EModelArtifact CInferenceManager::DetectArtifactType(const fs::path& model_path)
-    {
-        return DetectArtifactTypeFromPath(model_path);
     }
 } // namespace ptafdeploy::inference

@@ -371,6 +371,12 @@ handle_ort(TARGET ${ORT_COMPILE_TARGET})
 include(cmake/HandleTensorRT.cmake)
 handle_tensorrt(TARGET ${TENSORRT_COMPILE_TARGET})
 
+if(NOT ENABLE_ORT AND NOT ENABLE_TENSORRT)
+  message(WARNING
+      "No inference backend is enabled: every model load will fail. Enable "
+      "${ENABLE_ORT_OPTION_NAME} or ${ENABLE_TENSORRT_OPTION_NAME}.")
+endif()
+
 # Handle OpenGL (creates interface targets even when disabled)
 include(cmake/HandleOpenGL.cmake)
 handle_opengl(TARGET ${OPENGL_COMPILE_TARGET})

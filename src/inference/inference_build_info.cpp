@@ -17,14 +17,15 @@ namespace ptafdeploy::inference
         [[nodiscard]] SBackendBuildInfo MakeOrtInfo()
         {
             SBackendBuildInfo info;
-            info.name = "onnxruntime";
+            info.backend = EInferenceBackend::onnxruntime;
+            info.name = ToString(info.backend);
 #if defined(PTAFDEPLOY_ENABLE_ORT)
             info.compiled_in = true;
             info.version = onnxruntime::CInferenceManager_ORT::GetRuntimeVersion();
             info.providers = onnxruntime::CInferenceManager_ORT::GetAvailableProviders();
             info.runtime_available = !info.providers.empty();
 #else
-            info.note = "reconfigure with -Dautoforge_deploy_ENABLE_ORT=ON";
+            info.note = kOrtNotBuiltHint;
 #endif
             return info;
         }
@@ -32,13 +33,15 @@ namespace ptafdeploy::inference
         [[nodiscard]] SBackendBuildInfo MakeTensorRtInfo()
         {
             SBackendBuildInfo info;
-            info.name = "tensorrt_engine";
+            info.backend = EInferenceBackend::tensorrt_engine;
+            info.name = ToString(info.backend);
 #if defined(PTAFDEPLOY_ENABLE_TENSORRT)
             info.compiled_in = true;
             info.version = tensorrt::CInferenceManager_TensorRT_Engine::GetRuntimeVersion();
-            info.runtime_available = tensorrt::CInferenceManager_TensorRT_Engine::IsRuntimeAvailable();
+            info.runtime_available =
+                tensorrt::CInferenceManager_TensorRT_Engine::IsRuntimeAvailable();
 #else
-            info.note = "reconfigure with -Dautoforge_deploy_ENABLE_TENSORRT=ON";
+            info.note = kTensorRtNotBuiltHint;
 #endif
             return info;
         }
@@ -49,31 +52,42 @@ namespace ptafdeploy::inference
         return {MakeOrtInfo(), MakeTensorRtInfo()};
     }
 
-    std::string FormatBackendBuildInfo()
+    std::string FormatBackendBuildInfo(const std::vector<SBackendBuildInfo>& report)
     {
-        std::ostringstream report;
-        for (const auto& info : GetBackendBuildInfo())
+        std::ostringstream text;
+        for (const auto& info : report)
         {
-            report << info.name << ": compiled=" << (info.compiled_in ? "yes" : "no");
+            text << info.name << ": compiled=" << (info.compiled_in ? "yes" : "no");
             if (info.compiled_in)
             {
-                report << " runtime_available=" << (info.runtime_available ? "yes" : "no")
-                       << " version=" << info.version;
+                text << " runtime_available=" << (info.runtime_available ? "yes" : "no")
+                     << " version=" << info.version;
                 if (!info.providers.empty())
                 {
-                    report << " providers=";
+                    text << " providers=";
                     for (std::size_t i = 0; i < info.providers.size(); ++i)
                     {
-                        report << (i == 0U ? "" : ",") << info.providers[i];
+                        text << (i == 0U ? "" : ",") << info.providers[i];
                     }
                 }
             }
             else
             {
-                report << " (" << info.note << ")";
+                text << " (" << info.note << ")";
             }
-            report << '\n';
+            text << '\n';
         }
-        return report.str();
+
+        return text.str();
+    }
+
+    std::string FormatBackendBuildInfo()
+    {
+        return FormatBackendBuildInfo(GetBackendBuildInfo());
+    }
+
+    bool IsOrtExecutionTargetAvailable(const EExecutionTarget target)
+    {
+        return onnxruntime::CInferenceManager_ORT::IsExecutionTargetAvailable(target);
     }
 } // namespace ptafdeploy::inference

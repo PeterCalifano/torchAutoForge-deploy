@@ -53,6 +53,7 @@ class SBackendBuildInfo
 {
     SBackendBuildInfo();
 
+    ptafdeploy::inference::EInferenceBackend backend;
     string name;
     bool compiled_in;
     bool runtime_available;
@@ -62,7 +63,10 @@ class SBackendBuildInfo
 };
 
 std::vector<ptafdeploy::inference::SBackendBuildInfo> GetBackendBuildInfo();
+string FormatBackendBuildInfo(
+    const std::vector<ptafdeploy::inference::SBackendBuildInfo>& report);
 string FormatBackendBuildInfo();
+bool IsOrtExecutionTargetAvailable(ptafdeploy::inference::EExecutionTarget target);
 
 class STensorInfo
 {

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -147,6 +148,28 @@ namespace ptafdeploy::inference
         {
             throw std::invalid_argument("Invalid integer value for model config key: " + key);
         }
+    }
+
+    /**
+     * @brief Detect the serialized artifact kind from a model file extension.
+     * @param model_path Model path; the file does not have to exist.
+     * @return `onnx` for `.onnx`, `tensorrt_engine` for `.engine` and `.plan`.
+     * @throws std::invalid_argument When the extension is not a supported artifact.
+     */
+    [[nodiscard]] inline EModelArtifact DetectModelArtifact(const std::filesystem::path &model_path)
+    {
+        const std::string extension = model_path.extension().string();
+        if (extension == ".onnx")
+        {
+            return EModelArtifact::onnx;
+        }
+        if (extension == ".engine" || extension == ".plan")
+        {
+            return EModelArtifact::tensorrt_engine;
+        }
+
+        throw std::invalid_argument("Unsupported model artifact extension: " +
+                                    model_path.string());
     }
 
     /**

@@ -5,6 +5,12 @@
 
 #include "onnxruntime_inference_tools.hpp"
 
+#if defined(PTAFDEPLOY_ENABLE_ORT)
+#include <onnxruntime_cxx_api.h>
+#endif
+
+#include <inference/inference_build_info.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -15,9 +21,9 @@
 #include <utils/logging/CLogger.h>
 #include <utils/filesystem.h>
 
-#if defined(PTAFDEPLOY_ENABLE_ORT)
 namespace ptafdeploy::inference::onnxruntime
 {
+#if defined(PTAFDEPLOY_ENABLE_ORT)
     namespace
     {
         constexpr auto kOrtLoggingLevel = ORT_LOGGING_LEVEL_ERROR;
@@ -369,12 +375,50 @@ namespace ptafdeploy::inference::onnxruntime
         }
     } // namespace
 
+    /** @brief ORT handles of one successful load; members destroy session before environment. */
+    struct SOrtState
+    {
+        Ort::Env environment;
+        Ort::SessionOptions session_options;
+        std::unique_ptr<Ort::Session> session;
+    };
+#else
+    namespace
+    {
+        [[noreturn]] void ThrowOrtNotBuilt()
+        {
+            throw std::runtime_error("ONNX Runtime backend was not built: " +
+                                     std::string(kOrtNotBuiltHint) + ".");
+        }
+    } // namespace
+
+    struct SOrtState
+    {
+    };
+#endif
+
+    CInferenceManager_ORT::CInferenceManager_ORT() = default;
+
+    CInferenceManager_ORT::~CInferenceManager_ORT() = default;
+
+    CInferenceManager_ORT::CInferenceManager_ORT(CInferenceManager_ORT&& other) noexcept = default;
+
+    CInferenceManager_ORT&
+    CInferenceManager_ORT::operator=(CInferenceManager_ORT&& other) noexcept = default;
+
     CInferenceManager_ORT::CInferenceManager_ORT(
         const fs::path& model_path, const ptafdeploy::inference::SInferenceOptions& options)
     {
         LoadModel(model_path, options);
     }
 
+    const ptafdeploy::inference::SModelMetadata&
+    CInferenceManager_ORT::GetModelMetadata() const noexcept
+    {
+        return model_metadata_;
+    }
+
+#if defined(PTAFDEPLOY_ENABLE_ORT)
     void CInferenceManager_ORT::LoadModel(const fs::path& model_path,
                                           const ptafdeploy::inference::SInferenceOptions& options)
     {
@@ -415,6 +459,7 @@ namespace ptafdeploy::inference::onnxruntime
                 replacement_session_options);
         }
 
+        Ort::AllocatorWithDefaultOptions allocator;
         const size_t num_inputs = replacement_session->GetInputCount();
         const size_t num_outputs = replacement_session->GetOutputCount();
 
@@ -423,12 +468,12 @@ namespace ptafdeploy::inference::onnxruntime
         for (size_t i = 0; i < num_inputs; ++i)
         {
             replacement_metadata.inputs.push_back(
-                ExtractTensorDescriptor(*replacement_session, allocator_, i, true));
+                ExtractTensorDescriptor(*replacement_session, allocator, i, true));
         }
         for (size_t i = 0; i < num_outputs; ++i)
         {
             replacement_metadata.outputs.push_back(
-                ExtractTensorDescriptor(*replacement_session, allocator_, i, false));
+                ExtractTensorDescriptor(*replacement_session, allocator, i, false));
         }
 
         replacement_metadata.backend = ptafdeploy::inference::EInferenceBackend::onnxruntime;
@@ -436,24 +481,21 @@ namespace ptafdeploy::inference::onnxruntime
             MakeBackendDetail(ResolveExecutionTargetPriority(replacement_options), applied_providers,
                               available_providers, replacement_options.device_id);
 
+        // Allocate before the exchange so a failure leaves the last load intact.
+        auto replacement_state = std::make_unique<SOrtState>(
+            SOrtState{std::move(replacement_environment), std::move(replacement_session_options),
+                      std::move(replacement_session)});
+
         // Keep the old session alive with its environment until all state is exchanged.
         using std::swap;
         swap(model_path_, replacement_path);
         swap(options_, replacement_options);
         swap(model_metadata_, replacement_metadata);
-        swap(exec_env_, replacement_environment);
-        swap(session_options_, replacement_session_options);
-        swap(session_ptr_, replacement_session);
+        swap(state_, replacement_state);
 
         GetLogger().info("Loaded ONNX model: ", model_path_.string());
         GetLogger().debug(model_metadata_.backend_detail, ";inputs=", model_metadata_.inputs.size(),
                           ";outputs=", model_metadata_.outputs.size());
-    }
-
-    const ptafdeploy::inference::SModelMetadata&
-    CInferenceManager_ORT::GetModelMetadata() const noexcept
-    {
-        return model_metadata_;
     }
 
     std::vector<std::string> CInferenceManager_ORT::GetAvailableProviders()
@@ -485,7 +527,7 @@ namespace ptafdeploy::inference::onnxruntime
     std::vector<ptafdeploy::inference::STensorBuffer> CInferenceManager_ORT::Infer(
         const std::vector<ptafdeploy::inference::STensorView>& inputs) const
     {
-        if (session_ptr_ == nullptr)
+        if (state_ == nullptr)
         {
             throw std::runtime_error("ONNX Runtime session has not been initialized.");
         }
@@ -501,8 +543,8 @@ namespace ptafdeploy::inference::onnxruntime
         Ort::RunOptions run_options;
         run_options.SetRunTag(options_.log_id.c_str());
         std::vector<Ort::Value> ort_outputs =
-            session_ptr_->Run(run_options, input_names.data(), ordered_inputs.data(),
-                              ordered_inputs.size(), output_names.data(), output_names.size());
+            state_->session->Run(run_options, input_names.data(), ordered_inputs.data(),
+                                 ordered_inputs.size(), output_names.data(), output_names.size());
 
         std::vector<ptafdeploy::inference::STensorBuffer> outputs;
         outputs.reserve(ort_outputs.size());
@@ -514,36 +556,11 @@ namespace ptafdeploy::inference::onnxruntime
 
         return outputs;
     }
-} // namespace ptafdeploy::inference::onnxruntime
 #else
-namespace ptafdeploy::inference::onnxruntime
-{
-    namespace
-    {
-        [[noreturn]] void ThrowOrtNotBuilt()
-        {
-            throw std::runtime_error(
-                "ONNX Runtime backend was not built. Reconfigure with "
-                "autoforge_deploy_ENABLE_ORT=ON.");
-        }
-    } // namespace
-
-    CInferenceManager_ORT::CInferenceManager_ORT(
-        const fs::path& model_path, const ptafdeploy::inference::SInferenceOptions& options)
-    {
-        LoadModel(model_path, options);
-    }
-
     void CInferenceManager_ORT::LoadModel(const fs::path&,
                                           const ptafdeploy::inference::SInferenceOptions&)
     {
         ThrowOrtNotBuilt();
-    }
-
-    const ptafdeploy::inference::SModelMetadata&
-    CInferenceManager_ORT::GetModelMetadata() const noexcept
-    {
-        return model_metadata_;
     }
 
     std::vector<std::string> CInferenceManager_ORT::GetAvailableProviders()
@@ -567,5 +584,5 @@ namespace ptafdeploy::inference::onnxruntime
     {
         ThrowOrtNotBuilt();
     }
-} // namespace ptafdeploy::inference::onnxruntime
 #endif // PTAFDEPLOY_ENABLE_ORT
+} // namespace ptafdeploy::inference::onnxruntime

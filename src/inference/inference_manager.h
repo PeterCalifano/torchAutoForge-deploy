@@ -163,8 +163,6 @@ namespace ptafdeploy::inference
                                              ptafdeploy::inference::onnxruntime::CInferenceManager_ORT,
                                              ptafdeploy::inference::tensorrt::CInferenceManager_TensorRT_Engine>;
 
-        [[nodiscard]] static EModelArtifact DetectArtifactType(const fs::path &model_path);
-
       private:
         // Exchange ownership without moving backend objects that contain mutexes.
         std::unique_ptr<TBackendVariant> backend_{std::make_unique<TBackendVariant>()};

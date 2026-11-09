@@ -8,10 +8,6 @@
 #include <filesystem>
 #include <inference/inference_common.h>
 
-#if defined(PTAFDEPLOY_ENABLE_ORT)
-#include <onnxruntime_cxx_api.h>
-#endif
-
 #include <memory>
 #include <string>
 #include <vector>
@@ -19,6 +15,7 @@
 namespace ptafdeploy::inference::onnxruntime
 {
     namespace fs = std::filesystem;
+    struct SOrtState;
 
     /**
      * @brief ONNX Runtime backend implementation.
@@ -27,13 +24,15 @@ namespace ptafdeploy::inference::onnxruntime
      * validates host tensor views, and returns owned dense output buffers.
      * Provider selection is driven by `SInferenceOptions::execution_target_priority`.
      * When built with `autoforge_deploy_ENABLE_ORT=OFF` the class stays declared
-     * but loading and inference throw an actionable "not built" error.
+     * but loading and inference throw an actionable "not built" error. ORT handles
+     * stay behind an opaque state so the class layout and this installed header
+     * do not depend on that option or on the ORT headers.
      */
     class CInferenceManager_ORT
     {
       public:
         /** @brief Construct an unloaded ONNX Runtime backend. */
-        CInferenceManager_ORT() = default;
+        CInferenceManager_ORT();
         /**
          * @brief Construct the backend and load an ONNX model.
          * @param model_path Existing `.onnx` artifact.
@@ -44,6 +43,12 @@ namespace ptafdeploy::inference::onnxruntime
         explicit CInferenceManager_ORT(
             const fs::path& model_path,
             const ptafdeploy::inference::SInferenceOptions& options = {});
+        /** @brief Release the ORT session and environment. */
+        ~CInferenceManager_ORT();
+        /** @brief Take over the source's loaded session, leaving the source unloaded. */
+        CInferenceManager_ORT(CInferenceManager_ORT&& other) noexcept;
+        /** @brief Replace this backend with the source's loaded session. */
+        CInferenceManager_ORT& operator=(CInferenceManager_ORT&& other) noexcept;
 
         /**
          * @brief Load an ONNX model and extract its tensor metadata.
@@ -88,12 +93,7 @@ namespace ptafdeploy::inference::onnxruntime
 
       protected:
         fs::path model_path_{};
-#if defined(PTAFDEPLOY_ENABLE_ORT)
-        Ort::Env exec_env_{};
-        Ort::SessionOptions session_options_{};
-        std::unique_ptr<Ort::Session> session_ptr_{nullptr};
-        Ort::AllocatorWithDefaultOptions allocator_{};
-#endif
+        std::unique_ptr<SOrtState> state_{};
         ptafdeploy::inference::SInferenceOptions options_{};
         ptafdeploy::inference::SModelMetadata model_metadata_{};
     };
