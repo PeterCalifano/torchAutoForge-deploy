@@ -119,6 +119,14 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET get_build_info)
     set_tests_properties(${LIB_NAMESPACE}_get_build_info_ort_disabled PROPERTIES
       ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
       WILL_FAIL TRUE)
+
+    add_test(NAME ${LIB_NAMESPACE}_get_build_info_targets_need_ort
+      COMMAND $<TARGET_FILE:get_build_info> --require-targets cpu)
+
+    # The regex check replaces the exit-code check; the explicit message is the contract.
+    set_tests_properties(${LIB_NAMESPACE}_get_build_info_targets_need_ort PROPERTIES
+      ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+      PASS_REGULAR_EXPRESSION "needs the ONNX Runtime backend")
   endif()
 endif()
 
@@ -149,11 +157,26 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET run_inference)
   add_test(NAME ${LIB_NAMESPACE}_run_inference_rejects_ort_flags_for_tensorrt
     COMMAND $<TARGET_FILE:run_inference>
             "${CMAKE_CURRENT_BINARY_DIR}/missing_model.engine"
-            --targets cpu)
+            --intra-op-threads 2)
 
   set_tests_properties(${LIB_NAMESPACE}_run_inference_rejects_ort_flags_for_tensorrt PROPERTIES
     ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
     PASS_REGULAR_EXPRESSION "onnxruntime backend only")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_list_backends_rejects_other_options
+    COMMAND $<TARGET_FILE:run_inference> --list-backends --fill 0)
+
+  set_tests_properties(
+    ${LIB_NAMESPACE}_run_inference_list_backends_rejects_other_options PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "cannot be combined")
+
+  add_test(NAME ${LIB_NAMESPACE}_run_inference_rejects_unknown_extension
+    COMMAND $<TARGET_FILE:run_inference> "${CMAKE_CURRENT_BINARY_DIR}/model.bin")
+
+  set_tests_properties(${LIB_NAMESPACE}_run_inference_rejects_unknown_extension PROPERTIES
+    ENVIRONMENT "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+    PASS_REGULAR_EXPRESSION "Unsupported model artifact extension")
 endif()
 
 # Exercise one-shot ONNX inference and its explicit metadata-only mode.
@@ -232,6 +255,32 @@ endif()
 # Exercise the generated Python facade when wrapper generation is enabled.
 set(_python_wrapper_option_name "${LIB_NAMESPACE}_BUILD_PYTHON_WRAPPER")
 set(_python_wrapper_target "${${PROJECT_NAME}_PYTHON_WRAPPER_TARGET}")
+
+# Verify the wrapped backend build report in every backend configuration.
+if(ENABLE_TESTS
+  AND BUILD_TESTING
+  AND ${_python_wrapper_option_name}
+  AND TARGET ${_python_wrapper_target})
+  get_property(_cached_python_executable CACHE PYTHON_EXECUTABLE PROPERTY VALUE)
+  if(NOT "${_cached_python_executable}" STREQUAL "")
+    set(_python_build_info_executable "${_cached_python_executable}")
+  else()
+    set(_python_build_info_executable "${PYTHON_EXECUTABLE}")
+  endif()
+
+  add_test(NAME ${LIB_NAMESPACE}_python_backend_build_info
+    COMMAND ${CMAKE_COMMAND} -E env
+            "PYTHONPATH=${PROJECT_BINARY_DIR}/python:$ENV{PYTHONPATH}"
+            "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"
+            ${_python_build_info_executable}
+            "${PROJECT_SOURCE_DIR}/tests/python/test_backend_build_info_smoke.py"
+            --expect-ort "${ENABLE_ORT}"
+            --expect-tensorrt "${ENABLE_TENSORRT}")
+
+  set_tests_properties(${LIB_NAMESPACE}_python_backend_build_info PROPERTIES
+    WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/python"
+    PASS_REGULAR_EXPRESSION "python_backend_build_info=ok")
+endif()
 
 if(ENABLE_TESTS
   AND BUILD_TESTING

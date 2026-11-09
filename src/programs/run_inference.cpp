@@ -28,6 +28,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <list>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -85,13 +86,6 @@ namespace
         /** @brief Whether to print the compiled backends and exit without a model. */
         bool list_backends{false};
     };
-
-    /** @brief Return true for serialized TensorRT engine extensions. */
-    [[nodiscard]] bool IsTensorRtArtifactPath(const fs::path& path)
-    {
-        const std::string extension = path.extension().string();
-        return extension == ".engine" || extension == ".plan";
-    }
 
     /**
      * @brief Declare, collect, and cross-validate one command line.
@@ -176,7 +170,7 @@ namespace
         TCLAP::ValueArg<std::string> targets(
             "",
             "targets",
-            "Comma-separated execution-target priority (onnxruntime backend only)",
+            "Comma-separated execution-target priority",
             false,
             "",
             "cpu,cuda,tensorrt",
@@ -239,12 +233,23 @@ namespace
         SArguments arguments;
         if (list_backends.getValue())
         {
+            // Reject extra options here too instead of silently ignoring them.
+            const std::list<TCLAP::Arg*>& parsed_args = command.getArgList();
+            if (std::any_of(parsed_args.begin(), parsed_args.end(), [&](const TCLAP::Arg* arg)
+                            { return arg != &list_backends && arg->isSet(); }))
+            {
+                throw std::invalid_argument(
+                    "--list-backends cannot be combined with a model path or other options.");
+            }
+
             arguments.list_backends = true;
             return arguments;
         }
+
         if (!model_path.isSet())
         {
-            throw std::invalid_argument("A model path is required unless --list-backends is used.");
+            throw std::invalid_argument(
+                "A model path is required unless --list-backends is used.");
         }
 
         const long long requested_preview_count = max_output_values.getValue();
@@ -300,26 +305,29 @@ namespace
         }
 
         // Backend-specific options must not be silently ignored. Without an explicit
-        // backend, an explicit artifact type takes precedence over the extension.
-        // Artifact/extension mismatches are rejected later by the inference facade.
-        const bool tensorrt_artifact =
+        // backend, an explicit artifact type takes precedence over the extension;
+        // artifact and extension mismatches are rejected by the inference facade.
+        const infer::EModelArtifact resolved_artifact =
             arguments.runtime.artifact == infer::EModelArtifact::auto_artifact
-                ? IsTensorRtArtifactPath(arguments.model_path)
-                : arguments.runtime.artifact == infer::EModelArtifact::tensorrt_engine;
+                ? infer::DetectModelArtifact(arguments.model_path)
+                : arguments.runtime.artifact;
         const bool uses_tensorrt =
             arguments.runtime.backend == infer::EInferenceBackend::tensorrt_engine ||
             (arguments.runtime.backend == infer::EInferenceBackend::auto_backend &&
-             tensorrt_artifact);
-        if (uses_tensorrt && (targets.isSet() || intra_op_threads.isSet() || inter_op_threads.isSet()))
+             resolved_artifact == infer::EModelArtifact::tensorrt_engine);
+
+        if (uses_tensorrt && (intra_op_threads.isSet() || inter_op_threads.isSet()))
         {
             throw std::invalid_argument(
-                "--targets, --intra-op-threads and --inter-op-threads apply to the "
-                "onnxruntime backend only.");
+                "--intra-op-threads and --inter-op-threads apply to the onnxruntime backend only.");
         }
+
         if (!uses_tensorrt && tensorrt_profile.isSet())
         {
-            throw std::invalid_argument("--trt-profile applies to the tensorrt_engine backend only.");
+            throw std::invalid_argument(
+                "--trt-profile applies to the tensorrt_engine backend only.");
         }
+
         return arguments;
     }
 

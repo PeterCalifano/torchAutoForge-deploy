@@ -214,8 +214,8 @@ covers fields, defaults, templates, and validation commands.
 | `evaluate_inference` / `prepare_image_sequence` | Optional. Prepare image selections and summarize timing or point-error reports |
 
 `run_inference` selects the backend from the artifact extension, or explicitly
-with `--backend auto|onnxruntime|tensorrt_engine`; `--targets` and the thread
-options apply to ONNX Runtime only and `--trt-profile` to TensorRT only.
+with `--backend auto|onnxruntime|tensorrt_engine`; the thread options apply to
+ONNX Runtime only and `--trt-profile` to TensorRT only.
 It accepts repeated `--input [name=]path.f32`,
 `--shape [name=]d0,d1,...`, and `--fill [name=]value` options for multi-input
 models. `--metadata-only` inspects the model without tensor data, and

@@ -80,12 +80,24 @@ actionable diagnostic.
 The runtime options use the same backend-neutral policy as the library:
 
 ```text
+--backend NAME               auto (default), onnxruntime, or tensorrt_engine
+--artifact NAME              auto (default), onnx, or tensorrt_engine
 --targets cpu,cuda,tensorrt  execution-target priority
 --device N                   non-negative device index
 --no-fallback                reject automatic runtime fallback
+--trt-profile N              TensorRT optimization profile (TensorRT only)
 --intra-op-threads N         ORT intra-operation threads; zero uses its default
 --inter-op-threads N         ORT inter-operation threads; zero uses its default
+--list-backends              print the backends in this build and exit
 ```
+
+The backend follows the file extension unless `--backend` or `--artifact` says
+otherwise. Unknown extensions and options for the other backend are rejected
+instead of being ignored, and `--list-backends` takes no other option. Loading an
+artifact whose backend was not compiled in fails with a "not built" error naming
+the CMake option to enable. TensorRT runs on the first `cuda` or `tensorrt` entry
+in `--targets` and rejects a list without one; with `--no-fallback` that entry
+must come first.
 
 With `--no-fallback`, unavailable requested providers and session-construction
 failures are errors. Accelerator-only provider chains also reject implicit CPU

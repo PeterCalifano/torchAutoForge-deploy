@@ -5,7 +5,6 @@
 
 #include <inference/inference_build_info.h>
 #include <inference/inference_config_parsing.h>
-#include <inference/onnx_runtime/onnxruntime_inference_tools.hpp>
 #include <utils/logging/CLogger.h>
 
 #include <tclap/CmdLine.h>
@@ -23,12 +22,14 @@ namespace
     namespace infer = ptafdeploy::inference;
     namespace logging = ptafdeploy::logging;
 
+    /** @brief Validated requirement lists for one invocation. */
     struct SArguments
     {
         std::vector<infer::EExecutionTarget> required_targets{};
         std::vector<infer::EInferenceBackend> required_backends{};
     };
 
+    /** @brief Return the process-wide logger configured from the environment once. */
     [[nodiscard]] logging::CLogger& GetLogger()
     {
         static logging::CLogger logger("get_build_info", logging::ELogLevel::Info,
@@ -38,6 +39,12 @@ namespace
         return logger;
     }
 
+    /**
+     * @brief Parse a comma-separated list of concrete backends.
+     * @param text Backend names or recognized aliases.
+     * @return Requested backends in command-line order.
+     * @throws std::invalid_argument When a name is unknown or is `auto`.
+     */
     [[nodiscard]] std::vector<infer::EInferenceBackend> ParseBackendList(const std::string& text)
     {
         std::vector<infer::EInferenceBackend> backends;
@@ -49,17 +56,29 @@ namespace
             {
                 continue;
             }
+
             const infer::EInferenceBackend backend = infer::ParseInferenceBackendName(token);
             if (backend == infer::EInferenceBackend::auto_backend)
             {
                 throw std::invalid_argument(
                     "--require-backends expects concrete backends, not auto.");
             }
+
             backends.push_back(backend);
         }
+
         return backends;
     }
 
+    /**
+     * @brief Declare and collect one command line.
+     * @param argc Number of command-line arguments.
+     * @param argv Command-line argument values owned by the process.
+     * @return Validated requirement lists independent of TCLAP types.
+     * @throws TCLAP::ExitException When help or version output requests an early exit.
+     * @throws TCLAP::ArgException If TCLAP rejects an option or value.
+     * @throws std::invalid_argument If a backend or execution target is not recognized.
+     */
     [[nodiscard]] SArguments ParseArguments(const int argc, char** argv)
     {
         TCLAP::CmdLine command(
@@ -77,6 +96,7 @@ namespace
             "", "require-targets",
             "Comma-separated ONNX Runtime execution targets that must be available", false, "",
             "cpu,cuda,tensorrt", command);
+
         command.parse(argc, argv);
 
         SArguments arguments;
@@ -89,38 +109,83 @@ namespace
             arguments.required_targets =
                 infer::ParseExecutionTargetPriority(required_targets.getValue());
         }
+
         return arguments;
     }
 
-    [[nodiscard]] int RequireBackends(const std::vector<infer::EInferenceBackend>& required)
+    /**
+     * @brief Find the report entry of one backend.
+     * @param report Report of the current build.
+     * @param backend Concrete backend to find.
+     * @return Matching entry, or nullptr when the report has none.
+     */
+    [[nodiscard]] const infer::SBackendBuildInfo*
+    FindBackend(const std::vector<infer::SBackendBuildInfo>& report,
+                const infer::EInferenceBackend backend)
     {
-        const std::vector<infer::SBackendBuildInfo> report = infer::GetBackendBuildInfo();
+        const auto found = std::find_if(report.begin(), report.end(), [backend](const auto& info)
+                                        { return info.backend == backend; });
+        return found == report.end() ? nullptr : &*found;
+    }
+
+    /**
+     * @brief Require each listed backend to be compiled in and usable on this host.
+     * @param report Report of the current build.
+     * @param required Concrete backends that must be available.
+     * @return Zero when all are available, otherwise two.
+     */
+    [[nodiscard]] int RequireBackends(const std::vector<infer::SBackendBuildInfo>& report,
+                                      const std::vector<infer::EInferenceBackend>& required)
+    {
         int status = 0;
         for (const infer::EInferenceBackend backend : required)
         {
-            const std::string name = infer::ToString(backend);
-            const auto found = std::find_if(report.begin(), report.end(),
-                                            [&](const auto& info) { return info.name == name; });
-            if (found == report.end() || !found->compiled_in || !found->runtime_available)
+            const infer::SBackendBuildInfo* info = FindBackend(report, backend);
+            if (info != nullptr && info->compiled_in && info->runtime_available)
             {
-                GetLogger().error("Required backend unavailable: ", name);
-                status = 2;
+                continue;
             }
+
+            const std::string reason = (info != nullptr && !info->note.empty())
+                                           ? info->note
+                                           : "no usable runtime on this host";
+            GetLogger().error("Required backend unavailable: ", infer::ToString(backend), " (",
+                              reason, ")");
+            status = 2;
         }
+
         return status;
     }
 
-    [[nodiscard]] int RequireTargets(const std::vector<infer::EExecutionTarget>& required_targets)
+    /**
+     * @brief Require each listed execution target to be exposed by ONNX Runtime.
+     * @param report Report of the current build.
+     * @param required_targets Execution targets that must be available.
+     * @return Zero when ORT is built and all targets are available, otherwise two.
+     */
+    [[nodiscard]] int RequireTargets(const std::vector<infer::SBackendBuildInfo>& report,
+                                     const std::vector<infer::EExecutionTarget>& required_targets)
     {
         if (required_targets.empty())
         {
             return 0;
         }
 
+        // These targets are checked against ORT providers, so ORT must be built.
+        const infer::SBackendBuildInfo* ort =
+            FindBackend(report, infer::EInferenceBackend::onnxruntime);
+        if (ort == nullptr || !ort->compiled_in)
+        {
+            GetLogger().error("--require-targets needs the ONNX Runtime backend, which is not "
+                              "built: ",
+                              infer::kOrtNotBuiltHint);
+            return 2;
+        }
+
         std::vector<infer::EExecutionTarget> missing_targets;
         for (const infer::EExecutionTarget target : required_targets)
         {
-            if (!infer::onnxruntime::CInferenceManager_ORT::IsExecutionTargetAvailable(target))
+            if (!infer::IsOrtExecutionTargetAvailable(target))
             {
                 missing_targets.push_back(target);
             }
@@ -148,9 +213,12 @@ int main(int argc, char** argv)
     try
     {
         const SArguments arguments = ParseArguments(argc, argv);
-        std::cout << infer::FormatBackendBuildInfo();
-        const int backend_status = RequireBackends(arguments.required_backends);
-        const int target_status = RequireTargets(arguments.required_targets);
+
+        const std::vector<infer::SBackendBuildInfo> report = infer::GetBackendBuildInfo();
+        std::cout << infer::FormatBackendBuildInfo(report);
+
+        const int backend_status = RequireBackends(report, arguments.required_backends);
+        const int target_status = RequireTargets(report, arguments.required_targets);
         return backend_status != 0 ? backend_status : target_status;
     }
     catch (const TCLAP::ExitException& exit_request)
