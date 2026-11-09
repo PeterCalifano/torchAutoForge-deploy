@@ -1,5 +1,62 @@
 {
+    // Resource caps for cpptools: the Jetson target (6 cores, ~7.4 GiB RAM)
+    // cannot absorb the default unbounded IntelliSense/browse workers.
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.default.browse.limitSymbolsToIncludedHeaders": true,
     "C_Cpp.errorSquiggles": "enabled",
-    "cmake.configureOnOpen": false
+    "C_Cpp.maxConcurrentThreads": 2,
+    "C_Cpp.maxCachedProcesses": 1,
+    "C_Cpp.maxMemory": 1024,
+    "C_Cpp.intelliSense.maxCachedProcesses": 1,
+    "C_Cpp.intelliSense.maxMemory": 1024,
+    "C_Cpp.intelliSenseMemoryLimit": 1536,
+    "C_Cpp.intelliSenseCacheSize": 512,
+    "C_Cpp.references.maxConcurrentThreads": 1,
+    "C_Cpp.references.maxCachedProcesses": 0,
+    "C_Cpp.references.maxMemory": 512,
+    "C_Cpp.codeAnalysis.runAutomatically": false,
+    "C_Cpp.codeAnalysis.maxConcurrentThreads": 1,
+    "C_Cpp.codeAnalysis.maxMemory": 512,
+    "C_Cpp.workspaceParsingPriority": "low",
+    "C_Cpp.exclusionPolicy": "checkFilesAndFolders",
+    "C_Cpp.files.exclude": {
+        "**/.git": true,
+        "**/build*/**": true,
+        "**/install*/**": true,
+        "**/debug*/**": true,
+        "ros2/log/**": true,
+        "lib/wrap/**": true,
+        "models/**": true
+    },
+
+    // Keep the remote file watcher and search off generated/vendored trees.
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/build*/**": true,
+        "**/install*/**": true,
+        "**/debug*/**": true,
+        "**/log/**": true,
+        "lib/wrap/**": true,
+        "models/**": true,
+        "**/__pycache__/**": true,
+        "**/*.egg-info/**": true
+    },
+    "search.exclude": {
+        "**/build*": true,
+        "**/install*": true,
+        "**/debug*": true,
+        "**/log": true,
+        "lib/wrap": true,
+        "models": true
+    },
+    "search.followSymlinks": false,
+
+    // No automatic CMake configure/build or on-save linting.
+    "cmake.configureOnOpen": false,
+    "cmake.configureOnEdit": false,
+    "cmake.automaticReconfigure": false,
+    "cmake.parallelJobs": 2,
+    "c-cpp-flylint.enable": false
 }

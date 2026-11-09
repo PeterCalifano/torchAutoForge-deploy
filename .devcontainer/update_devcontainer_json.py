@@ -28,7 +28,6 @@ DEFAULT_EXTENSIONS = [
     "ms-vscode.cmake-tools",
     "ms-vscode.cpptools-extension-pack",
     "ms-vscode.cpp-devtools",
-    "llvm-vs-code-extensions.vscode-clangd",
     "ms-python.python",
     "ms-python.vscode-pylance",
     "ms-python.debugpy",
