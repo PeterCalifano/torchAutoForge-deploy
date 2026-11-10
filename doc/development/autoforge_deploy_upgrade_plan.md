@@ -1739,6 +1739,37 @@ Debug `ctest` passed for ORT+TensorRT (69 tests), ORT-only (66), TensorRT-only
 (46) and neither backend (43). A TensorRT-only `run_inference` executed a
 serialized engine end to end, and an installed ORT-off package was consumed out
 of tree. Python/MATLAB/ROS 2 smoke tests that load ONNX fixtures are now gated on
-ORT. The gtwrap interface change, wrapper builds and the ROS 2 overlay were not
-exercised because the `lib/wrap` submodule is not initialized. No commit or push
-was made.
+ORT. Wrapper builds and the ROS 2 overlay are covered by the follow-up below.
+
+### Optional ORT follow-up: wrappers, ROS 2, CI
+
+- [x] Build the Python wrapper with ORT on, with ORT off + TensorRT on and with
+  neither backend; add `test_backend_build_info_smoke.py`, registered in every
+  backend config
+- [x] Keep the ORT handles behind an opaque `SOrtState`, so installed headers
+  never include `onnxruntime_cxx_api.h` and the class layout no longer depends
+  on the build option
+- [x] Share `DetectModelArtifact` between `run_inference` and the facade
+- [x] Forward `PTAFDEPLOY_ENABLE_ORT` / `PTAFDEPLOY_ENABLE_TENSORRT` through
+  the colcon shim and add `build_ros2.sh --no-ort --tensorrt`
+- [x] Gate the ONNX-fixture spinup launch test on ORT like the lifecycle tests
+- [x] Autostart the spinup lifecycle node with the distro-independent
+  `lifecycle_autostart` helper, so both launch modes work on Humble
+- [x] Add an ORT-off leg to the native Linux CI matrix
+- [x] Make `get_build_info --require-targets` report a missing ORT build
+  explicitly
+- [ ] Measure the opaque ORT state's cost (model load and per-inference
+  latency) against `a5bf393`, on the Jetson and on the desktop
+- [ ] Share backend option parsing between `run_inference` and `benchmark_model`
+- [ ] Add a facade-level TensorRT reload test
+- [ ] Run an ORT-off ROS 2 overlay in CI
+- [ ] Build and run the MATLAB wrapper (no MATLAB on the Jetson host)
+- [ ] Run the ROS 2 overlay on Jazzy and hosted CI on the branch
+
+On the Jetson (RelWithDebInfo, Python 3.12 from the `gtsam` env) `ctest`
+passed for ORT + TensorRT + Python (76 tests), ORT-only (70), TensorRT-only +
+Python (54) and neither backend + Python (51). The TensorRT engine tests ran
+against a `trtexec`-built fixture; only the two film-centroiding tests skipped.
+The Humble ROS 2 overlay passed 15 tests with ORT on, the spinup launch test
+included, and 5 with `--no-ort --tensorrt`, where the ONNX-fixture tests are
+skipped.

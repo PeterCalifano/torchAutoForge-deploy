@@ -8,8 +8,8 @@ priorities; `AGENTS.md` remains authoritative.
 
 ## Project Overview
 
-`torchAutoForge-deploy` is a C++20 deployment library for ONNX Runtime-backed
-and optional TensorRT-backed ML inference:
+`torchAutoForge-deploy` is a C++20 deployment library for ML inference backed by
+ONNX Runtime (optional, default ON) and/or standalone TensorRT (optional):
 
 - `ptafdeploy::inference::CInferenceManager` is the public backend-agnostic
   facade.
@@ -74,15 +74,16 @@ exception.
 Ordinary configure/build operations must leave the gtwrap checkout and
 superproject gitlink unchanged. Wrapper updates and submodule initialization are
 explicit maintenance operations. Python wheels include only project-owned
-runtime libraries alongside the extension; ONNX Runtime remains an external
-runtime prerequisite.
+runtime libraries alongside the extension; when enabled, ONNX Runtime remains an
+external runtime prerequisite.
 
 ## Development Priorities
 
 1. Maintain the completed semantic alignment with
    `/home/peterc/devDir/dev-tools/cpp_cuda_template_project` signed tag
    `v2.0.1` at `1d87153b2d060bf03c2c9adcd1df6c6d4f40ea09`. Preserve optional
-   (default-on) ORT dependency wiring, independent TensorRT/CUDA policy, and the absence of OptiX.
+   (default-on) ORT dependency wiring, independent TensorRT/CUDA policy, and the
+   absence of OptiX.
    Track product work in `doc/development/autoforge_deploy_upgrade_plan.md`.
 2. Make wrappers work for MATLAB/Python through a stable generic inference
    facade.

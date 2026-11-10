@@ -4,8 +4,9 @@ Guidance for Codex when working in `torchAutoForge-deploy`.
 
 ## Project Overview
 
-`torchAutoForge-deploy` is a C++20 deployment library for ONNX Runtime-backed
-and optional TensorRT-backed ML inference. The current direction is:
+`torchAutoForge-deploy` is a C++20 deployment library for ML inference backed by
+ONNX Runtime (optional, default ON) and/or standalone TensorRT (optional). The
+current direction is:
 
 - `ptafdeploy::inference::CInferenceManager` is the public backend-agnostic facade.
 - `ptafdeploy::inference::CModelFacade` is the role-level facade for prototype
@@ -294,8 +295,9 @@ automation and nested consumers must use the project-qualified options.
   gtwrap checkout. Use `--wrap-update` or `--wrap-submodule-init` only as an
   explicit maintenance operation.
 - The Python extension and project runtime are co-located in wheels. Keep
-  external ONNX Runtime libraries as installation prerequisites; do not replace
-  the target's build RPATH with a wheel-only loader path.
+  external ONNX Runtime libraries (when enabled) as installation
+  prerequisites; do not replace the target's build RPATH with a wheel-only
+  loader path.
 
 ### ROS 2
 
@@ -321,7 +323,8 @@ automation and nested consumers must use the project-qualified options.
 - When a body is useful, use imperative `-` bullets, one blank line between
   bullets, no terminal periods, and aligned continuation lines. Explain intent,
   design decisions, and behavioral consequences rather than listing files.
-- Never add `Co-Authored-By` or other AI-attribution trailers.
+- End agent-written commits with one `Co-Authored-By` trailer naming the model.
+  Never add session links or other AI-attribution trailers.
 
 ### Authorization and review sequence
 
