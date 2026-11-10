@@ -53,7 +53,7 @@ jobs:
   native:
     # Automatic push/PR runs are accepted above; manual runs are develop-only.
     if: ${{ github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/develop' }}
-    name: ${{ matrix.arch }} C++
+    name: ${{ matrix.arch }} C++${{ matrix.ort == 'OFF' && ' (ORT off)' || '' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     strategy:
@@ -63,9 +63,16 @@ jobs:
           - arch: x86_64
             runner: ubuntu-22.04
             build_dir: build-ci-x86_64
+            ort: 'ON'
           - arch: arm64
             runner: ubuntu-22.04-arm
             build_dir: build-ci-arm64
+            ort: 'ON'
+          # Hosted runners have no TensorRT; this leg covers every ORT-off gate.
+          - arch: x86_64
+            runner: ubuntu-22.04
+            build_dir: build-ci-x86_64-no-ort
+            ort: 'OFF'
 
     steps:
       - name: Checkout
@@ -97,12 +104,14 @@ jobs:
         run: python -m pip install pytest
 
       - name: Restore ONNX Runtime cache
+        if: matrix.ort == 'ON'
         uses: actions/cache@v4
         with:
           path: .ci_deps/onnxruntime
           key: ort-${{ runner.os }}-${{ matrix.arch }}-${{ env.ORT_VERSION }}
 
       - name: Setup ONNX Runtime
+        if: matrix.ort == 'ON'
         run: |
           ort_root="$("${GITHUB_WORKSPACE}/.github/scripts/install_onnxruntime.sh" "${{ matrix.arch }}" "${GITHUB_WORKSPACE}/.ci_deps/onnxruntime")"
           {
@@ -113,10 +122,15 @@ jobs:
 
       - name: Configure
         run: |
+          ort_args=()
+          if [[ "${{ matrix.ort }}" == "ON" ]]; then
+            ort_args=(-DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}" -Donnxruntime_DIR="${onnxruntime_DIR}")
+          fi
+
           cmake -S . -B "${{ matrix.build_dir }}" -G Ninja \
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
-            -DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}" \
-            -Donnxruntime_DIR="${onnxruntime_DIR}" \
+            -Dautoforge_deploy_ENABLE_ORT="${{ matrix.ort }}" \
+            "${ort_args[@]}" \
             -DCPU_ENABLE_NATIVE_TUNING=OFF \
             -Dautoforge_deploy_ENABLE_CUDA=OFF \
             -Dautoforge_deploy_ENABLE_TENSORRT=OFF \
@@ -133,7 +147,14 @@ jobs:
           --parallel 2 --no-tests=error
 
       - name: Verify CPU provider
+        if: matrix.ort == 'ON'
         run: "${{ matrix.build_dir }}/src/programs/get_build_info --require-targets cpu"
+
+      - name: Verify ORT is reported as not built
+        if: matrix.ort == 'OFF'
+        run: |
+          "${{ matrix.build_dir }}/src/programs/get_build_info" | tee build_info.txt
+          grep -q '^onnxruntime: compiled=no' build_info.txt
 
       - name: Verify install
         if: matrix.arch == 'x86_64'
@@ -212,7 +233,7 @@ jobs:
       - name: Test target Python facade
         run: >-
           ctest --test-dir build-ci-python
-          -R 'autoforge_deploy_python_(import|facade_smoke)'
+          -R 'autoforge_deploy_python_(import|facade_smoke|backend_build_info)'
           --output-on-failure --no-tests=error
 
       - name: Build wheel

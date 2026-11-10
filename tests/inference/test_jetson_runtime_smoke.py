@@ -44,3 +44,30 @@ def test_benchmark_separator_is_not_forwarded(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert " --task raw_tensor" in result.stdout
     assert " -- --task raw_tensor" not in result.stdout
+
+
+def test_engine_run_requires_tensorrt_backend(tmp_path: Path) -> None:
+    """Preflight the standalone TensorRT backend before running an engine benchmark."""
+
+    build_dir = tmp_path / "build"
+    _make_executable(build_dir / "src/programs/get_build_info")
+    _make_executable(build_dir / "src/programs/benchmark_model")
+    script_path = Path(__file__).parents[2] / "scripts/run_jetson_runtime_smoke.py"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script_path),
+            "--dry-run",
+            "--build-dir",
+            str(build_dir),
+            "--trt-engine",
+            "model.engine",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "--require-backends tensorrt_engine" in result.stdout

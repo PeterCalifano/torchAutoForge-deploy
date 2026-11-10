@@ -54,6 +54,14 @@ Set `autostart:=false` to leave the node unconfigured. Override
 -DCMAKE_CUDA_ARCHITECTURES=<numeric>` forwards CUDA/PTX support only. There is
 no OptiX compatibility flag.
 
+Backends are forwarded the same way: `--no-ort` builds the core without ONNX
+Runtime (no ORT package is searched) and `--tensorrt` enables the standalone
+TensorRT engine backend, for example `./build_ros2.sh --no-ort --tensorrt` on
+Jetson. The lifecycle and spinup launch tests load ONNX fixtures, so they are
+skipped when the core is built without ORT; the conversion tests always run.
+The default spinup configuration also uses the ONNX fixture, so an ORT-off
+overlay needs `model_config_path` pointing at a TensorRT engine manifest.
+
 ## Tests
 
 The ROS tests are target-specific:

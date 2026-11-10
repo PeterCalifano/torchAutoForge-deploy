@@ -12,6 +12,8 @@ build_type="RelWithDebInfo"
 clean=false
 skip_tests=false
 enable_cuda=false
+enable_ort=true
+enable_tensorrt=false
 metadata_sync=true
 packages_select=()
 cmake_args=()
@@ -35,6 +37,8 @@ Options:
   --build-type <type>        Use an explicit CMake build type.
   --packages-select <pkg...> Build and test selected packages.
   --cuda                     Enable core CUDA and PTX compile/embed support.
+  --no-ort                   Build the core without the ONNX Runtime backend.
+  --tensorrt                 Enable the core standalone TensorRT engine backend.
   --cmake-arg <arg>          Append one CMake argument; repeatable.
   --colcon-arg <arg>         Append one colcon build argument; repeatable.
   --no-version-sync          Keep current ROS package metadata.
@@ -44,6 +48,7 @@ Examples:
   ./build_ros2.sh --clean
   ./build_ros2.sh --packages-select ptafdeploy_interfaces ptafdeploy_ros
   ./build_ros2.sh --cuda --cmake-arg -DCMAKE_CUDA_ARCHITECTURES=89
+  ./build_ros2.sh --no-ort --tensorrt
 
 EOF
 }
@@ -87,6 +92,14 @@ parse_args() {
                 ;;
             --cuda)
                 enable_cuda=true
+                shift
+                ;;
+            --no-ort)
+                enable_ort=false
+                shift
+                ;;
+            --tensorrt)
+                enable_tensorrt=true
                 shift
                 ;;
             --cmake-arg)
@@ -182,11 +195,15 @@ clean_workspace() {
 
 run_build_and_tests() {
     local cuda_flag_="OFF"
+    local ort_flag_="OFF"
+    local tensorrt_flag_="OFF"
     local build_command_=(colcon build --symlink-install)
     local test_command_=(colcon test --event-handlers console_direct+)
     local package_
 
     [[ "$enable_cuda" == true ]] && cuda_flag_="ON"
+    [[ "$enable_ort" == true ]] && ort_flag_="ON"
+    [[ "$enable_tensorrt" == true ]] && tensorrt_flag_="ON"
 
     if ((${#packages_select[@]} > 0)); then
         build_command_+=(--packages-select "${packages_select[@]}")
@@ -199,6 +216,8 @@ run_build_and_tests() {
         --cmake-args
         "-DCMAKE_BUILD_TYPE=${build_type}"
         "-DPTAFDEPLOY_ENABLE_CUDA=${cuda_flag_}"
+        "-DPTAFDEPLOY_ENABLE_ORT=${ort_flag_}"
+        "-DPTAFDEPLOY_ENABLE_TENSORRT=${tensorrt_flag_}"
         "${cmake_args[@]}"
     )
 
@@ -206,6 +225,8 @@ run_build_and_tests() {
     info "ROS distro: ${ROS_DISTRO_NAME}"
     info "Build type: ${build_type}"
     info "CUDA/PTX  : ${cuda_flag_}"
+    info "ORT       : ${ort_flag_}"
+    info "TensorRT  : ${tensorrt_flag_}"
 
     (
         cd "$WORKSPACE_DIR"
@@ -239,7 +260,9 @@ main() {
     [[ -d "$WORKSPACE_DIR" ]] \
         || die "ROS 2 workspace not found: ${WORKSPACE_DIR}"
     source_ros_environment
-    normalize_onnxruntime_cmake_args
+    if [[ "$enable_ort" == true ]]; then
+        normalize_onnxruntime_cmake_args
+    fi
     if [[ "$clean" == true ]]; then
         clean_workspace
     fi

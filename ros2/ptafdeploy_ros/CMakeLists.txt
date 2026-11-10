@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 project(ptafdeploy_ros)
 
 option(PTAFDEPLOY_ENABLE_CUDA "Accepted for workspace-wide build helper compatibility" OFF)
+option(PTAFDEPLOY_ENABLE_ORT "Accepted for workspace-wide build helper compatibility" ON)
+option(PTAFDEPLOY_ENABLE_TENSORRT "Accepted for workspace-wide build helper compatibility" OFF)
 
 # Resolve the core inference package and ROS 2 lifecycle/component dependencies.
 find_package(ament_cmake REQUIRED)

@@ -5,10 +5,17 @@ project(ptafdeploy_colcon_shim LANGUAGES NONE)
 get_filename_component(PTAFDEPLOY_REPOSITORY_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
 option(PTAFDEPLOY_ENABLE_CUDA "Enable CUDA support in the PTAFDeploy core" OFF)
+option(PTAFDEPLOY_ENABLE_ORT "Enable the ONNX Runtime backend in the PTAFDeploy core" ON)
+option(PTAFDEPLOY_ENABLE_TENSORRT
+  "Enable the standalone TensorRT engine backend in the PTAFDeploy core" OFF)
 
 # Tailor the nested core build for ROS 2 without changing its standalone defaults.
 set(autoforge_deploy_ENABLE_CUDA "${PTAFDEPLOY_ENABLE_CUDA}" CACHE BOOL
   "Enable CUDA support in the PTAFDeploy core" FORCE)
+set(autoforge_deploy_ENABLE_ORT "${PTAFDEPLOY_ENABLE_ORT}" CACHE BOOL
+  "Enable the ONNX Runtime backend in the PTAFDeploy core" FORCE)
+set(autoforge_deploy_ENABLE_TENSORRT "${PTAFDEPLOY_ENABLE_TENSORRT}" CACHE BOOL
+  "Enable the standalone TensorRT engine backend in the PTAFDeploy core" FORCE)
 set(ENABLE_TESTS OFF CACHE BOOL
   "Disable core tests in the ROS 2 overlay build" FORCE)
 set(ENABLE_FETCH_CATCH2 OFF CACHE BOOL

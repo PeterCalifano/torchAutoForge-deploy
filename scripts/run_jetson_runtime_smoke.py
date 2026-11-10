@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run target-owned ONNX Runtime and TensorRT smoke commands on Jetson."""
+"""Run target-owned ONNX Runtime and TensorRT smoke commands on Jetson.
+
+This is a manual on-device tool, not a CTest: it needs real CUDA/TensorRT
+hardware. CTest only exercises its ``--dry-run`` command planning.
+"""
 
 from __future__ import annotations
 
@@ -37,9 +41,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Verify requested ORT providers or the TensorRT backend and run short "
-            "benchmark_model "
-            "passes without model-specific code."
+            "Verify requested ORT providers or the TensorRT backend and run "
+            "short benchmark_model passes without model-specific code."
         )
     )
     parser.add_argument(

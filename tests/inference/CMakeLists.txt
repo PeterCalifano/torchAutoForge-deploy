@@ -237,7 +237,7 @@ if(ENABLE_TESTS AND BUILD_TESTING AND TARGET run_inference AND ENABLE_ORT)
 endif()
 
 # Keep Jetson orchestration coverage as a target-owned dry run on hosted systems.
-if(ENABLE_TESTS AND BUILD_TESTING AND ENABLE_ORT AND TARGET benchmark_model AND TARGET get_build_info)
+if(ENABLE_TESTS AND BUILD_TESTING AND TARGET benchmark_model AND TARGET get_build_info)
   add_test(NAME ${LIB_NAMESPACE}_jetson_runtime_runner_dry_run
     COMMAND ${PYTHON_EXECUTABLE}
             "${PROJECT_SOURCE_DIR}/scripts/run_jetson_runtime_smoke.py"
