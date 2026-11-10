@@ -12,6 +12,11 @@ find_package(ament_cmake REQUIRED)
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME})
 
+# Install the lifecycle autostart helper both launch files run on every distro.
+install(PROGRAMS scripts/lifecycle_autostart.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME lifecycle_autostart)
+
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/matlab/testSamples/tracedSampleModel.onnx"
   DESTINATION share/${PROJECT_NAME}/models)
 

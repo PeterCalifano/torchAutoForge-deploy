@@ -16,11 +16,11 @@
   <exec_depend>lifecycle_msgs</exec_depend>
   <exec_depend>ptafdeploy_ros</exec_depend>
   <exec_depend>rclcpp_components</exec_depend>
+  <exec_depend>rclpy</exec_depend>
 
   <test_depend>launch_testing_ament_cmake</test_depend>
   <test_depend>ptafdeploy</test_depend>
   <test_depend>ptafdeploy_interfaces</test_depend>
-  <test_depend>rclpy</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

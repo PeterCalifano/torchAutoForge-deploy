@@ -269,8 +269,9 @@ source ros2/install/setup.bash
 ros2 launch ptafdeploy_spinup ptafdeploy.launch.py
 ```
 
-The composed launch is `ptafdeploy_composition.launch.py`. Both launch files
-accept `autostart`, `namespace`, `node_name`, and `model_config_path`. The
+The composed launch is `ptafdeploy_composition.launch.py`, which runs
+`ptafdeploy.launch.py` with `composition:=true`. Both accept `autostart`,
+`namespace`, `node_name`, and `model_config_path`. The
 lifecycle node loads its `.ptafmodel` during configure, serves `~/infer` only
 while active, and publishes `~/status`. See
 [`doc/ros2_overlay.md`](doc/ros2_overlay.md) for the full contract.

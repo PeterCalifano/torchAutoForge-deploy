@@ -124,22 +124,25 @@ class TestSpinupLaunch(unittest.TestCase):
             f"Inference service was unavailable for {case}",
         )
 
+        # Use Node.count_publishers: Humble's Subscription has no
+        # get_publisher_count.
+        status_topic = f"{node_path}/status"
         status_messages: list[ModelStatus] = []
         status_subscription = self.node.create_subscription(
             ModelStatus,
-            f"{node_path}/status",
+            status_topic,
             status_messages.append,
             10,
         )
         try:
             discovery_deadline = time.monotonic() + 5.0
             while (
-                status_subscription.get_publisher_count() == 0
+                self.node.count_publishers(status_topic) == 0
                 and time.monotonic() < discovery_deadline
             ):
                 rclpy.spin_once(self.node, timeout_sec=0.1)
             self.assertGreater(
-                status_subscription.get_publisher_count(),
+                self.node.count_publishers(status_topic),
                 0,
                 f"Status publisher was undiscovered for {case}",
             )

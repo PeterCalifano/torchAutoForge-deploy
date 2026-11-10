@@ -1,7 +1,7 @@
 # ROS 2 Inference Overlay
 
-The ROS 2 Jazzy overlay is optional and does not affect the ordinary
-`build_lib.sh` workflow.
+The ROS 2 overlay targets Jazzy and also builds on Humble (Jetson, Ubuntu
+22.04). It is optional and does not affect the ordinary `build_lib.sh` workflow.
 
 ## Packages
 
@@ -47,7 +47,13 @@ ros2 launch ptafdeploy_spinup ptafdeploy_composition.launch.py \
 `--cmake-arg -Donnxruntime_DIR=/path/to/lib/cmake/onnxruntime` takes
 precedence.
 
-Set `autostart:=false` to leave the node unconfigured. Override
+`ptafdeploy_composition.launch.py` runs `ptafdeploy.launch.py` with
+`composition:=true`, which loads the node into a `component_container` instead
+of its own process. With `autostart:=true` (the default) the launch also runs
+the `lifecycle_autostart` helper, which waits for the node's lifecycle
+services and requests configure, then activate. It does not rely on the
+Jazzy-only `LifecycleNode(autostart=...)`, so the same launch files work on
+Humble. Set `autostart:=false` to leave the node unconfigured. Override
 `model_config_path` to load another installed or absolute manifest.
 
 `./build_ros2.sh --cuda --cmake-arg
